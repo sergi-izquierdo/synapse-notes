@@ -133,3 +133,8 @@
     transparent 1px
   );
 }
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
