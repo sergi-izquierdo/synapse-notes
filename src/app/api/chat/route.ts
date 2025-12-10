@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       .join("\n");
   }
 
-  console.log("🔍 Pregunta Usuari:", userQuestion); // LOG 1
+  //console.log("🔍 Pregunta Usuari:", userQuestion); // LOG 1
 
   // 1. Vectoritzem
   const queryEmbedding = await generateEmbedding(userQuestion);
@@ -33,11 +33,11 @@ export async function POST(req: Request) {
     match_count: 5,
   });
 
-  if (error) console.error("❌ Error Supabase:", error);
-  console.log("📄 Notes Trobades:", similarNotes?.length || 0); // LOG 2
-  if (similarNotes && similarNotes.length > 0) {
-    console.log("📝 Contingut 1a nota:", similarNotes[0].content); // LOG 3
-  }
+  // if (error) console.error("❌ Error Supabase:", error);
+  // console.log("📄 Notes Trobades:", similarNotes?.length || 0); // LOG 2
+  // if (similarNotes && similarNotes.length > 0) {
+  //   console.log("📝 Contingut 1a nota:", similarNotes[0].content); // LOG 3
+  // }
 
   const context =
     similarNotes?.map((note: any) => note.content).join("\n\n") || "";

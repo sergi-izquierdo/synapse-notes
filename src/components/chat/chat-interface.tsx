@@ -15,6 +15,7 @@ import { MessageCircle, X, Send } from "lucide-react";
 import { useLanguage } from "@/components/language-provider";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
+import ReactMarkdown from "react-markdown";
 
 export function ChatInterface() {
   const [isOpen, setIsOpen] = useState(false);
@@ -119,7 +120,14 @@ export function ChatInterface() {
                           {/* Renderitzem les parts del missatge */}
                           {m.parts.map((part, index) => {
                             if (part.type === "text") {
-                              return <span key={index}>{part.text}</span>;
+                              return (
+                                <div
+                                  key={index}
+                                  className="prose prose-sm dark:prose-invert break-words"
+                                >
+                                  <ReactMarkdown>{part.text}</ReactMarkdown>
+                                </div>
+                              );
                             }
                             return null;
                           })}
