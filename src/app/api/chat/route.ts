@@ -6,7 +6,9 @@ import { generateEmbedding } from "@/lib/ai";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages, chatId } = await req.json();
+
+  console.log("API Chat rebuda. ChatID:", chatId); // LOG DEBUG
 
   const lastMessage = messages[messages.length - 1];
   let userQuestion = "";
@@ -20,47 +22,58 @@ export async function POST(req: Request) {
       .join("\n");
   }
 
-  //console.log("🔍 Pregunta Usuari:", userQuestion); // LOG 1
-
-  // 1. Vectoritzem
+  // 1. RAG
   const queryEmbedding = await generateEmbedding(userQuestion);
-
-  // 2. Busquem context (baixem el threshold a 0.3 per ser més permissius)
   const supabase = await createClient();
-  const { data: similarNotes, error } = await supabase.rpc("match_notes", {
+
+  const { data: similarNotes } = await supabase.rpc("match_notes", {
     query_embedding: queryEmbedding,
-    match_threshold: 0.3, // ⚠️ BAIXEM LLISTÓ (Abans 0.5)
+    match_threshold: 0.3,
     match_count: 5,
   });
-
-  // if (error) console.error("❌ Error Supabase:", error);
-  // console.log("📄 Notes Trobades:", similarNotes?.length || 0); // LOG 2
-  // if (similarNotes && similarNotes.length > 0) {
-  //   console.log("📝 Contingut 1a nota:", similarNotes[0].content); // LOG 3
-  // }
 
   const context =
     similarNotes?.map((note: any) => note.content).join("\n\n") || "";
 
   const systemPrompt = `
     You are a helpful assistant for a "Second Brain" app.
-    
-    CONTEXT FROM USER NOTES:
-    ---------------------
+    CONTEXT:
     ${context}
-    ---------------------
-    
-    INSTRUCTIONS:
-    Answer the user's question based ONLY on the provided context.
-    If the context is empty or doesn't contain the answer, say "I can't find that information in your notes."
-    Current language: Catalan/Spanish/English mix. Answer in the user's language.
+    INSTRUCTIONS: Answer based on context.
   `;
 
-  // 3. Generem resposta amb un model
+  // 2. Generar i Guardar
   const result = streamText({
     model: google("gemini-2.5-flash"),
     system: systemPrompt,
     messages: convertToCoreMessages(messages),
+
+    onFinish: async ({ text }) => {
+      console.log("Stream finalitzat. Guardant a DB...", chatId);
+
+      if (!chatId) {
+        console.error("No hi ha ChatID, no es pot guardar.");
+        return;
+      }
+
+      // Guardem missatge USER
+      const { error: errorUser } = await supabase.from("messages").insert({
+        chat_id: chatId,
+        role: "user",
+        content: userQuestion,
+      });
+      if (errorUser) console.error("Error guardant User Msg:", errorUser);
+
+      // Guardem missatge AI
+      const { error: errorAI } = await supabase.from("messages").insert({
+        chat_id: chatId,
+        role: "assistant",
+        content: text,
+      });
+      if (errorAI) console.error("Error guardant AI Msg:", errorAI);
+
+      console.log("Conversa guardada correctament.");
+    },
   });
 
   return result.toUIMessageStreamResponse();

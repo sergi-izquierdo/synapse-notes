@@ -128,7 +128,7 @@ export function ChatInterface() {
                               return (
                                 <div
                                   key={index}
-                                  className="prose prose-sm dark:prose-invert break-words"
+                                  className="prose prose-sm dark:prose-invert wrap-break-word"
                                 >
                                   <ReactMarkdown>{part.text}</ReactMarkdown>
                                 </div>
