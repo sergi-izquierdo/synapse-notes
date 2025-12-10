@@ -19,6 +19,12 @@ export const translations = {
       google: "Continue with Google",
       github: "Continue with GitHub",
     },
+    chat: {
+      title: "Synapse AI",
+      welcome: "Hi! I'm your assistant. Ask me anything about your notes. 🧠",
+      placeholder: "Ask something...",
+      thinking: "Thinking...",
+    },
   },
   es: {
     dashboard: {
@@ -38,6 +44,13 @@ export const translations = {
       google: "Continuar con Google",
       github: "Continuar con GitHub",
     },
+    chat: {
+      title: "Synapse AI",
+      welcome:
+        "¡Hola! Soy tu asistente. Pregúntame lo que quieras sobre tus notas. 🧠",
+      placeholder: "Pregunta algo...",
+      thinking: "Pensando...",
+    },
   },
   ca: {
     dashboard: {
@@ -56,6 +69,13 @@ export const translations = {
       login_desc: "El teu segon cervell, potenciat per IA.",
       google: "Continuar amb Google",
       github: "Continuar amb GitHub",
+    },
+    chat: {
+      title: "Synapse AI",
+      welcome:
+        "Hola! Sóc el teu assistent. Pregunta'm qualsevol cosa sobre les teves notes. 🧠",
+      placeholder: "Demana alguna cosa...",
+      thinking: "Pensant...",
     },
   },
 };

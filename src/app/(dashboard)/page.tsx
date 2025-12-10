@@ -7,6 +7,7 @@ import { CreateNoteForm } from "@/components/notes/create-note-form";
 import { NoteGrid } from "@/components/notes/note-grid";
 import { LogOut } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header"; // El creem ara sota
+import { ChatInterface } from "@/components/chat/chat-interface";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
 
       <CreateNoteForm />
       <NoteGrid notes={notes || []} />
+      <ChatInterface />
     </div>
   );
 }
