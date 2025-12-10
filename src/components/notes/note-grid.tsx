@@ -1,20 +1,22 @@
+"use client";
+
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Trash2 } from "lucide-react";
 import { deleteNote } from "@/actions/notes";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/components/language-provider";
+interface NoteGridProps {
+  notes: any[]; // O el tipus Note
+}
 
-export async function NoteGrid() {
-  const supabase = await createClient();
-  const { data: notes } = await supabase
-    .from("notes")
-    .select("*")
-    .order("created_at", { ascending: false });
+export function NoteGrid({ notes }: NoteGridProps) {
+  const { t } = useLanguage();
 
   if (!notes || notes.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-10">
-        Encara no tens cap nota. Comença a escriure! 🚀
+        {t.dashboard.empty}
       </div>
     );
   }
