@@ -1,19 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { google } from "@ai-sdk/google";
-import { streamText, convertToCoreMessages } from "ai"; // ✅ IMPORT NOU
+import { streamText, convertToCoreMessages } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  // 1. Rebem els missatges "bruts" del frontend
   const { messages } = await req.json();
 
-  // 2. Extraiem el text de l'últim missatge per fer el RAG (Cerca)
   const lastMessage = messages[messages.length - 1];
   let userQuestion = "";
 
-  // Lògica robusta per treure el text (sigui string o parts)
   if (typeof lastMessage.content === "string") {
     userQuestion = lastMessage.content;
   } else if (Array.isArray(lastMessage.parts)) {
@@ -23,34 +20,46 @@ export async function POST(req: Request) {
       .join("\n");
   }
 
-  // 3. Generem l'Embedding de la pregunta
+  console.log("🔍 Pregunta Usuari:", userQuestion); // LOG 1
+
+  // 1. Vectoritzem
   const queryEmbedding = await generateEmbedding(userQuestion);
 
-  // 4. Busquem context a Supabase
+  // 2. Busquem context (baixem el threshold a 0.3 per ser més permissius)
   const supabase = await createClient();
-  const { data: similarNotes } = await supabase.rpc("match_notes", {
+  const { data: similarNotes, error } = await supabase.rpc("match_notes", {
     query_embedding: queryEmbedding,
-    match_threshold: 0.5,
+    match_threshold: 0.3, // ⚠️ BAIXEM LLISTÓ (Abans 0.5)
     match_count: 5,
   });
+
+  if (error) console.error("❌ Error Supabase:", error);
+  console.log("📄 Notes Trobades:", similarNotes?.length || 0); // LOG 2
+  if (similarNotes && similarNotes.length > 0) {
+    console.log("📝 Contingut 1a nota:", similarNotes[0].content); // LOG 3
+  }
 
   const context =
     similarNotes?.map((note: any) => note.content).join("\n\n") || "";
 
   const systemPrompt = `
-    You are a helpful assistant.
-    Context from user's notes:
-    ---
+    You are a helpful assistant for a "Second Brain" app.
+    
+    CONTEXT FROM USER NOTES:
+    ---------------------
     ${context}
-    ---
-    Answer based on the context. If the answer is not in the context, say so.
+    ---------------------
+    
+    INSTRUCTIONS:
+    Answer the user's question based ONLY on the provided context.
+    If the context is empty or doesn't contain the answer, say "I can't find that information in your notes."
+    Current language: Catalan/Spanish/English mix. Answer in the user's language.
   `;
 
-  // 5. Generem la resposta convertint els missatges
+  // 3. Generem resposta amb un model
   const result = streamText({
     model: google("gemini-2.5-flash"),
     system: systemPrompt,
-    // ✅ CORRECCIÓ CLAU: Convertim de "UI Messages" a "Core Messages"
     messages: convertToCoreMessages(messages),
   });
 
