@@ -3,7 +3,7 @@ export type Language = "en" | "es" | "ca";
 export const translations = {
   en: {
     dashboard: {
-      title: "My Second Brain 🧠",
+      title: "Synapse Notes 🧠",
       logout: "Log out",
       welcome: "Welcome to your private space.",
       empty: "No notes yet. Start writing! 🚀",
@@ -28,7 +28,7 @@ export const translations = {
   },
   es: {
     dashboard: {
-      title: "Mi Segundo Cerebro 🧠",
+      title: "Synapse Notes 🧠",
       logout: "Cerrar sesión",
       welcome: "Bienvenido a tu espacio privado.",
       empty: "Aún no hay notas. ¡Empieza a escribir! 🚀",
@@ -54,7 +54,7 @@ export const translations = {
   },
   ca: {
     dashboard: {
-      title: "El meu Cervell 🧠",
+      title: "Synapse Notes 🧠",
       logout: "Tancar sessió",
       welcome: "Benvingut al teu espai privat.",
       empty: "Encara no tens cap nota. Comença a escriure! 🚀",

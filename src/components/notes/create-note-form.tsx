@@ -36,19 +36,24 @@ export function CreateNoteForm() {
           formRef.current?.reset();
         }
       }}
-      className="mb-8 rounded-lg border bg-card p-4 shadow-sm"
+      className="group relative mb-8 overflow-hidden rounded-2xl border bg-background shadow-lg transition-all focus-within:ring-2 focus-within:ring-primary/20"
     >
-      <div className="flex flex-col gap-4">
-        <Textarea
-          name="content"
-          placeholder={t.dashboard.placeholder}
-          className="min-h-[100px] resize-none border-none bg-transparent text-lg focus-visible:ring-0"
-        />
-        <div className="flex justify-end">
-          <Button type="submit" size="sm">
-            <Send className="mr-2 h-4 w-4" /> {t.dashboard.save}
-          </Button>
-        </div>
+      <Textarea
+        name="content"
+        placeholder={t.dashboard.placeholder}
+        className="min-h-[120px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0"
+      />
+
+      <div className="flex items-center justify-between bg-muted/30 p-3 px-6">
+        <span className="text-xs text-muted-foreground">
+          Markdown supported
+        </span>
+        <Button
+          type="submit"
+          className="rounded-full px-6 shadow-md transition-transform hover:scale-105 active:scale-95"
+        >
+          <Send className="mr-2 h-4 w-4" /> {t.dashboard.save}
+        </Button>
       </div>
     </form>
   );

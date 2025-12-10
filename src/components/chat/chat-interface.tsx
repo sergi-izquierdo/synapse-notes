@@ -56,15 +56,20 @@ export function ChatInterface() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="fixed bottom-6 right-6 z-50"
+            className="fixed bottom-8 right-8 z-50"
           >
-            <Button
-              size="lg"
-              className="h-14 w-14 rounded-full shadow-lg"
-              onClick={() => setIsOpen(true)}
-            >
-              <MessageCircle className="h-6 w-6" />
-            </Button>
+            <div className="relative">
+              {/* Cercle animat darrere (Efecte Pulse) */}
+              <div className="absolute inset-0 -z-10 rounded-full bg-primary/20 animate-ping opacity-75" />
+
+              <Button
+                size="lg"
+                className="h-16 w-16 rounded-full shadow-2xl border-4 border-background transition-transform hover:scale-110 active:scale-90"
+                onClick={() => setIsOpen(true)}
+              >
+                <MessageCircle className="h-8 w-8" />
+              </Button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

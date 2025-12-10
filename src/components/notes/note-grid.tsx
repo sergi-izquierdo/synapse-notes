@@ -22,23 +22,29 @@ export function NoteGrid({ notes }: NoteGridProps) {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {notes.map((note) => (
         <Card
           key={note.id}
-          className="group relative overflow-hidden transition-all hover:shadow-md"
+          className="group relative flex flex-col overflow-hidden border-muted-foreground/10 bg-background/80 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-primary/20"
         >
-          <CardContent className="p-4 pt-4">
-            <p className="whitespace-pre-wrap text-sm">{note.content}</p>
+          <CardContent className="flex-1 p-6">
+            <div className="prose prose-sm dark:prose-invert break-words text-muted-foreground group-hover:text-foreground transition-colors">
+              {/* Si vols pots usar ReactMarkdown aquí també per les notes, o deixar text pla */}
+              <p className="whitespace-pre-wrap">{note.content}</p>
+            </div>
           </CardContent>
-          <CardFooter className="flex justify-end p-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <CardFooter className="flex justify-between border-t bg-muted/20 p-3 opacity-0 transition-opacity group-hover:opacity-100">
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(note.created_at).toLocaleDateString()}
+            </span>
             <form action={deleteNote.bind(null, note.id)}>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="h-7 w-7 text-muted-foreground hover:bg-destructive hover:text-white rounded-full"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3 w-3" />
               </Button>
             </form>
           </CardFooter>

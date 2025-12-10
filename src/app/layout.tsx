@@ -21,14 +21,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
+          "min-h-screen bg-background font-sans antialiased bg-dot-pattern",
           inter.className
         )}
       >
         {/* Embolica els children amb el Provider */}
         <LanguageProvider>
           {children}
-          <Toaster />
+          <Toaster position="top-center" richColors closeButton />
         </LanguageProvider>
       </body>
     </html>
