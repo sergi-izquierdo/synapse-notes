@@ -13,7 +13,6 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return redirect("/login");
 
   const { data: notes } = await supabase
@@ -21,13 +20,21 @@ export default async function DashboardPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
+  // CALCULATION: Extract unique tags
+  const allTags = notes?.flatMap((note) => note.tags || []) || [];
+  const availableTags = Array.from(new Set(allTags)).sort();
+
+  // DEBUG LOG: Check terminal to see if tags exist here
+  console.log(`[SERVER] Total Notes: ${notes?.length}`);
+  console.log(`[SERVER] Extracted Tags:`, availableTags);
+
   return (
-    // ✅ CONTENIDOR FLEX (Pantalla Completa sense scroll al body)
+    // CONTENIDOR FLEX (Pantalla Completa sense scroll al body)
     <div className="flex h-screen w-full overflow-hidden bg-dot-pattern">
-      {/* 👈 BARRA LATERAL ESQUERRA (XAT) */}
+      {/* BARRA LATERAL ESQUERRA (XAT) */}
       <ChatSidebar userId={user.id} />
 
-      {/* 👉 CONTINGUT PRINCIPAL (NOTES) */}
+      {/* CONTINGUT PRINCIPAL (NOTES) */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Scroll només a la zona de contingut */}
         <div className="flex-1 overflow-y-auto">
@@ -46,7 +53,8 @@ export default async function DashboardPage() {
             {/* Creació i Grid */}
             <div className="space-y-8 pb-20">
               <section>
-                <CreateNoteForm />
+                {/* ✅ PASSING TAGS TO CREATE FORM */}
+                <CreateNoteForm availableTags={availableTags} />
               </section>
 
               <section>
@@ -56,7 +64,7 @@ export default async function DashboardPage() {
                     {notes?.length || 0}
                   </span>
                 </h2>
-                <NoteGrid notes={notes || []} />
+                <NoteGrid notes={notes || []} availableTags={availableTags} />
               </section>
             </div>
           </div>

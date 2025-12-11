@@ -15,24 +15,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateNote } from "@/actions/notes";
 import { toast } from "sonner";
 import { Loader2, Bold, Italic, List, ListTodo } from "lucide-react";
+// ✅ CHANGE: Import Selector instead of Input
+import { TagSelector } from "@/components/ui/tag-selector";
 
 interface EditNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  note: { id: number; content: string };
+  note: { id: number; content: string; tags: string[] };
+  // ✅ NEW PROP
+  availableTags: string[];
 }
 
 export function EditNoteDialog({
   open,
   onOpenChange,
   note,
+  availableTags,
 }: EditNoteDialogProps) {
   const [content, setContent] = useState(note.content);
+  const [tags, setTags] = useState<string[]>(note.tags || []);
   const [isSaving, setIsSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const router = useRouter(); // Hook per refrescar
+  const router = useRouter();
 
-  // Lògica de la Toolbar
+  // Toolbar logic
   const insertFormat = (prefix: string, suffix: string = "") => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -58,21 +64,14 @@ export function EditNoteDialog({
   const handleSave = async () => {
     setIsSaving(true);
 
-    // 1. Cridem al Server Action
-    const result = await updateNote(note.id, content);
+    const result = await updateNote(note.id, content, tags);
 
     if (result?.error) {
       setIsSaving(false);
       toast.error("Error", { description: result.error });
     } else {
-      // 2. Èxit
-      toast.success("Actualitzat", {
-        description: "Nota i memòria IA actualitzades.",
-      });
-
-      // 3. Forcem refresc de la pàgina per veure els canvis al grid
+      toast.success("Updated", { description: "Note updated." });
       router.refresh();
-
       setIsSaving(false);
       onOpenChange(false);
     }
@@ -82,9 +81,9 @@ export function EditNoteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden gap-0">
         <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>Editar Nota</DialogTitle>
+          <DialogTitle>Edit Note</DialogTitle>
           <DialogDescription>
-            Modifica el contingut i l'estil de la teva nota.
+            Modify your note content and tags.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,17 +134,29 @@ export function EditNoteDialog({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="min-h-[300px] resize-none text-base border-none focus-visible:ring-0 p-0 shadow-none font-sans"
-            placeholder="Escriu aquí..."
+            placeholder="Type here..."
+          />
+        </div>
+
+        <div className="px-6 pb-4">
+          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+            Tags
+          </label>
+          {/* ✅ CHANGE: Use TagSelector */}
+          <TagSelector
+            selectedTags={tags}
+            setSelectedTags={setTags}
+            availableTags={availableTags}
           />
         </div>
 
         <DialogFooter className="px-6 pb-6 sm:justify-between">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel·lar
+            Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Canvis
+            Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>

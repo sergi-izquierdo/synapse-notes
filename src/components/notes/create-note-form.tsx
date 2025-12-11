@@ -7,12 +7,15 @@ import { useRef, useState } from "react";
 import { Send, Bold, List, ListTodo, Italic } from "lucide-react"; // Noves icones
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
+import { TagInput } from "@/components/ui/tag-input";
+import { TagSelector } from "../ui/tag-selector";
 
-export function CreateNoteForm() {
+export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null); // Referència per manipular el text
   const { t } = useLanguage();
   const [content, setContent] = useState(""); // Controlem l'estat per a la toolbar
+  const [tags, setTags] = useState<string[]>([]); // Estat per tags
 
   // Funció per inserir format al cursor
   const insertFormat = (prefix: string, suffix: string = "") => {
@@ -44,6 +47,7 @@ export function CreateNoteForm() {
       action={async (formData) => {
         // Assegurem que s'envia l'estat actual
         formData.set("content", content);
+        formData.set("tags", JSON.stringify(tags));
 
         const toastId = toast.loading(t.dashboard.saving || "Saving...");
         const result = await createNote(formData);
@@ -59,6 +63,7 @@ export function CreateNoteForm() {
             id: toastId,
           });
           setContent(""); // Netejem l'estat
+          setTags([]); // Netejem tags
         }
       }}
       className="group relative mb-8 overflow-hidden rounded-2xl border bg-background shadow-lg transition-all focus-within:ring-2 focus-within:ring-primary/20"
@@ -108,6 +113,7 @@ export function CreateNoteForm() {
         </Button>
       </div>
 
+      {/* TEXTAREA */}
       <Textarea
         ref={textareaRef}
         name="content"
@@ -116,6 +122,15 @@ export function CreateNoteForm() {
         placeholder={t.dashboard.placeholder}
         className="min-h-[120px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0 font-sans"
       />
+
+      {/* ZONA DE TAGS */}
+      <div className="px-6 pb-2">
+        <TagSelector
+          selectedTags={tags}
+          setSelectedTags={setTags}
+          availableTags={availableTags} // Autocomplete available tags
+        />
+      </div>
 
       <div className="flex items-center justify-end bg-muted/10 p-3 px-6">
         <Button

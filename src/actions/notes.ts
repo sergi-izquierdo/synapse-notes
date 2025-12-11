@@ -18,6 +18,10 @@ export async function createNote(formData: FormData) {
   if (!user) throw new Error("Unauthorized");
 
   const content = formData.get("content") as string;
+
+  const tagsRaw = formData.get("tags") as string;
+  const tags = tagsRaw ? JSON.parse(tagsRaw) : [];
+
   const validatedFields = NoteSchema.safeParse({ content });
 
   if (!validatedFields.success) {
@@ -25,14 +29,15 @@ export async function createNote(formData: FormData) {
   }
 
   try {
-    // 🧠 1. Generem l'Embedding (La part IA)
-    const embedding = await generateEmbedding(validatedFields.data.content);
+    // 1. Generem l'Embedding (La part IA)
+    const embedding = await generateEmbedding(content);
 
-    // 💾 2. Guardem Text + Vector a Supabase
+    // 2. Guardem Text + Vector a Supabase
     const { error } = await supabase.from("notes").insert({
       user_id: user.id,
-      content: validatedFields.data.content,
-      embedding: embedding, // <--- Aquí guardem el vector!
+      content,
+      tags,
+      embedding,
     });
 
     if (error) {
@@ -58,34 +63,44 @@ export async function deleteNote(noteId: number) {
   revalidatePath("/");
 }
 
-export async function updateNote(noteId: number, content: string) {
+export async function updateNote(
+  noteId: number,
+  content: string,
+  tags: string[]
+) {
   const supabase = await createClient();
 
-  // 1. Validació bàsica
+  // 1. Validació usuari
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Unauthorized" };
+  }
+
   if (!content || content.trim().length === 0) {
     return { error: "El contingut no pot estar buit." };
   }
 
   try {
-    // 2. RE-GENERAR EMBEDDING (Crític per al RAG)
+    // 2. Generar Embedding
     const embedding = await generateEmbedding(content);
 
-    // 3. Actualitzar a Supabase (Text + Vector + UpdatedAt)
+    // 3. Actualitzar a Supabase
     const { error } = await supabase
       .from("notes")
       .update({
-        content: content,
-        embedding: embedding,
+        content,
+        tags,
+        embedding,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", noteId);
-
-    if (error) throw error;
+      .eq("id", noteId)
+      .select(); // IMPORTANT: Això ens permet veure si realment ha tocat alguna fila
 
     revalidatePath("/");
     return { success: true };
   } catch (error) {
-    console.error("Error updating note:", error);
     return { error: "Error al actualitzar la nota." };
   }
 }
