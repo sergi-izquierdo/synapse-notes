@@ -57,3 +57,35 @@ export async function deleteNote(noteId: number) {
 
   revalidatePath("/");
 }
+
+export async function updateNote(noteId: number, content: string) {
+  const supabase = await createClient();
+
+  // 1. Validació bàsica
+  if (!content || content.trim().length === 0) {
+    return { error: "El contingut no pot estar buit." };
+  }
+
+  try {
+    // 2. RE-GENERAR EMBEDDING (Crític per al RAG)
+    const embedding = await generateEmbedding(content);
+
+    // 3. Actualitzar a Supabase (Text + Vector + UpdatedAt)
+    const { error } = await supabase
+      .from("notes")
+      .update({
+        content: content,
+        embedding: embedding,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", noteId);
+
+    if (error) throw error;
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating note:", error);
+    return { error: "Error al actualitzar la nota." };
+  }
+}
