@@ -1,124 +1,123 @@
 import { createClient } from "@/lib/supabase/server";
 import { google } from "@ai-sdk/google";
-import { streamText, convertToCoreMessages, tool, stepCountIs } from "ai";
+import { streamText, tool, stepCountIs } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, chatId } = await req.json();
-  const supabase = await createClient();
+    const { messages, chatId } = await req.json();
+    const supabase = await createClient();
 
-  // console.log("API Chat received. ChatID:", chatId);
+    // 1. Extracció del missatge de l'usuari
+    const coreMessages = messages.map((m: any) => {
+        let content = '';
+        if (typeof m.content === 'string') {
+            content = m.content;
+        } else if (Array.isArray(m.parts)) {
+            content = m.parts
+                .filter((p: any) => p.type === 'text')
+                .map((p: any) => p.text)
+                .join('\n');
+        }
+        return { role: m.role, content: content };
+    });
 
-  const lastMessage = messages[messages.length - 1];
-  let userQuestion = "";
+    const lastMessage = coreMessages[coreMessages.length - 1];
+    const userQuestion = lastMessage.content;
 
-  // 1. Robust text extraction (String or Multipart)
-  if (typeof lastMessage.content === "string") {
-    userQuestion = lastMessage.content;
-  } else if (Array.isArray(lastMessage.parts)) {
-    userQuestion = lastMessage.parts
-      .filter((part: any) => part.type === "text")
-      .map((part: any) => part.text)
-      .join("\n");
-  }
+    // 2. Obtenir tags existents
+    const { data: allNotesTags } = await supabase.from('notes').select('tags');
+    const uniqueTags = Array.from(new Set(allNotesTags?.flatMap(n => n.tags) || [])).join(', ');
 
-  // 2. RAG Context (Vector Search)
-  const queryEmbedding = await generateEmbedding(userQuestion);
-  const { data: similarNotes } = await supabase.rpc("match_notes", {
-    query_embedding: queryEmbedding,
-    match_threshold: 0.3,
-    match_count: 5,
-  });
+    // 3. RAG Context (Cerca Vectorial)
+    const queryEmbedding = await generateEmbedding(userQuestion);
 
-  const ragContext =
-    similarNotes?.map((note: any) => note.content).join("\n\n") || "";
+    const { data: similarNotes } = await supabase.rpc("match_notes", {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.1, // ✅ CORRECCIÓ 1: Baixem llistó (era 0.3). Més permissiu.
+        match_count: 10,      // ✅ Augmentem el context a 10 notes.
+    });
 
-  const systemPrompt = `
-    You are a helpful assistant for a "Second Brain" app.
+    // 🔍 DEBUG: Mirem si realment troba notes
+    console.log(`🔍 RAG Search for "${userQuestion}": Found ${similarNotes?.length || 0} notes.`);
+
+    const ragContext =
+        similarNotes?.map((note: any) => `NOTE CONTENT: ${note.content}`).join("\n\n") || "No relevant notes found via search.";
+
+    // 4. Prompt d'Enginyeria (Híbrid)
+    const systemPrompt = `
+     You are a helpful assistant for a "Second Brain" app.
+     
+     ==============
+     🧠 MEMORY (CONTEXT FROM NOTES):
+     ${ragContext}
+     ==============
+
+     🏷️ AVAILABLE TAGS:
+     [${uniqueTags}]
+     
+     INSTRUCTIONS:
+     1. **PRIORITY 1: CHECK MEMORY.** 
+        - Look at the "MEMORY" section above FIRST. 
+        - If the answer to the user's question is there, answer directly using that information.
+        - Example: If user asks "dog names" and you see "Kuro" in memory, answer "Your dogs are Kuro...".
+
+     2. **PRIORITY 2: USE TOOLS (Only if needed).**
+        - ONLY use the 'getNotesByTag' tool if the user explicitly asks for a *list*, *category*, or *tag* that you don't fully see in memory.
+        - If user asks for "ideas" and the memory is empty, try the tool with tag "Ideas" or "Idees".
     
-    STANDARD CONTEXT (From Vector Search):
-    ${ragContext}
-    
-    INSTRUCTIONS:
-    1. **Tool Use (Tags):** 
-       - If the user asks for a category, list, or tag (e.g., "my ideas", "shopping list", "things to buy"), use the 'getNotesByTag' tool.
-       - **IMPORTANT:** Users might be imprecise. If the user asks for "ideas", try searching for the tag "Ideas" OR "Idees" OR "Idea". 
-       - If the first tag search returns nothing, try a likely variation (singular/plural, translated).
-    
-    2. **General Answering:**
-       - If no tool is needed, answer based on the standard context provided above.
-    
-    3. **Language:**
-       - Answer in the user's language (Catalan/Spanish/English).
-  `;
+     3. **Language:**
+        - Answer in the user's language.
+   `;
 
-  // 3. Define Tool Schema
-  const GetNotesByTagSchema = z.object({
-    tag: z.string().describe('The tag to filter by (e.g., "Ideas", "Work")'),
-  });
+    // Define Tool Schema
+    const GetNotesByTagSchema = z.object({
+        tag: z.string().describe(`The tag to filter by. Must be one of: ${uniqueTags}`),
+    });
 
-  // 4. Generate Response
-  const result = streamText({
-    model: google("gemini-2.5-flash"),
-    system: systemPrompt,
-    messages: convertToCoreMessages(messages),
-    stopWhen: stepCountIs(3),
+    // 5. Generate Response
+    const result = streamText({
+        model: google("gemini-2.5-flash"),
+        system: systemPrompt,
+        messages: coreMessages,
+        stopWhen: stepCountIs(3),
 
-    // ✅ TOOLS DEFINITION (AI SDK v5+)
-    tools: {
-      getNotesByTag: tool({
-        description:
-          "Get a list of notes that have a specific tag. Use this when the user asks for a category or tag.",
+        tools: {
+            getNotesByTag: tool({
+                description:
+                    "Get a list of notes that have a specific tag. Use this when the user asks for a category.",
+                inputSchema: GetNotesByTagSchema,
+                execute: async ({ tag }: z.infer<typeof GetNotesByTagSchema>) => {
+                    console.log(`🤖 Searching tag: '${tag}'...`);
+                    const { data, error } = await supabase
+                        .from("notes")
+                        .select("content, created_at")
+                        .contains("tags", [tag])
+                        .limit(20); // Més resultats per tag
 
-        inputSchema: GetNotesByTagSchema,
-
-        // Explicitly typing arguments ensures TypeScript validation
-        execute: async ({ tag }: z.infer<typeof GetNotesByTagSchema>) => {
-          console.log(`AI Tool Execution: Searching for tag '${tag}'...`);
-
-          // Exact SQL Search for tags in Supabase
-          const { data, error } = await supabase
-            .from("notes")
-            .select("content, created_at")
-            .contains("tags", [tag]) // Postgres array query
-            .limit(10);
-
-          if (error) return `Error fetching tags: ${error.message}`;
-          if (!data || data.length === 0)
-            return `No notes found with tag '${tag}'.`;
-
-          return JSON.stringify(data);
+                    if (error) return `Error: ${error.message}`;
+                    if (!data || data.length === 0) return `No notes found with tag '${tag}'.`;
+                    return JSON.stringify(data);
+                },
+            }),
         },
-      }),
-    },
 
-    // 5. Save to Database (History)
-    onFinish: async ({ text }) => {
-      if (!chatId) {
-        console.error("No ChatID provided, skipping save.");
-        return;
-      }
+        onFinish: async ({ text }) => {
+            if (!chatId) return;
+            await supabase.from("messages").insert({
+                chat_id: chatId,
+                role: "user",
+                content: userQuestion,
+            });
+            await supabase.from("messages").insert({
+                chat_id: chatId,
+                role: "assistant",
+                content: text,
+            });
+        },
+    });
 
-      // Save User Message
-      const { error: errorUser } = await supabase.from("messages").insert({
-        chat_id: chatId,
-        role: "user",
-        content: userQuestion,
-      });
-      if (errorUser) console.error("Error saving User Msg:", errorUser);
-
-      // Save AI Message
-      const { error: errorAI } = await supabase.from("messages").insert({
-        chat_id: chatId,
-        role: "assistant",
-        content: text,
-      });
-      if (errorAI) console.error("Error saving AI Msg:", errorAI);
-    },
-  });
-
-  return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse();
 }

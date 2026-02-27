@@ -1,7 +1,7 @@
 import { google } from "@ai-sdk/google";
 import { embed } from "ai";
 
-const embeddingModel = google.textEmbeddingModel("text-embedding-004");
+const embeddingModel = google.embedding("gemini-embedding-001");
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   // Protecció contra undefined/null
@@ -18,6 +18,11 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     const { embedding } = await embed({
       model: embeddingModel,
       value: cleanText,
+      providerOptions: {
+        google: {
+          outputDimensionality: 768,
+        },
+      },
     });
 
     return embedding;
