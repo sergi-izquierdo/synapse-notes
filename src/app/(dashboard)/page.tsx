@@ -24,10 +24,6 @@ export default async function DashboardPage() {
   const allTags = notes?.flatMap((note) => note.tags || []) || [];
   const availableTags = Array.from(new Set(allTags)).sort();
 
-  // DEBUG LOG: Check terminal to see if tags exist here
-  console.log(`[SERVER] Total Notes: ${notes?.length}`);
-  console.log(`[SERVER] Extracted Tags:`, availableTags);
-
   return (
     // CONTENIDOR FLEX (Pantalla Completa sense scroll al body)
     <div className="flex h-screen w-full overflow-hidden bg-dot-pattern">

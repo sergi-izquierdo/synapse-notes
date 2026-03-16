@@ -3,22 +3,23 @@ import { google } from "@ai-sdk/google";
 import { streamText, tool, stepCountIs } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
+import type { ChatRequestMessage, MatchedNote } from "@/types/database";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-    const { messages, chatId } = await req.json();
+    const { messages, chatId }: { messages: ChatRequestMessage[]; chatId: string | null } = await req.json();
     const supabase = await createClient();
 
-    // 1. Extracció del missatge de l'usuari
-    const coreMessages = messages.map((m: any) => {
+    // Extract text content from each message
+    const coreMessages = messages.map((m: ChatRequestMessage) => {
         let content = '';
         if (typeof m.content === 'string') {
             content = m.content;
         } else if (Array.isArray(m.parts)) {
             content = m.parts
-                .filter((p: any) => p.type === 'text')
-                .map((p: any) => p.text)
+                .filter((p) => p.type === 'text')
+                .map((p) => p.text ?? '')
                 .join('\n');
         }
         return { role: m.role, content: content };
@@ -31,20 +32,17 @@ export async function POST(req: Request) {
     const { data: allNotesTags } = await supabase.from('notes').select('tags');
     const uniqueTags = Array.from(new Set(allNotesTags?.flatMap(n => n.tags) || [])).join(', ');
 
-    // 3. RAG Context (Cerca Vectorial)
+    // RAG Context (Vector Search)
     const queryEmbedding = await generateEmbedding(userQuestion);
 
     const { data: similarNotes } = await supabase.rpc("match_notes", {
         query_embedding: queryEmbedding,
-        match_threshold: 0.1, // ✅ CORRECCIÓ 1: Baixem llistó (era 0.3). Més permissiu.
-        match_count: 10,      // ✅ Augmentem el context a 10 notes.
+        match_threshold: 0.1,
+        match_count: 10,
     });
 
-    // 🔍 DEBUG: Mirem si realment troba notes
-    console.log(`🔍 RAG Search for "${userQuestion}": Found ${similarNotes?.length || 0} notes.`);
-
     const ragContext =
-        similarNotes?.map((note: any) => `NOTE CONTENT: ${note.content}`).join("\n\n") || "No relevant notes found via search.";
+        similarNotes?.map((note: MatchedNote) => `NOTE CONTENT: ${note.content}`).join("\n\n") || "No relevant notes found via search.";
 
     // 4. Prompt d'Enginyeria (Híbrid)
     const systemPrompt = `
@@ -90,7 +88,6 @@ export async function POST(req: Request) {
                     "Get a list of notes that have a specific tag. Use this when the user asks for a category.",
                 inputSchema: GetNotesByTagSchema,
                 execute: async ({ tag }: z.infer<typeof GetNotesByTagSchema>) => {
-                    console.log(`🤖 Searching tag: '${tag}'...`);
                     const { data, error } = await supabase
                         .from("notes")
                         .select("content, created_at")
