@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { google } from "@ai-sdk/google";
-import { streamText, tool, stepCountIs } from "ai";
+import { streamText, generateText, tool, stepCountIs } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
 import type { ChatRequestMessage, MatchedNote } from "@/types/database";
@@ -113,6 +113,30 @@ export async function POST(req: Request) {
                 role: "assistant",
                 content: text,
             });
+
+            // Auto-generate chat title if still default
+            const { data: chat } = await supabase
+                .from("chats")
+                .select("title")
+                .eq("id", chatId)
+                .single();
+
+            if (chat?.title === "Nova Conversa") {
+                generateText({
+                    model: google("gemini-2.0-flash-lite"),
+                    prompt: `Generate a very short title (max 6 words) for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end. Use the same language as the message.\n\nMessage: "${userQuestion}"`,
+                }).then(async ({ text: title }) => {
+                    const cleanTitle = title.trim().replace(/^["']|["']$/g, '').substring(0, 60);
+                    if (cleanTitle) {
+                        await supabase
+                            .from("chats")
+                            .update({ title: cleanTitle })
+                            .eq("id", chatId);
+                    }
+                }).catch((err) => {
+                    console.error("Error generating chat title:", err);
+                });
+            }
         },
     });
 
