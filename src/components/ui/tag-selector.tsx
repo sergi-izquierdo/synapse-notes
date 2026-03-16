@@ -35,11 +35,6 @@ export function TagSelector({
   const [inputValue, setInputValue] = React.useState("");
   const { t } = useLanguage();
 
-  // 🕵️‍♂️ DEBUG: Check browser console to see if tags are arriving
-  React.useEffect(() => {
-    console.log("[CLIENT] TagSelector received availableTags:", availableTags);
-  }, [availableTags]);
-
   const handleSelect = (currentValue: string) => {
     if (selectedTags.includes(currentValue)) {
       setSelectedTags(selectedTags.filter((tag) => tag !== currentValue));

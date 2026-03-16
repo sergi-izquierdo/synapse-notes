@@ -6,15 +6,18 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, History, Send, Bot, Loader2 } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
+import type { UIMessage } from 'ai'
+import { isToolUIPart, getToolName } from 'ai'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
+import type { Chat, Message } from '@/types/database'
 
 export function ChatSidebar({ userId }: { userId: string }) {
     const [chatId, setChatId] = useState<string | null>(null)
-    const [chatList, setChatList] = useState<any[]>([])
+    const [chatList, setChatList] = useState<Chat[]>([])
     const [input, setInput] = useState('')
     const [isMounted, setIsMounted] = useState(false)
 
@@ -29,13 +32,6 @@ export function ChatSidebar({ userId }: { userId: string }) {
             toast.error("Error al xat")
         }
     })
-
-    // 🔍 DEBUG: Mira la consola del navegador (F12) per veure els missatges en temps real
-    useEffect(() => {
-        if (messages.length > 0) {
-            console.log("📨 ESTAT ACTUAL DELS MISSATGES:", messages)
-        }
-    }, [messages])
 
     const isLoading = status === 'submitted' || status === 'streaming'
 
@@ -56,17 +52,15 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
     const loadChat = async (id: string) => {
         setChatId(id)
-        console.log("🔄 Carregant xat:", id)
         const { data } = await supabase.from('messages').select('*').eq('chat_id', id).order('created_at', { ascending: true })
 
         if (data) {
-            const uiMessages = data.map((m: any) => ({
+            const uiMessages = data.map((m: Message) => ({
                 id: m.id,
-                role: m.role,
-                // Assegurem que sempre hi ha parts
-                parts: [{ type: 'text', text: m.content }]
+                role: m.role as 'user' | 'assistant',
+                parts: [{ type: 'text' as const, text: m.content }]
             }))
-            setMessages(uiMessages as any)
+            setMessages(uiMessages as UIMessage[])
         }
     }
 
@@ -100,8 +94,6 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
         const content = input
         setInput('')
-
-        console.log("📤 Enviant:", content)
 
         await sendMessage(
             { role: 'user', parts: [{ type: 'text', text: content }] },
@@ -165,10 +157,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                             <div className="prose prose-sm dark:prose-invert break-words leading-relaxed">
                                                 {/* ✅ RENDERITZAT ROBUST DE PARTS */}
                                                 {m.parts ? (
-                                                    m.parts.map((part: any, index: number) => {
-                                                        // 🔍 DEBUG PART
-                                                        // console.log("Part rendering:", part.type, part)
-
+                                                    m.parts.map((part, index) => {
                                                         // CASE 1: TEXT
                                                         if (part.type === 'text') {
                                                             return (
@@ -179,35 +168,26 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                         }
 
                                                         // CASE 2: TOOL INVOCATION
-                                                        // Hem posat (part: any) al map per evitar errors de TS estrictes
-                                                        if (part.type === 'tool-invocation') {
-                                                            const invocation = part.toolInvocation
-                                                            const isRunning = invocation.state !== 'result'
+                                                        if (isToolUIPart(part)) {
+                                                            const toolName = getToolName(part)
+                                                            const isRunning = part.state !== 'output-available'
 
                                                             return (
                                                                 <div key={index} className="flex flex-col gap-1 my-2 text-xs text-muted-foreground bg-black/5 dark:bg-white/10 p-2 rounded-md font-mono border border-black/5">
                                                                     <div className="flex items-center gap-2">
-                                                                <span className={cn(isRunning ? "animate-pulse text-amber-500" : "text-green-500")}>
-                                                                    {isRunning ? '⚡' : '✓'}
-                                                                </span>
+                                                                        <span className={cn(isRunning ? "animate-pulse text-amber-500" : "text-green-500")}>
+                                                                            {isRunning ? '\u26A1' : '\u2713'}
+                                                                        </span>
                                                                         <span className="font-bold">
-                                                                    {invocation.toolName}
-                                                                </span>
+                                                                            {toolName}
+                                                                        </span>
                                                                     </div>
-                                                                    {/* Opcional: Mostrar args */}
-                                                                    {/* <pre className="text-[10px] opacity-50">{JSON.stringify(invocation.args, null, 2)}</pre> */}
-
-                                                                    {/* Si tenim resultat i volem mostrar-lo (debug), descomenta això: */}
-                                                                    {/* {invocation.result && <div className="mt-1 opacity-75">Found {JSON.parse(invocation.result).length} notes</div>} */}
                                                                 </div>
                                                             )
                                                         }
                                                         return null
                                                     })
-                                                ) : (
-                                                    // Fallback per a missatges antics sense 'parts'
-                                                    <ReactMarkdown>{(m as any).content}</ReactMarkdown>
-                                                )}
+                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
