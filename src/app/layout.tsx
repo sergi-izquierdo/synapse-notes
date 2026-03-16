@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LanguageProvider } from "@/components/language-provider";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -26,10 +27,12 @@ export default function RootLayout({
         )}
       >
         {/* Embolica els children amb el Provider */}
-        <LanguageProvider>
-          {children}
-          <Toaster position="top-center" richColors closeButton />
-        </LanguageProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <LanguageProvider>
+            {children}
+            <Toaster position="top-center" richColors closeButton />
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

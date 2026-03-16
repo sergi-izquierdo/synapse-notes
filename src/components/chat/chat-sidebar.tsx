@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, History, Send, Bot, Loader2 } from 'lucide-react'
+import { Plus, Send, Bot, Loader2, MessageCircle } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from 'ai'
 import { isToolUIPart, getToolName } from 'ai'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import type { Chat, Message } from '@/types/database'
@@ -20,12 +22,16 @@ export function ChatSidebar({ userId }: { userId: string }) {
     const [chatList, setChatList] = useState<Chat[]>([])
     const [input, setInput] = useState('')
     const [isMounted, setIsMounted] = useState(false)
+    const [sheetOpen, setSheetOpen] = useState(false)
 
     const supabase = createClient()
 
     const { messages, status, sendMessage, setMessages } = useChat({
         onFinish: () => {
-            if (!chatId) fetchChats()
+            // Re-fetch chats to pick up auto-generated titles
+            fetchChats()
+            // Title generation is async on the server, so re-fetch after a delay
+            setTimeout(() => fetchChats(), 3000)
         },
         onError: (error) => {
             console.error("❌ Error al xat:", error)
@@ -101,9 +107,8 @@ export function ChatSidebar({ userId }: { userId: string }) {
         )
     }
 
-    return (
-        <aside className="w-[400px] flex flex-col border-r bg-background/50 backdrop-blur-xl h-full shadow-xl z-20">
-
+    const sidebarContent = (
+        <>
             {/* HEADER */}
             <div className="p-4 border-b flex items-center justify-between bg-background/80">
                 <div className="flex items-center gap-2 font-semibold text-primary">
@@ -117,18 +122,22 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* HISTORIAL */}
-                <div className="w-14 border-r bg-muted/10 flex flex-col items-center py-4 gap-2 overflow-y-auto hide-scrollbar">
+                <div className="w-48 border-r bg-muted/10 flex flex-col py-2 gap-1 overflow-y-auto hide-scrollbar">
                     {chatList.map((chat) => (
-                        <Button
+                        <button
                             key={chat.id}
-                            variant={chatId === chat.id ? "default" : "ghost"}
-                            size="icon"
-                            className="h-9 w-9 rounded-full transition-all hover:scale-110"
+                            className={cn(
+                                "flex items-center gap-2 w-full px-3 py-2 text-left text-xs rounded-md transition-colors truncate",
+                                chatId === chat.id
+                                    ? "bg-primary text-primary-foreground"
+                                    : "hover:bg-muted/50 text-muted-foreground"
+                            )}
                             onClick={() => loadChat(chat.id)}
-                            title={new Date(chat.created_at).toLocaleDateString()}
+                            title={chat.title || 'Nova Conversa'}
                         >
-                            <History className="h-4 w-4" />
-                        </Button>
+                            <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{chat.title || 'Nova Conversa'}</span>
+                        </button>
                     ))}
                 </div>
 
@@ -155,7 +164,6 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                 : "bg-white dark:bg-muted border rounded-tl-none"
                                         )}>
                                             <div className="prose prose-sm dark:prose-invert break-words leading-relaxed">
-                                                {/* ✅ RENDERITZAT ROBUST DE PARTS */}
                                                 {m.parts ? (
                                                     m.parts.map((part, index) => {
                                                         // CASE 1: TEXT
@@ -225,6 +233,34 @@ export function ChatSidebar({ userId }: { userId: string }) {
                     </div>
                 </div>
             </div>
-        </aside>
+        </>
+    )
+
+    return (
+        <>
+            {/* DESKTOP: visible aside at md+ */}
+            <aside className="hidden md:flex w-[520px] flex-col border-r bg-background/50 backdrop-blur-xl h-full shadow-xl z-20">
+                {sidebarContent}
+            </aside>
+
+            {/* MOBILE: floating button + Sheet */}
+            <Button
+                variant="default"
+                size="icon"
+                className="md:hidden fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg"
+                onClick={() => setSheetOpen(true)}
+            >
+                <MessageCircle className="h-6 w-6" />
+            </Button>
+
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetContent side="left" className="w-[85vw] sm:max-w-[400px] p-0 flex flex-col">
+                    <VisuallyHidden.Root>
+                        <SheetTitle>Synapse AI Chat</SheetTitle>
+                    </VisuallyHidden.Root>
+                    {sidebarContent}
+                </SheetContent>
+            </Sheet>
+        </>
     )
 }
