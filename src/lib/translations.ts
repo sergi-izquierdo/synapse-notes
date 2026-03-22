@@ -25,6 +25,14 @@ export const translations = {
       placeholder: "Ask something...",
       thinking: "Thinking...",
     },
+    settings: {
+      title: "Settings",
+      appearance: "Appearance",
+      appearance_desc: "Customize the look and feel of the application.",
+      dark_mode: "Dark mode",
+      language: "Language",
+      language_desc: "Choose your preferred language.",
+    },
     common: {
       tags: "Tags",
       add_tag: "Add tag...",
@@ -65,6 +73,14 @@ export const translations = {
       placeholder: "Pregunta algo...",
       thinking: "Pensando...",
     },
+    settings: {
+      title: "Ajustes",
+      appearance: "Apariencia",
+      appearance_desc: "Personaliza el aspecto de la aplicación.",
+      dark_mode: "Modo oscuro",
+      language: "Idioma",
+      language_desc: "Elige tu idioma preferido.",
+    },
     common: {
       tags: "Etiquetas",
       add_tag: "Añadir etiqueta...",
@@ -104,6 +120,14 @@ export const translations = {
         "Hola! Sóc el teu assistent. Pregunta'm qualsevol cosa sobre les teves notes. 🧠",
       placeholder: "Demana alguna cosa...",
       thinking: "Pensant...",
+    },
+    settings: {
+      title: "Configuració",
+      appearance: "Aparença",
+      appearance_desc: "Personalitza l'aspecte de l'aplicació.",
+      dark_mode: "Mode fosc",
+      language: "Idioma",
+      language_desc: "Tria el teu idioma preferit.",
     },
     common: {
       tags: "Etiquetes",
