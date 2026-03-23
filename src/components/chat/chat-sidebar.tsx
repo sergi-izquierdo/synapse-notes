@@ -50,6 +50,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
     }
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration guard
         setIsMounted(true)
         fetchChats()
     }, [])
@@ -147,7 +148,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
                                 <Bot className="h-10 w-10 mb-3 text-muted-foreground/50" />
-                                <p className="text-sm font-medium">I'm your second brain.</p>
+                                <p className="text-sm font-medium">I&apos;m your second brain.</p>
                                 <p className="text-xs text-muted-foreground">Ask me about your notes.</p>
                             </div>
                         ) : (

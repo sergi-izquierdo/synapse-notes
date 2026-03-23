@@ -14,7 +14,7 @@ export function DashboardHeader({ userEmail }: { userEmail: string }) {
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-background/60 backdrop-blur-md p-4 rounded-xl border sticky top-4 z-10 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="bg-primary/10 p-2 rounded-lg">
-          <BrainCircuit className="h-6 w-6 text-primary" />
+          <BrainCircuit className="h-6 w-6 text-primary" aria-label="Synapse Notes logo" />
         </div>
         <div>
           {/* Títol amb Gradient */}
