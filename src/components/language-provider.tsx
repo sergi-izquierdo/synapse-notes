@@ -27,6 +27,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("synapse-lang") as Language;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: read persisted language
     if (saved) setLanguageState(saved);
   }, []);
 
