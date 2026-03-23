@@ -102,7 +102,7 @@ export function TagSelector({
                       onSelect={handleCreate}
                       className="cursor-pointer"
                     >
-                      <Plus className="mr-2 h-4 w-4" /> Create "{inputValue}"
+                      <Plus className="mr-2 h-4 w-4" /> Create &ldquo;{inputValue}&rdquo;
                     </CommandItem>
                   </CommandGroup>
                 )}
