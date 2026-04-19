@@ -1,14 +1,185 @@
 \chapter{Introducció}
 \label{ch:introduccio}
 
-% TODO: Context del projecte. Què és Synapse Notes i per què s'amplia amb MCP i agents.
 \section{Context}
+\label{sec:context}
 
-% TODO: Problema que resol. Usuaris objectiu. Motivació acadèmica (URV ETSE).
+La quantitat d'informació personal que una persona genera i consumeix ha
+crescut de manera exponencial durant l'última dècada: correus, notes,
+documents, captures, articles desats per llegir més tard i converses
+esteses. Aquesta informació viu fragmentada en múltiples eines
+(Notion, Obsidian, Google Keep, Evernote, Apple Notes), sense un punt
+d'accés unificat ni una interfície conversacional que permeti
+interrogar-la amb preguntes en llenguatge natural.
+
+La irrupció dels grans models de llenguatge (LLM) durant el 2022--2025
+ha habilitat un patró d'interacció nou: el xat contextual basat en
+\emph{Retrieval-Augmented Generation} (RAG), que permet fer preguntes
+sobre un corpus privat indexat semànticament. Aquest patró ha passat de
+curiositat acadèmica a producte de producció: al 2026, eines com
+Notion~AI, Mem, Obsidian Copilot o els \emph{Projects} de ChatGPT ho
+ofereixen comercialment. La diferència entre un prototip i un producte
+defensable és, però, la seva \textbf{arquitectura multi-tenant segura}
+(cada usuari veu només les seves dades) i la seva
+\textbf{interoperabilitat amb agents d'IA} (altres eines poden operar
+sobre les dades amb el consentiment de l'usuari).
+
+L'any 2024, Anthropic va publicar el \textbf{Model Context Protocol}
+(MCP) \autocite{anthropic2024mcp}, un protocol obert per estandarditzar
+com els hosts de LLM (Claude Desktop, Cursor, agents propis)
+\emph{descobreixen} i \emph{criden} eines, recursos i \emph{prompts}
+externs. Al llarg del 2025 i 2026, MCP s'ha consolidat com la capa
+d'integració dominant per a la IA amb agents, amb implementacions de
+referència d'AWS \autocite{aws2026mcp}, Cloudflare
+\autocite{cloudflare2026agents} i OWASP \autocite{owasp2026mcp}, i amb
+una especificació de seguretat pròpia
+\autocite{mcpspec2026security,mcpspec2026auth} que fixa
+OAuth 2.1 com a esquema d'autorització.
+
+Synapse Notes és una plataforma SaaS multi-tenant de notes amb xat
+contextual RAG, desenvolupada per l'autor durant el primer quadrimestre
+del curs 2025--2026. Utilitza Next.js 15 (App Router), Supabase
+(Postgres amb l'extensió pgvector), Google Gemini (\emph{embedding-001})
+i, des d'abril de 2026, Claude Haiku 4.5 com a model de xat. En el seu
+estat actual, implementa fluxos CRUD de notes, autenticació via OAuth
+(Google i GitHub) i cerca vectorial sobre els embeddings dels
+continguts. Tot l'accés a dades està protegit per polítiques Row-Level
+Security (RLS) de PostgreSQL.
+
 \section{Motivació}
+\label{sec:motivacio}
 
-% TODO: Abast ampliat (Option C): codebase existent + MCP + 3 agents + anàlisi de seguretat (Lethal Trifecta).
+El salt qualitatiu que porta aquest TFG a Synapse Notes no és afegir
+funcionalitats d'usuari finals (el producte ja les té), sinó
+\textbf{convertir la plataforma en una superfície accessible per agents
+d'IA de manera segura}. La pregunta de recerca que guia el treball és:
+
+\begin{quote}
+  \emph{Com es dissenya, implementa i avalua empíricament un servidor MCP
+  multi-tenant sobre una base de coneixement personal, de manera que
+  agents autònoms puguin operar-hi sense violar l'aïllament entre
+  tenants ni caure en atacs d'injecció indirecta de prompt?}
+\end{quote}
+
+La motivació és tripla:
+
+\begin{enumerate}
+  \item \textbf{Oportunitat tècnica.} MCP és un estàndard de
+    \emph{2026}: no estava disponible quan es va dissenyar Synapse Notes,
+    i la literatura sobre servidors MCP \emph{multi-tenant} és molt
+    recent \autocite{aws2026mcp,gitguardian2026oauth}. Aplicar-lo sobre
+    una base de producte permet contrastar el patró emergent amb les
+    pràctiques establertes de SaaS multi-tenant amb RLS
+    \autocite{supabase2026rag,tigerdata2026multitenant,nile2026multitenant}.
+
+  \item \textbf{Rellevància en seguretat.} Durant el gener de 2026 es
+    van divulgar públicament exploits de la denominada ``Lethal
+    Trifecta'' \autocite{willison2025trifecta} en eines AI
+    industrialitzades (IBM Bob, Superhuman AI, Notion AI i Claude
+    Cowork d'Anthropic), totes elles en una sola setmana. La trifecta
+    estableix que un agent amb accés a \emph{dades privades},
+    \emph{contingut no confiable} i \emph{comunicació externa} és
+    incondicionalment vulnerable a la injecció indirecta de prompt. El
+    TFG aplica aquest marc eina a eina al servidor MCP resultant i
+    mesura empíricament l'efecte de les mitigacions amb una suite
+    automatitzada de red-team \autocite{promptfoo2026trifecta}.
+
+  \item \textbf{Alineació formativa.} Els objectius del TFG cobreixen
+    competències centrals del Grau en Enginyeria Informàtica de la
+    Universitat Rovira i Virgili: \emph{Seguretat de Xarxes} (OAuth,
+    JWT, modelatge d'amenaces), \emph{Sistemes Concurrents} (agents en
+    segon pla, cues i \texttt{pg\_cron}), \emph{Bases de Dades}
+    (RLS, pgvector, HNSW) i \emph{Enginyeria del Software} (diagrames
+    UML, arquitectura, tests). Aquesta triangulació justifica el TFG a
+    l'ETSE.
+\end{enumerate}
+
+\section{Ús esperat i usuaris objectiu}
+\label{sec:usuaris}
+
+L'usuari final de Synapse Notes és una persona amb una base de
+coneixement personal no trivial que vol interrogar-la amb un agent
+d'IA. Els tres fluxos d'ús esperats són:
+
+\begin{itemize}
+  \item \textbf{Xat RAG integrat.} L'usuari accedeix a la UI web i
+    pregunta sobre les seves notes amb llenguatge natural. El sistema
+    recupera els fragments rellevants via pgvector i els passa al LLM.
+    Aquest flux ja existeix i no és l'aportació del TFG.
+
+  \item \textbf{Agents externs via MCP.} L'usuari connecta el seu
+    client MCP preferit (Claude Desktop, Cursor, un agent propi) a la
+    seva instància de Synapse. El client autentica via OAuth 2.1, rep
+    un JWT per tenant i invoca eines com \texttt{search\_notes} o
+    \texttt{summarise\_notes}. \textbf{Aquest és el flux nou del TFG.}
+
+  \item \textbf{Agents en segon pla.} Tres agents (backfill
+    d'embeddings, auto-etiquetatge, resum setmanal) operen sense
+    intervenció de l'usuari, sota \texttt{pg\_cron} a Supabase, i
+    escriuen els seus resultats a taules auditables
+    \autocite{supabase2026cron,supabase2026largejobs}. \textbf{També
+    és aportació del TFG.}
+\end{itemize}
+
 \section{Abast del treball}
+\label{sec:abast}
 
-% TODO: Estructura de la memòria. Resum d'un paràgraf per capítol.
+L'abast del TFG és l'anomenat \emph{Opció~C} al registre de decisions
+\texttt{docs/tfg/00-decision-log.md}: es conserva el codebase de Synapse
+Notes, i s'hi afegeixen tres contribucions:
+
+\begin{enumerate}
+  \item Un servidor \textbf{MCP multi-tenant} amb 6 eines
+    (\texttt{search\_notes}, \texttt{get\_note}, \texttt{create\_note},
+    \texttt{update\_note}, \texttt{tag\_notes},
+    \texttt{summarise\_notes}), transport Streamable HTTP i
+    autenticació OAuth 2.1 sobre Supabase Auth.
+
+  \item \textbf{3 agents en segon pla} desplegats com a Edge Functions
+    de Supabase amb \texttt{pg\_cron}: \texttt{embedding-backfill}
+    (cada 15~min), \texttt{auto-tag} (horària) i \texttt{weekly-digest}
+    (dominical).
+
+  \item Un \textbf{model d'amenaces formal} basat en la Lethal
+    Trifecta, aplicat eina a eina, amb mitigacions implementades
+    (etiquetatge de procedència, segregació de capacitats,
+    aprovacions humanes, filtre de sortida) i avaluades empíricament
+    amb una suite Promptfoo de $\geq 15$ casos red-team i una suite
+    d'aïllament RLS de $\geq 15$ casos.
+\end{enumerate}
+
+Les exclusions explícites (aplicació mòbil, workspaces d'equip,
+facturació, panell d'administració, cerca full-text, fine-tuning de LLM,
+Supabase auto-allotjat) queden documentades a \texttt{01-scope.md}.
+L'abast es \emph{congela} al final de la setmana~1 com a mesura de
+contenció d'\emph{scope creep}, un dels dos riscos alts identificats
+al capítol~\ref{ch:planificacio}.
+
 \section{Organització del document}
+\label{sec:organitzacio}
+
+La memòria segueix l'estàndard ADA de la URV, amb 17 seccions:
+
+\begin{itemize}
+  \item \textbf{Capítols 1--3} (aquesta introducció, paraules clau,
+    objectius). Fixen el context, el vocabulari i els criteris de
+    verificació.
+  \item \textbf{Capítol~\ref{ch:planificacio}} (planificació).
+    Calendari de 47 dies, fases, Gantt i taula de riscos.
+  \item \textbf{Capítol~\ref{ch:requisits}} (requisits). 15 casos
+    d'ús funcionals i 11 requisits no funcionals.
+  \item \textbf{Capítol~8 (disseny)}. Arquitectura C4, disseny de BD
+    amb polítiques RLS, disseny del servidor MCP i \emph{disseny de
+    seguretat} (contribució principal, Lethal Trifecta eina a eina).
+  \item \textbf{Capítol~9 (implementació)}. Justificació tecnològica,
+    fragments de patrons clau i problemes reals trobats.
+  \item \textbf{Capítol~\ref{ch:avaluacio}} (avaluació). Tests
+    funcionals, aïllament RLS, red-team Promptfoo, benchmarks i cas
+    d'estudi amb Claude Desktop.
+  \item \textbf{Capítols~11--13} (costos, legislació, ètica). Costos
+    de personal i cloud, anàlisi RGPD/LOPDGDD/LSSI i implicacions
+    ètiques.
+  \item \textbf{Capítols~14 i annexos.} Valoració personal,
+    bibliografia APA~7 i annexos tècnics (instal·lació, ús, schemes
+    d'eina, YAML de Promptfoo).
+\end{itemize}

@@ -1,14 +1,101 @@
 \chapter{Planificació}
 \label{ch:planificacio}
 
-% TODO: Gantt de les 5 fases (2026-04-19 a 2026-06-05). Exportar com a PNG/PDF a figures/gantt.pdf.
+Aquest capítol descriu la metodologia de treball, la divisió en fases i
+el diagrama de Gantt que conduirà el TFG des del 19 d'abril de 2026 fins
+a l'entrega per a la primera convocatòria el 5 de juny de 2026. La
+finestra total és de 47 dies naturals sota una hipòtesi sostenible
+d'unes 25 hores setmanals.
+
 \section{Metodologia}
-% TODO: iteratiu, amb milestones setmanals. Tancaments de fase cada 1-2 setmanes.
+\label{sec:metodologia}
+
+El desenvolupament segueix una metodologia \textbf{iterativa amb fites
+setmanals}. Cada setmana té un conjunt acotat d'entregables de codi i de
+memòria i un \emph{criteri de sortida} verificable (test verd, benchmark
+registrat, secció escrita). Els criteris de sortida es documenten al
+fitxer \texttt{docs/tfg/extend.md} del repositori, que serveix de registre
+viu del progrés.
+
+La metodologia adopta tres pràctiques:
+
+\begin{itemize}
+  \item \textbf{Desenvolupament guiat per tests.} Totes les eines MCP
+    porten tests unitaris amb Vitest abans de considerar-se acabades.
+    L'aïllament RLS es verifica amb la suite
+    \texttt{tests/rls/isolation.test.ts}.
+  \item \textbf{Control d'abast estricte.} Qualsevol funcionalitat fora
+    de \texttt{docs/tfg/01-scope.md} es deriva al capítol de treball
+    futur. Les decisions de canvi queden al registre
+    \texttt{docs/tfg/00-decision-log.md}.
+  \item \textbf{Escriptura en paral·lel.} La memòria no es redacta al
+    final: cada setmana avança seccions concretes, de manera que la
+    setmana~6 és d'\emph{empenta final} i no de redacció des de zero.
+\end{itemize}
 
 \section{Fases}
-% TODO: taula amb fase, dates, entregables. Veure docs/tfg/extend.md.
+\label{sec:fases}
+
+El TFG es divideix en cinc fases. La cinquena és opcional i cau fora del
+temps d'entrega però dins del calendari de la defensa.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Fases del TFG amb dates i focus principal.}
+  \label{tab:fases}
+  \begin{tabular}{cllcl}
+    \toprule
+    \# & Fase & Dates & Durada & Focus \\
+    \midrule
+    1 & Fonaments & 19/04--26/04 & 8 d & Recerca, scaffold, PoC MCP, seccions 1--8 memòria \\
+    2 & Nucli MCP & 27/04--10/05 & 14 d & 6 eines MCP, OAuth 2.1, desplegament \\
+    3 & Agents i seguretat & 11/05--24/05 & 14 d & 3 agents en segon pla, Lethal Trifecta, Promptfoo \\
+    4 & Avaluació i memòria & 25/05--05/06 & 12 d & Tests, benchmarks, seccions 9--17, entrega \\
+    5 & Defensa & 06/06--14/06 & 9 d & Presentació, guió de demo, assajos \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Càrrega setmanal estimada}
+
+La taula~\ref{tab:carrega-setmanal} recull els entregables principals i
+l'estimació d'hores per setmana. L'estimació agrega codi, memòria i
+administració, i assumeix una dedicació de 25 h setmanals de mitjana.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Càrrega setmanal estimada per fase.}
+  \label{tab:carrega-setmanal}
+  \begin{tabular}{clc}
+    \toprule
+    Setmana & Entregables principals & Hores \\
+    \midrule
+    1 & Scaffold + PoC MCP + memòria \S1--\S8  & 25 \\
+    2 & 6 eines MCP + tests + \S9.1, \S9.3    & 28 \\
+    3 & Aïllament RLS + Promptfoo + \S9.2, \S9.4 & 28 \\
+    4 & 3 agents + UI + \S10                   & 28 \\
+    5 & Hardening + load test + \S11, \S12     & 30 \\
+    6 & Memòria \S13--\S17 + bibliografia      & 30 \\
+    7 & Relectura + entrega                    & 20 \\
+    \midrule
+    \textbf{Total} & & \textbf{189} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \section{Diagrama de Gantt}
+\label{sec:gantt}
+
+El diagrama de Gantt (figura~\ref{fig:gantt}) resumeix la distribució
+temporal de les fases. El detall dia a dia de la fase~7 (entrega) és
+crític: dilluns 1 de juny relectura completa, dimecres 3 enviament
+d'esborrany a revisor, divendres 5 entrega oficial via el portal de la
+URV.
+
+% TODO(setmana 1): exportar el Gantt real des de Mermaid o draw.io a figures/gantt.pdf
+% i descomentar el \begin{figure} següent. De moment, la taula de fases de la secció
+% anterior serveix com a representació textual.
+%
 % \begin{figure}[htbp]
 %   \centering
 %   \includegraphics[width=\textwidth]{gantt.pdf}
@@ -17,4 +104,41 @@
 % \end{figure}
 
 \section{Riscos i pla de contingència}
-% TODO: veure "Pla B" a docs/tfg/extend.md.
+\label{sec:riscos}
+
+S'han identificat set riscos principals, amb probabilitat, impacte i
+mesures de mitigació (taula~\ref{tab:riscos}). Els dos riscos marcats com
+a \emph{alts} són la infravaloració de l'escriptura i el
+\emph{scope creep}, per això el pla conté dues salvaguardes: començar a
+redactar a la setmana~1 i congelar l'abast al final de la setmana~1.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Riscos identificats i mitigacions.}
+  \label{tab:riscos}
+  \small
+  \begin{tabular}{p{6cm}ccp{5cm}}
+    \toprule
+    Risc & Prob. & Imp. & Mitigació \\
+    \midrule
+    Canvi incompatible a l'especificació MCP & Baixa & Alt & Fixar versió SDK; anotar versió d'especificació a la memòria \\
+    Saturar límits d'Edge Functions a tests & Mitjana & Mitjà & Projecte Supabase aïllat; càrrega amb Supabase local \\
+    Tall de Gemini durant la demo & Baixa & Mitjà & Vídeo alternatiu; mode fallback manual \\
+    Memòria infravalorada, \emph{crunch} de temps & Alta & Alt & Redacció des de setmana~1; no deixar-ho a setmana~6 \\
+    Tutor no respon al canvi d'abast & Baixa & Baix & Marc Sánchez va donar llibertat oberta; documentat al decision log \\
+    Malaltia o col·lisió amb exàmens & Mitjana & Alt & Marge a setmanes~4 i~7; defensa es pot moure 2--3 d \\
+    \emph{Scope creep} (``només una eina més'') & Alta & Alt & Abast congelat al final de setmana~1; peticions fora van a treball futur \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Pla B: segona convocatòria}
+
+En cas que l'entrega del 5 de juny no sigui viable, la segona
+convocatòria és el 2 de setembre de 2026. No implica penalització a
+l'ETSE. També es contempla degradar objectius concrets abans d'endarrerir
+l'entrega: (1)~si Promptfoo no arriba al 80\,\% de mitigacions a la
+setmana~5, es redefineix l'objectiu a \emph{reducció del 50\,\% respecte
+a la línia base}; (2)~si OAuth 2.1 al MCP es complica, es degrada a
+autenticació per API key documentada com a MVP, amb OAuth com a treball
+futur.
