@@ -43,11 +43,11 @@
 - [x] `npm install @modelcontextprotocol/sdk` (Zod ja present via `ai`). _2026-04-19, `^1.29.0`._
 - [x] `npm install -D promptfoo` (vitest ja instal·lat). _2026-04-19._
 - [x] Crear migració `supabase/migrations/20260419120000_mcp_tfg.sql` amb taules `agent_events` i `tag_suggestions` més polítiques RLS i índex HNSW. _2026-04-19._
-- [ ] Aplicar la migració al Supabase de desenvolupament (`supabase db push`).
+- [x] Aplicar la migració al Supabase de desenvolupament. _2026-04-19, via MCP remot (OAuth) al projecte `ilcajfngpxehmwkqjqwt`. Correcció en calent: `tag_suggestions.note_id` de `uuid` a `bigint` (PK de `notes` és bigint)._
 - [x] Índex compost `notes_user_embedding_idx` inclòs a la mateixa migració. _2026-04-19._
-- [ ] Regenerar types: `supabase gen types typescript --local > src/types/database.ts` (després d'aplicar la migració).
-- [ ] PoC de servidor MCP: una sola eina `search_notes` a `src/app/api/mcp/route.ts` amb token cablejat.
-- [ ] Provar el PoC amb MCP Inspector (`npx @modelcontextprotocol/inspector`).
+- [x] Regenerar types. _2026-04-19. Decisió: **no** substituïm `src/types/database.ts` pels auto-generats encara — el codi actual usa interfaces hand-written i no hi ha consumidors de `agent_events`/`tag_suggestions`. Afegirem types quan l'MCP PoC o els agents els necessitin._
+- [x] PoC de servidor MCP: una sola eina `search_notes` a `src/app/api/mcp/route.ts` amb token cablejat. _2026-04-19. Streamable HTTP stateless amb `@modelcontextprotocol/sdk` (`WebStandardStreamableHTTPServerTransport`); auth via `Authorization: Bearer ${MCP_POC_TOKEN}`; client admin (service-role) amb filtre d'ownership en segon query (`notes.user_id = MCP_POC_USER_ID`) fins que Phase 2 faci JWT passthrough + RLS. Nou key `SUPABASE_SERVICE_ROLE_KEY` afegit a `.env.example`._
+- [x] Provar el PoC amb MCP Inspector (`npx @modelcontextprotocol/inspector`). _2026-04-19. 3 queries validades contra 5 notes reals del user: "lidl"→top-1 lista compra similarity 0.73, "note"→cerca semàntica difusa, gibberish→retorna igualment 5 resultats amb similarity 0.46-0.58. **Finding per al cap. 11 (Avaluació):** `match_threshold: 0.1` és massa permissiu per a Gemini embedding-001 — soroll aleatori projecta a ~0.4-0.5 contra qualsevol text perquè l'espai d'embeddings no té un "zero semàntic" fort. Mitigació: threshold 0.55-0.65 o re-ranker. User scoping OK (només IDs propis del MCP_POC_USER_ID)._
 - [ ] Commit: "feat(mcp): poc server with search_notes tool".
 
 ### Memòria
@@ -269,7 +269,7 @@ A l'inici de cada setmana, Sergi actualitza aquí una línia amb el % real vs pl
 
 | Setmana | Planificat | Real | Comentari |
 |---|---|---|---|
-| 1 | 100% | ~40% | 2026-04-19: commit docs TFG (d1ab994), carpetes creades, deps instal·lades (`@ai-sdk/anthropic`, `@modelcontextprotocol/sdk`, `promptfoo`), xat migrat a `claude-haiku-4-5`, migració SQL escrita (sense aplicar encara). Falta prova manual del xat, aplicar migració, PoC MCP. |
+| 1 | 100% | ~90% | 2026-04-19: commit docs TFG (d1ab994), carpetes creades, deps instal·lades (`@ai-sdk/anthropic`, `@modelcontextprotocol/sdk`, `promptfoo`), xat migrat a `claude-haiku-4-5`, migració SQL aplicada al Supabase dev via MCP remot (correcció `note_id` bigint). Detectats 3 advisors de seguretat pre-existents (search_path de `match_notes`, vector extension al public schema, HaveIBeenPwned off). PoC MCP a `src/app/api/mcp/route.ts` validat extrem-a-extrem amb MCP Inspector: 3 queries contra 5 notes reals del user, user scoping correcte, similarity coherent ("lidl"→0.73). **Finding per al cap. 11:** `match_threshold: 0.1` de Gemini embedding-001 és massa permissiu — gibberish retorna matches a ~0.46-0.58. Mitigació a documentar. Falta prova manual del xat (Haiku 4.5) i commit del PoC. |
 | 2 | 100% | — | — |
 | 3 | 100% | — | — |
 | 4 | 100% | — | — |
