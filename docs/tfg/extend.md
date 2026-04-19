@@ -39,7 +39,7 @@
 - [x] Afegir `ANTHROPIC_API_KEY` a `.env.local`. Pendent Vercel (dev). _2026-04-19._
 - [x] `src/app/api/chat/route.ts`: canviar `google("gemini-2.5-flash")` per `anthropic("claude-haiku-4-5")`. _2026-04-19._
 - [x] `src/app/api/chat/route.ts`: canviar `google("gemini-2.0-flash-lite")` per `anthropic("claude-haiku-4-5")`. _2026-04-19._
-- [ ] Provar manualment que el xat encara funciona i el tool `getNotesByTag` es dispara bé. _**Pendent Sergi: `npm run dev` i provar.**_
+- [x] Provar manualment que el xat encara funciona i el tool `getNotesByTag` es dispara bé. _2026-04-19, `npm run dev` local: Haiku 4.5 respon amb context RAG real recuperat de les notes del user._
 - [x] `npm install @modelcontextprotocol/sdk` (Zod ja present via `ai`). _2026-04-19, `^1.29.0`._
 - [x] `npm install -D promptfoo` (vitest ja instal·lat). _2026-04-19._
 - [x] Crear migració `supabase/migrations/20260419120000_mcp_tfg.sql` amb taules `agent_events` i `tag_suggestions` més polítiques RLS i índex HNSW. _2026-04-19._
@@ -48,12 +48,13 @@
 - [x] Regenerar types. _2026-04-19. Decisió: **no** substituïm `src/types/database.ts` pels auto-generats encara — el codi actual usa interfaces hand-written i no hi ha consumidors de `agent_events`/`tag_suggestions`. Afegirem types quan l'MCP PoC o els agents els necessitin._
 - [x] PoC de servidor MCP: una sola eina `search_notes` a `src/app/api/mcp/route.ts` amb token cablejat. _2026-04-19. Streamable HTTP stateless amb `@modelcontextprotocol/sdk` (`WebStandardStreamableHTTPServerTransport`); auth via `Authorization: Bearer ${MCP_POC_TOKEN}`; client admin (service-role) amb filtre d'ownership en segon query (`notes.user_id = MCP_POC_USER_ID`) fins que Phase 2 faci JWT passthrough + RLS. Nou key `SUPABASE_SERVICE_ROLE_KEY` afegit a `.env.example`._
 - [x] Provar el PoC amb MCP Inspector (`npx @modelcontextprotocol/inspector`). _2026-04-19. 3 queries validades contra 5 notes reals del user: "lidl"→top-1 lista compra similarity 0.73, "note"→cerca semàntica difusa, gibberish→retorna igualment 5 resultats amb similarity 0.46-0.58. **Finding per al cap. 11 (Avaluació):** `match_threshold: 0.1` és massa permissiu per a Gemini embedding-001 — soroll aleatori projecta a ~0.4-0.5 contra qualsevol text perquè l'espai d'embeddings no té un "zero semàntic" fort. Mitigació: threshold 0.55-0.65 o re-ranker. User scoping OK (només IDs propis del MCP_POC_USER_ID)._
-- [ ] Commit: "feat(mcp): poc server with search_notes tool".
+- [x] Commit: "feat(mcp): poc server with search_notes tool". _2026-04-19, `d871a4f`._
+- [x] Deploy Vercel net al compte personal. _2026-04-19, projecte `synapse-notes` al compte actual (el desplegament previ va quedar a un altre compte personal oblidat). Totes les env vars pujades des de `.env.local` via `vercel env add`._
 
 ### Memòria
 
-- [ ] Obrir document al gestor d'escriptura (Typst, LaTeX o Docs).
-- [ ] Muntar l'estructura amb les 17 seccions buides i títols finals.
+- [x] Obrir document al gestor d'escriptura (Typst, LaTeX o Docs). _2026-04-19, triat **LaTeX** + memoir class + lualatex + biblatex-apa + biber. Toolchain: MiKTeX 25.12 via winget, VS Code + LaTeX Workshop, compilació automàtica via magic comment `% !TeX program = lualatex`._
+- [x] Muntar l'estructura amb les 17 seccions buides i títols finals. _2026-04-19, scaffold a `tfg/`: `main.tex` + `preamble.tex` + 15 fitxers a `tfg/sections/` (01-portada fins 15-annexos) + `references.bib` buit pendent de Zotero. Compila net a `main.pdf` (24 pàgines) amb TOC, llista de figures/taules i bibliografia APA 7 configurada. **Bugfix no trivial:** memoir 3.8.4b + kernel LaTeX 2025-11-01 incompatibles (memoir fa `\AddToHook{cmd/@makecaption/...}`, el kernel ho rebutja per comandes internes `@`-prefixades); workaround: pre-declarar els hooks amb `\NewHook` al top de `preamble.tex`._
 - [ ] Portada completa (plantilla URV).
 - [ ] Paraules clau fixades (6-8 en CA, ES, EN).
 - [ ] Resum trilingüe. Primera versió (100 paraules per llengua).
@@ -72,8 +73,8 @@
 
 ### Criteris de sortida setmana 1
 
-- [ ] La PoC MCP funciona extrem a extrem en local amb MCP Inspector.
-- [ ] El xat segueix funcionant amb Haiku 4.5.
+- [x] La PoC MCP funciona extrem a extrem en local amb MCP Inspector. _2026-04-19._
+- [x] El xat segueix funcionant amb Haiku 4.5. _2026-04-19._
 - [ ] Les seccions 1 a 8 de la memòria tenen primer esborrany.
 - [ ] L'abast queda congelat. Qualsevol canvi posterior va a `00-decision-log.md`.
 
@@ -269,7 +270,7 @@ A l'inici de cada setmana, Sergi actualitza aquí una línia amb el % real vs pl
 
 | Setmana | Planificat | Real | Comentari |
 |---|---|---|---|
-| 1 | 100% | ~90% | 2026-04-19: commit docs TFG (d1ab994), carpetes creades, deps instal·lades (`@ai-sdk/anthropic`, `@modelcontextprotocol/sdk`, `promptfoo`), xat migrat a `claude-haiku-4-5`, migració SQL aplicada al Supabase dev via MCP remot (correcció `note_id` bigint). Detectats 3 advisors de seguretat pre-existents (search_path de `match_notes`, vector extension al public schema, HaveIBeenPwned off). PoC MCP a `src/app/api/mcp/route.ts` validat extrem-a-extrem amb MCP Inspector: 3 queries contra 5 notes reals del user, user scoping correcte, similarity coherent ("lidl"→0.73). **Finding per al cap. 11:** `match_threshold: 0.1` de Gemini embedding-001 és massa permissiu — gibberish retorna matches a ~0.46-0.58. Mitigació a documentar. Falta prova manual del xat (Haiku 4.5) i commit del PoC. |
+| 1 | 100% | 100% | 2026-04-19: commit docs TFG (d1ab994), carpetes creades, deps instal·lades (`@ai-sdk/anthropic`, `@modelcontextprotocol/sdk`, `promptfoo`), xat migrat a `claude-haiku-4-5`, migració SQL aplicada al Supabase dev via MCP remot (correcció `note_id` bigint). Detectats 3 advisors de seguretat pre-existents (search_path de `match_notes`, vector extension al public schema, HaveIBeenPwned off). PoC MCP a `src/app/api/mcp/route.ts` validat extrem-a-extrem amb MCP Inspector: 3 queries contra 5 notes reals del user, user scoping correcte, similarity coherent ("lidl"→0.73). **Finding per al cap. 11:** `match_threshold: 0.1` de Gemini embedding-001 és massa permissiu — gibberish retorna matches a ~0.46-0.58. Mitigació a documentar. PoC MCP commited (d871a4f). Xat verificat localment amb Haiku 4.5 responent amb context RAG real. Vercel redeployat al compte personal actual (projecte `synapse-notes`, env vars pujades via `vercel env add` des de `.env.local`). Toolchain LaTeX triada (memoir + lualatex + biblatex-apa + biber, MiKTeX 25.12 + VS Code LaTeX Workshop) i scaffold de memoir muntat a `tfg/`: `main.tex` + `preamble.tex` + 15 stubs de capítol + `references.bib`. Compila net a `main.pdf` (24p) amb TOC i llistes. **Bugfix no trivial documentable al cap. 11:** memoir 3.8.4b + kernel LaTeX 2025-11-01 incompatibles — el kernel rebutja `\AddToHook{cmd/@makecaption/...}` sobre comandes `@`-internes si no es pre-declara el hook. Workaround: `\NewHook{cmd/@makecaption/before\|after}` al top de `preamble.tex` dins `\makeatletter`. |
 | 2 | 100% | — | — |
 | 3 | 100% | — | — |
 | 4 | 100% | — | — |
