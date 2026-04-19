@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
 import { streamText, generateText, tool, stepCountIs } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     // 5. Generate Response
     const result = streamText({
-        model: google("gemini-2.5-flash"),
+        model: anthropic("claude-haiku-4-5"),
         system: systemPrompt,
         messages: coreMessages,
         stopWhen: stepCountIs(3),
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
             if (chat?.title === "Nova Conversa") {
                 generateText({
-                    model: google("gemini-2.0-flash-lite"),
+                    model: anthropic("claude-haiku-4-5"),
                     prompt: `Generate a very short title (max 6 words) for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end. Use the same language as the message.\n\nMessage: "${userQuestion}"`,
                 }).then(async ({ text: title }) => {
                     const cleanTitle = title.trim().replace(/^["']|["']$/g, '').substring(0, 60);
