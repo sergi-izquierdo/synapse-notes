@@ -1,0 +1,25 @@
+\chapter{Disseny}
+\label{ch:disseny}
+
+\section{Arquitectura general (C4)}
+% TODO: Context diagram (nivell 1) i Container diagram (nivell 2) del sistema complet.
+% Components: Next.js app, Supabase (Postgres+pgvector+Auth), Edge Functions (agents),
+% MCP server, clients externs (Claude Desktop).
+
+\section{Model de dades}
+% TODO: ER diagram. Taules: notes, chats, messages, agent_events, tag_suggestions.
+% Index HNSW sobre embedding. Polítiques RLS per taula.
+
+\section{Disseny del servidor MCP}
+% TODO: 6 eines (search_notes, get_note, create_note, update_note, tag_notes, summarise_notes).
+% Autenticació OAuth 2.1 (JWT passthrough a Supabase RLS).
+
+\section{Disseny dels agents}
+% TODO: embedding-backfill, auto-tag, weekly-digest. Desplegament en Supabase Edge Functions + pg_cron.
+
+\section{Disseny de seguretat}
+% TODO: aplicar el framework Lethal Trifecta (Willison) eina per eina.
+% Matriu: eina × (input privat / contingut no fiable / comunicació externa) × mitigació.
+
+\section{Disseny de la interfície}
+% TODO: mockups/screenshots. Drawer d'activitat d'agents amb botons accept/reject.

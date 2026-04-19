@@ -1,0 +1,24 @@
+\chapter{Avaluació}
+\label{ch:avaluacio}
+
+\section{Bateria de tests unitaris}
+% TODO: vitest, cobertura, ≥15 casos per al servidor MCP.
+
+\section{Tests d'aïllament RLS}
+% TODO: verificar que un user A no pot llegir notes d'un user B via MCP.
+
+\section{Red team amb Promptfoo}
+% TODO: 15+ casos d'injecció indirecta. Mesura: % mitigats vs baseline.
+
+\section{Benchmark de rendiment}
+% TODO: latència de search_notes (p50, p95, p99) amb HNSW vs FLAT index.
+% Test de càrrega: 100 tenants concurrents.
+
+\section{Findings del PoC inicial}
+\subsection{Calibratge de similarity threshold}
+% FINDING 2026-04-19: threshold 0.1 massa permissiu per a Gemini embedding-001.
+% Soroll aleatori (query ``asdfghjkl...'') retorna top-5 notes amb similarity 0.46-0.58.
+% Mitigació proposada: pujar a 0.55-0.65 o afegir re-ranker.
+
+\section{Resultats i discussió}
+% TODO: taula-resum de métriques aconseguides vs objectius O1-O8.

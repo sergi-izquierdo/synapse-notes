@@ -1,0 +1,68 @@
+% Preamble for TFG memoir. LuaLaTeX + memoir class.
+
+% Fix memoir 3.8.4b + LaTeX 2025-11-01 kernel incompatibility: memoir patches
+% \@makecaption via \AddToHook{cmd/@makecaption/...}, but the 2025-11-01 kernel
+% rejects generic hooks on internal (@-prefixed) commands unless explicitly
+% declared with \NewHook first. Pre-declare here so memoir's call succeeds.
+\makeatletter
+\NewHook{cmd/@makecaption/before}
+\NewHook{cmd/@makecaption/after}
+\makeatother
+
+% ---- Fonts & encoding (lualatex default is UTF-8 + fontspec) ----
+\usepackage{fontspec}
+\usepackage{microtype}
+
+% ---- Multilingual support (Catalan main, Spanish + English secondary) ----
+\usepackage[main=catalan, spanish, english]{babel}
+
+% ---- Typography & layout ----
+\setlrmarginsandblock{3cm}{2.5cm}{*}
+\setulmarginsandblock{2.5cm}{2.5cm}{*}
+\setheadfoot{16pt}{\footskip}  % >= 15.21pt required for memoir headers
+\checkandfixthelayout
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5\baselineskip}
+
+% ---- Graphics, tables, colour ----
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{csquotes}
+
+% ---- Code listings ----
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  stringstyle=\color{green!50!black},
+  commentstyle=\color{gray}\itshape,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  captionpos=b
+}
+\lstdefinelanguage{TypeScript}{
+  keywords={abstract, as, async, await, break, case, catch, class, const, continue, debugger, default, delete, do, else, enum, export, extends, false, finally, for, from, function, if, implements, import, in, instanceof, interface, let, new, null, of, package, private, protected, public, readonly, return, static, super, switch, this, throw, true, try, type, typeof, undefined, var, void, while, with, yield},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  morestring=[b]',
+  morestring=[b]`
+}
+
+% ---- Bibliography (APA 7 via biblatex-apa + biber) ----
+\usepackage[backend=biber, style=apa, language=catalan, sortlocale=ca_ES]{biblatex}
+\DeclareLanguageMapping{catalan}{catalan-apa}
+
+% ---- Hyperlinks (load last) ----
+\usepackage[colorlinks=true, linkcolor=black, citecolor=blue!60!black, urlcolor=blue!60!black]{hyperref}
+
+% ---- Memoir chapter style ----
+\chapterstyle{veelo}
+\setsecnumdepth{subsubsection}
+\settocdepth{subsection}
