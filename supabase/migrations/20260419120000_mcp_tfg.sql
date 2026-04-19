@@ -33,7 +33,7 @@ CREATE POLICY "own events"
 CREATE TABLE IF NOT EXISTS public.tag_suggestions (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    note_id    uuid NOT NULL REFERENCES public.notes(id) ON DELETE CASCADE,
+    note_id    bigint NOT NULL REFERENCES public.notes(id) ON DELETE CASCADE,
     tag        text NOT NULL,
     status     text NOT NULL DEFAULT 'pending'
                CHECK (status IN ('pending', 'accepted', 'rejected')),
