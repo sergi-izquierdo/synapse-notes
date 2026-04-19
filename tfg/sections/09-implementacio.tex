@@ -1,0 +1,27 @@
+\chapter{Implementació}
+\label{ch:implementacio}
+
+\section{Tecnologies utilitzades}
+\subsection{Frontend}
+% TODO: Next.js 16, React 19, TypeScript, Tailwind 4, Shadcn/UI. Justificació vs alternatives.
+
+\subsection{Backend}
+% TODO: Supabase (Postgres + pgvector + Auth), Edge Functions. Justificació vs Firebase/backend propi.
+
+\subsection{Intel·ligència artificial}
+% TODO: Claude Haiku 4.5 (chat), Gemini embedding-001 (768 dim). Per què Anthropic i no OpenAI/Gemini directe.
+
+\subsection{Model Context Protocol}
+% TODO: justificació del MCP com a estàndard 2026 (cites: Anthropic, AWS, Cloudflare, OWASP).
+
+\section{Migració SQL per a MCP i agents}
+% TODO: explicar la migració 20260419120000_mcp_tfg.sql (taules agent_events, tag_suggestions, índex HNSW).
+
+\section{Servidor MCP}
+% TODO: explicar src/app/api/mcp/route.ts. Decisions: Streamable HTTP stateless, Bearer-token PoC -> OAuth.
+
+\section{Agents en segon pla}
+% TODO: Edge Function per cada agent. Programació via pg_cron. Auditoria via agent_events.
+
+\section{Decisions destacades}
+% TODO: llista 5-10 decisions tècniques no òbvies amb raonament.

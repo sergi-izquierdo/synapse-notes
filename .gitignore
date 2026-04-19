@@ -46,3 +46,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# LaTeX (tfg/) — aux files only; keep .tex, .bib, .pdf (final output if compiled locally)
+tfg/**/*.aux
+tfg/**/*.log
+tfg/**/*.out
+tfg/**/*.toc
+tfg/**/*.lof
+tfg/**/*.lot
+tfg/**/*.bbl
+tfg/**/*.bcf
+tfg/**/*.blg
+tfg/**/*.fdb_latexmk
+tfg/**/*.fls
+tfg/**/*.run.xml
+tfg/**/*.synctex.gz
+tfg/**/*.synctex.gz(busy)
+tfg/main.pdf

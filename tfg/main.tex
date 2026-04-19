@@ -1,0 +1,49 @@
+% !TeX program = lualatex
+% !TeX spellcheck = ca_ES
+% Entry point for the TFG memoir. Compile with: latexmk -lualatex main.tex
+% See preamble.tex for package/class setup.
+
+\documentclass[12pt, a4paper, openany]{memoir}
+
+\input{preamble}
+
+\addbibresource{references.bib}
+
+\title{Synapse Notes: plataforma de notes amb xat contextual basat en RAG, ampliada amb un servidor MCP i agents en segon pla}
+\author{Sergi Izquierdo}
+\date{\today}
+
+\begin{document}
+
+\frontmatter
+
+\include{sections/01-portada}
+\include{sections/02-resum}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\mainmatter
+
+\include{sections/03-introduccio}
+\include{sections/04-paraules-clau}
+\include{sections/05-objectius}
+\include{sections/06-planificacio}
+\include{sections/07-requisits}
+\include{sections/08-disseny}
+\include{sections/09-implementacio}
+\include{sections/10-avaluacio}
+\include{sections/11-costos}
+\include{sections/12-legislacio}
+\include{sections/13-etica}
+\include{sections/14-valoracio-personal}
+
+\backmatter
+
+\printbibliography[heading=bibintoc, title={Bibliografia}]
+
+\appendix
+\include{sections/15-annexos}
+
+\end{document}
