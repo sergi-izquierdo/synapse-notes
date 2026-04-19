@@ -23,10 +23,10 @@
 
 ## Pròxims passos immediats (avui i demà)
 
-- [ ] Commit a `main` dels 8 fitxers de `docs/tfg/` (aquest document inclòs).
+- [x] Commit a `main` dels 8 fitxers de `docs/tfg/` (aquest document inclòs). _2026-04-19, commit `d1ab994`._
 - [ ] Enviar correu curt a Marc Sánchez: "ampliació d'abast del TFG, enllaç al repo, no cal aprovació formal".
-- [ ] Crear les carpetes `/mcp`, `/supabase/functions`, `/tests/security`, `/tests/rls` al repo (buides amb `.gitkeep`).
-- [ ] Obrir compte a Anthropic Console i generar `ANTHROPIC_API_KEY` (Sergi ja ho sap fer).
+- [x] Crear les carpetes `/mcp` (a `src/app/api/mcp`), `/supabase/functions`, `/tests/security`, `/tests/rls` i `src/lib/mcp` amb `.gitkeep`. _2026-04-19._
+- [x] `ANTHROPIC_API_KEY` afegida a `.env.local`. _2026-04-19._
 - [ ] Obrir compte a Supabase per al projecte de desenvolupament (o reutilitzar-ne un).
 
 ---
@@ -35,17 +35,17 @@
 
 ### Codi
 
-- [ ] `pnpm add @ai-sdk/anthropic`. Mantenir `@ai-sdk/google` de moment (embeddings).
-- [ ] Afegir `ANTHROPIC_API_KEY` a `.env.local` i a Vercel (dev).
-- [ ] `src/app/api/chat/route.ts`: canviar `google("gemini-2.5-flash")` per `anthropic("claude-haiku-4-5")`.
-- [ ] `src/app/api/chat/route.ts`: canviar `google("gemini-2.0-flash-lite")` per `anthropic("claude-haiku-4-5")`.
-- [ ] Provar manualment que el xat encara funciona i el tool `getNotesByTag` es dispara bé.
-- [ ] `pnpm add @modelcontextprotocol/sdk zod`.
-- [ ] `pnpm add -D promptfoo vitest @vitest/coverage-v8`.
-- [ ] Crear migració `supabase/migrations/YYYYMMDD_mcp_tfg.sql` amb taules `agent_events` i `tag_suggestions` més polítiques RLS.
+- [x] `npm install @ai-sdk/anthropic`. Mantenir `@ai-sdk/google` (embeddings). _2026-04-19, `^3.0.71`._
+- [x] Afegir `ANTHROPIC_API_KEY` a `.env.local`. Pendent Vercel (dev). _2026-04-19._
+- [x] `src/app/api/chat/route.ts`: canviar `google("gemini-2.5-flash")` per `anthropic("claude-haiku-4-5")`. _2026-04-19._
+- [x] `src/app/api/chat/route.ts`: canviar `google("gemini-2.0-flash-lite")` per `anthropic("claude-haiku-4-5")`. _2026-04-19._
+- [ ] Provar manualment que el xat encara funciona i el tool `getNotesByTag` es dispara bé. _**Pendent Sergi: `npm run dev` i provar.**_
+- [x] `npm install @modelcontextprotocol/sdk` (Zod ja present via `ai`). _2026-04-19, `^1.29.0`._
+- [x] `npm install -D promptfoo` (vitest ja instal·lat). _2026-04-19._
+- [x] Crear migració `supabase/migrations/20260419120000_mcp_tfg.sql` amb taules `agent_events` i `tag_suggestions` més polítiques RLS i índex HNSW. _2026-04-19._
 - [ ] Aplicar la migració al Supabase de desenvolupament (`supabase db push`).
-- [ ] Afegir índex compost `notes_user_embedding_idx` a la mateixa migració.
-- [ ] Regenerar types: `supabase gen types typescript --local > src/types/database.ts`.
+- [x] Índex compost `notes_user_embedding_idx` inclòs a la mateixa migració. _2026-04-19._
+- [ ] Regenerar types: `supabase gen types typescript --local > src/types/database.ts` (després d'aplicar la migració).
 - [ ] PoC de servidor MCP: una sola eina `search_notes` a `src/app/api/mcp/route.ts` amb token cablejat.
 - [ ] Provar el PoC amb MCP Inspector (`npx @modelcontextprotocol/inspector`).
 - [ ] Commit: "feat(mcp): poc server with search_notes tool".
@@ -269,7 +269,7 @@ A l'inici de cada setmana, Sergi actualitza aquí una línia amb el % real vs pl
 
 | Setmana | Planificat | Real | Comentari |
 |---|---|---|---|
-| 1 | 100% | — | — |
+| 1 | 100% | ~40% | 2026-04-19: commit docs TFG (d1ab994), carpetes creades, deps instal·lades (`@ai-sdk/anthropic`, `@modelcontextprotocol/sdk`, `promptfoo`), xat migrat a `claude-haiku-4-5`, migració SQL escrita (sense aplicar encara). Falta prova manual del xat, aplicar migració, PoC MCP. |
 | 2 | 100% | — | — |
 | 3 | 100% | — | — |
 | 4 | 100% | — | — |
