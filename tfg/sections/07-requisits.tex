@@ -1,22 +1,243 @@
 \chapter{Requisits}
 \label{ch:requisits}
 
+Aquest capítol defineix els requisits funcionals (RF) i no funcionals
+(RNF) del sistema. Els requisits funcionals es descriuen com a casos
+d'ús amb actor, precondició, flux principal i postcondició, seguint la
+notació habitual d'Enginyeria del Software. Els requisits no funcionals
+cobreixen seguretat, rendiment, escalabilitat, disponibilitat,
+accessibilitat, privacitat i mantenibilitat.
+
+Els actors del sistema són:
+
+\begin{itemize}
+  \item \textbf{Usuari final}. Propietari d'un compte a Synapse Notes.
+    Interactua amb la plataforma via UI web o via un client MCP
+    (Claude Desktop, Cursor).
+  \item \textbf{Agent de segon pla}. Procés automatitzat sobre
+    Edge Functions de Supabase amb \texttt{pg\_cron}. Opera sobre el
+    subconjunt de dades del seu tenant.
+  \item \textbf{Servidor d'autorització}. Supabase Auth, que emet JWTs
+    OAuth 2.1 per tenant.
+\end{itemize}
+
 \section{Requisits funcionals}
-% TODO: 15 casos d'ús UML. Per cada cas: actor, precondició, flux principal, postcondició.
+\label{sec:rf}
+
+Els 15 casos d'ús es divideixen en quatre blocs: operacions sobre eines
+MCP (RF01--RF06), operacions d'agents en segon pla (RF07--RF09), fluxos
+d'autorització (RF10--RF12) i interfície d'activitat (RF13--RF15).
+
+\subsection{Eines MCP}
+
+\paragraph{RF01. Cercar notes per similitud semàntica.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} usuari autenticat amb un JWT vàlid de Supabase.
+\textbf{Flux principal:} el client invoca l'eina \texttt{search\_notes}
+amb una cadena de consulta. El servidor genera l'embedding de la
+consulta, executa la RPC \texttt{match\_notes} amb filtre per
+\texttt{user\_id} i retorna les $k$ notes més similars amb el seu score.
+\textbf{Postcondició:} el client rep una llista ordenada de resultats.
+Només veu notes del seu tenant.
+
+\paragraph{RF02. Obtenir el contingut d'una nota per identificador.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid, id de nota coneguda.
+\textbf{Flux principal:} \texttt{get\_note(id)} retorna títol, contingut,
+etiquetes i metadades.
+\textbf{Postcondició:} error \texttt{NOT\_FOUND} si la nota pertany a un
+altre tenant (RLS).
+
+\paragraph{RF03. Crear una nota.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid; confirmació humana obtinguda
+(veure~D2 al decision log).
+\textbf{Flux principal:} \texttt{create\_note(title, content, tags)}
+valida l'input amb un schema Zod i insereix la nota.
+\textbf{Postcondició:} la nota queda creada amb \texttt{user\_id} igual
+al del JWT; es registra l'acció a \texttt{agent\_events}.
+
+\paragraph{RF04. Actualitzar una nota.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid, nota existent propietat de l'usuari.
+\textbf{Flux principal:} \texttt{update\_note(id, patch)} aplica el
+\emph{patch} (contingut o etiquetes) després de validar-lo.
+\textbf{Postcondició:} la nota queda actualitzada; RLS bloqueja
+actualitzacions a notes d'altres tenants.
+
+\paragraph{RF05. Aplicar etiquetes en bloc.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid, llista d'ids de notes propietat de
+l'usuari.
+\textbf{Flux principal:} \texttt{tag\_notes(ids, tags)} afegeix les
+etiquetes a totes les notes de la llista en una sola transacció.
+\textbf{Postcondició:} totes les notes afectades queden etiquetades;
+operació atòmica.
+
+\paragraph{RF06. Resumir un conjunt de notes.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid, ids de notes o filtre per etiqueta.
+\textbf{Flux principal:} \texttt{summarise\_notes(ids)} recupera els
+continguts, els etiqueta com a contingut no confiable
+(\texttt{<untrusted>}), genera un resum amb LLM, passa el resum pel
+filtre de sortida (veure~D3) i el retorna.
+\textbf{Postcondició:} resum neutralitzat en cas d'injecció detectada.
+
+\subsection{Agents en segon pla}
+
+\paragraph{RF07. Omplir embeddings pendents.}
+\textbf{Actor:} agent \texttt{embedding-backfill}.
+\textbf{Precondició:} existeixen notes amb \texttt{embedding IS NULL}.
+\textbf{Flux principal:} cada 15~min, l'agent localitza notes sense
+embedding, en genera un per cada, les desa i registra l'acció a
+\texttt{agent\_events}.
+\textbf{Postcondició:} totes les notes del tenant tenen embedding.
+
+\paragraph{RF08. Proposar etiquetes automàtiques.}
+\textbf{Actor:} agent \texttt{auto-tag}.
+\textbf{Precondició:} existeixen notes recents sense etiquetes.
+\textbf{Flux principal:} hora a hora, proposa entre 0 i 3 etiquetes per
+nota; les desa com a suggeriments a la taula \texttt{tag\_suggestions}
+amb estat \texttt{pending}.
+\textbf{Postcondició:} l'usuari pot acceptar o rebutjar els suggeriments
+des de la UI (RF14).
+
+\paragraph{RF09. Generar resum setmanal.}
+\textbf{Actor:} agent \texttt{weekly-digest}.
+\textbf{Precondició:} diumenge; existeixen notes de la setmana
+corrent.
+\textbf{Flux principal:} genera un resum setmanal per tenant i el desa
+com a nota especial amb etiqueta \texttt{digest}.
+\textbf{Postcondició:} nova nota \emph{digest} disponible per l'usuari.
+
+\subsection{Autorització OAuth 2.1}
+
+\paragraph{RF10. Establir una sessió MCP (OAuth).}
+\textbf{Actor:} client MCP (p.~ex.\ Claude Desktop).
+\textbf{Precondició:} l'usuari té compte a Supabase.
+\textbf{Flux principal:} el client inicia el flux OAuth 2.1 (Authorization
+Code amb PKCE) contra Supabase Auth; el servidor MCP rep el JWT i el
+verifica a cada crida.
+\textbf{Postcondició:} el client té un \texttt{access\_token} vàlid i un
+\texttt{refresh\_token}.
+
+\paragraph{RF11. Refrescar el token d'accés.}
+\textbf{Actor:} client MCP.
+\textbf{Precondició:} \texttt{access\_token} caducat però
+\texttt{refresh\_token} vàlid.
+\textbf{Flux principal:} el client intercanvia el \texttt{refresh\_token}
+per un nou \texttt{access\_token} sense intervenció de l'usuari.
+\textbf{Postcondició:} sessió continuada.
+
+\paragraph{RF12. Revocar un token.}
+\textbf{Actor:} usuari (via pàgina de sessions actives).
+\textbf{Precondició:} l'usuari té una sessió MCP activa.
+\textbf{Flux principal:} l'usuari demana la revocació; Supabase Auth
+invalida el \texttt{refresh\_token} i el servidor MCP rebutja les
+crides següents.
+\textbf{Postcondició:} el client MCP afectat ja no pot executar eines
+fins a un nou login.
+
+\subsection{Interfície d'activitat}
+
+\paragraph{RF13. Consultar l'activitat dels agents.}
+\textbf{Actor:} usuari via UI web.
+\textbf{Precondició:} usuari autenticat.
+\textbf{Flux principal:} la UI mostra un ``calaix'' amb els registres
+recents de \texttt{agent\_events} del tenant, ordenats per data
+descendent.
+\textbf{Postcondició:} l'usuari veu només els seus propis esdeveniments
+(RLS).
+
+\paragraph{RF14. Acceptar o rebutjar suggeriments d'etiqueta.}
+\textbf{Actor:} usuari via UI web.
+\textbf{Precondició:} existeixen suggeriments amb estat
+\texttt{pending}.
+\textbf{Flux principal:} l'usuari clica ``accepta'' o ``rebutja'';
+la UI invoca una server action que actualitza l'estat del suggeriment i,
+si s'accepta, aplica l'etiqueta a la nota.
+\textbf{Postcondició:} suggeriment amb estat \texttt{accepted} o
+\texttt{rejected}.
+
+\paragraph{RF15. Consultar el log d'accions d'un agent.}
+\textbf{Actor:} usuari via UI web.
+\textbf{Precondició:} existeix l'esdeveniment concret.
+\textbf{Flux principal:} l'usuari obre un esdeveniment per inspeccionar
+el \texttt{payload} JSON complet (útil per debugar l'agent o entendre la
+seva decisió).
+\textbf{Postcondició:} detall de l'esdeveniment visible.
 
 \section{Requisits no funcionals}
+\label{sec:rnf}
+
 \subsection{Seguretat}
-% TODO: RLS multi-tenant, Lethal Trifecta, OAuth 2.1.
+
+\paragraph{RNF01.} \textbf{Autenticació obligatòria}. Totes les crides
+MCP requereixen un JWT OAuth 2.1 vàlid. Cap endpoint accessible
+anònimament.
+
+\paragraph{RNF02.} \textbf{Aïllament multi-tenant amb RLS}. Totes les
+taules amb dades d'usuari
+(\texttt{notes}, \texttt{agent\_events}, \texttt{tag\_suggestions})
+tenen polítiques Row-Level Security que restringeixen l'accés a
+\texttt{user\_id = auth.uid()}.
+
+\paragraph{RNF03.} \textbf{Auditoria}. Cada acció d'agent o eina MCP
+amb efecte d'escriptura queda registrada a \texttt{agent\_events} amb
+actor, acció, \emph{payload} i timestamp.
+
 \subsection{Rendiment}
-% TODO: latència, concurrència (100 tenants simultanis).
-\subsection{Usabilitat}
-% TODO: i18n (CA/ES/EN), accessibilitat.
+
+\paragraph{RNF04.} \textbf{Latència de cerca}. $p_{95}$ de
+\texttt{search\_notes} $< 500$~ms amb 100 tenants concurrents. Mesurat a
+la prova de càrrega de setmana~5.
+
+\paragraph{RNF05.} \textbf{Escalabilitat de dades}. Suport de fins a
+10\,000 notes per usuari sense reindexació manual, gràcies a l'índex
+HNSW compost \texttt{notes\_user\_embedding\_idx}.
+
+\subsection{Disponibilitat i escalabilitat}
+
+\paragraph{RNF06.} \textbf{Servidor MCP sense estat}. El servidor MCP
+és stateless (Streamable HTTP) i, per tant, escalable horitzontalment
+sense sessió adherida (\emph{sticky sessions}).
+
+\subsection{Accessibilitat i usabilitat}
+
+\paragraph{RNF07.} \textbf{Internacionalització}. UI disponible en
+català, castellà i anglès amb persistència a \texttt{localStorage}.
+
+\paragraph{RNF08.} \textbf{Accessibilitat WCAG AA}. Components de
+Shadcn/UI que ja compleixen WCAG AA per colors, contrast i navegació
+per teclat.
+
+\subsection{Privacitat i legislació}
+
+\paragraph{RNF09.} \textbf{Compliment RGPD}. Drets ARCO-POL
+implementats: exportació i esborrat de compte. Base legal: consentiment
+explícit al registre més execució contractual. Veure
+capítol~\ref{ch:legislacio}.
+
 \subsection{Mantenibilitat}
-% TODO: cobertura de tests, CI, documentació.
+
+\paragraph{RNF10.} \textbf{Cobertura de tests}. $\geq 30$ tests
+automatitzats al CI (unitaris i d'integració). Veure O8.
+
+\paragraph{RNF11.} \textbf{Migracions idempotents}. Totes les migracions
+SQL fan servir \texttt{IF NOT EXISTS} / \texttt{IF EXISTS} per ser
+reentrants.
 
 \section{Diagrama de casos d'ús}
+\label{sec:casos-us}
+
+% TODO(setmana 2): exportar el diagrama UML de casos d'ús des de draw.io a
+% figures/use-cases.pdf (3 actors: usuari, agent, servidor d'autorització;
+% 15 casos d'ús agrupats com a la taxonomia de la secció 7.1). De moment
+% la descripció textual dels 15 RF serveix com a primera versió.
+%
 % \begin{figure}[htbp]
 %   \centering
 %   \includegraphics[width=\textwidth]{use-cases.pdf}
-%   \caption{Diagrama de casos d'ús.}
+%   \caption{Diagrama UML de casos d'ús.}
+%   \label{fig:casos-us}
 % \end{figure}
