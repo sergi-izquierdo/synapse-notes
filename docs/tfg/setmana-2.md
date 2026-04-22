@@ -184,9 +184,32 @@ Cada una afegirà:
 
 Requereix ≥15 tests unitaris totals (tenim 11; 4 més mínim, un per eina).
 
-## Fase 3 — Resources + prompt + deploy (pendent)
+## Fase 3 — Resources + prompt + prova remota + memòria (pendent)
 
-_Idem._
+A fer quan acabem Fase 2.x:
+
+- **Recursos MCP**: `notes://recent`, `notes://tag/{tag}` (handlers amb el mateix patró factory que les eines).
+- **Prompt MCP**: `daily-review` (un prompt predefinit que resumeix l'activitat).
+- **Prova amb Claude Desktop com a client MCP remot**: configurar `claude_desktop_config.json` amb `https://synapse-notes.vercel.app/api/mcp` + Bearer del JWT.
+- **Memòria §9.1**: diagrames C4 Context i Containers (a `tfg/figures/` + inclusió a `tfg/sections/08-disseny.tex`).
+- **Memòria §9.3**: diagrama de seqüència OAuth + primera crida, classe/mòduls del servidor, taula d'eines amb schemes JSON.
+
+---
+
+## Què falta per tancar Setmana 2
+
+Resum ràpid (al dia 2026-04-23):
+
+| Àrea | Fet | Pendent |
+|------|-----|---------|
+| Eines MCP | `search_notes` | `get_note`, `create_note`, `update_note`, `tag_notes`, `summarise_notes` |
+| Service layer | `NotesService.searchByEmbedding` | els 5 mètodes corresponents |
+| Tests | 11 verds | ≥ 4 més (un per eina) per arribar al ≥ 15 del pla |
+| Recursos MCP | — | `notes://recent`, `notes://tag/{tag}` |
+| Prompts MCP | — | `daily-review` |
+| Deploy | Production viva a `synapse-notes.vercel.app` amb Fase 1 | Prova MCP Inspector / Claude Desktop contra remot (només confirmació manual) |
+| Auth + OAuth redirect | Login Google i GitHub OK al domini nou | — |
+| Memòria | — | Diagrames C4, ER i sequence d'OAuth (§9.1, §9.2, §9.3) |
 
 ---
 
