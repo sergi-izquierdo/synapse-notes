@@ -120,7 +120,7 @@ Si en falla algun, és senyal que una refactorització posterior ha trencat el c
 | `npm test` | ✅ 16/16 passats |
 | `npm run lint` | ✅ 0 errors, 24 warnings (tots pre-existents, cap dels nous fitxers) |
 | `npm run build` | ✅ Build complet, ruta `/api/mcp` detectada com a dinàmica |
-| Prova manual MCP Inspector | ⏳ Pendent que la facis tu amb un JWT real |
+| Prova manual MCP Inspector | ✅ 2026-04-22 — query `pLATANO` sobre 5 notes reals del Sergi, top-1 nota id=19 "Platano" amb similarity 0.976, 5 resultats retornats. Connexió OK amb Bearer via `/api/dev/whoami`. |
 
 ---
 
@@ -138,4 +138,6 @@ _Idem._
 
 | Data | Fase | Resum |
 |------|------|-------|
-| 2026-04-22 | 1 | Refactor complet del PoC. 5 fitxers nous (auth, notes.service, tool, server factory) + route.ts reduït a 30 línies + 2 fitxers de test (11 nous tests). 16/16 verds, lint i build nets. Falta provar-ho manualment amb MCP Inspector (pendent d'un JWT real del Sergi). |
+| 2026-04-22 | 1 | Refactor complet del PoC. 5 fitxers nous (auth, notes.service, tool, server factory) + route.ts reduït a 30 línies + 2 fitxers de test (11 nous tests). 16/16 verds, lint i build nets. |
+| 2026-04-22 | 1 | Afegit `/api/dev/whoami` dev-only per facilitar extracció del JWT (substitueix el cookie-digging). Commit `1b0cadf`. |
+| 2026-04-22 | 1 | **Fase 1 verificada end-to-end** via MCP Inspector: JWT obtingut del endpoint, tool `search_notes` amb query `pLATANO` retorna les 5 notes reals del Sergi ordenades per similarity (top-1 "Platano" 0.976, molt superior al 0.73 del PoC perquè la query pràcticament coincideix amb el contingut). RLS passthrough confirmat implícitament: el client amb JWT només veu les notes del user autenticat. Prova d'aïllament creuat entre tenants queda per Setmana 3 (suite de 15 tests RLS). |
