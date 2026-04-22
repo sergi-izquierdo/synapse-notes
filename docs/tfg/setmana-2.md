@@ -60,15 +60,14 @@ Tots els fitxers creats o modificats el 2026-04-22:
 
 ### Com provar-ho (Fase 1)
 
-**Pre-requisit:** necessites un JWT de Supabase de la teva sessió autenticada. Dues maneres fàcils:
+**Pre-requisit:** necessites l'`access_token` JWT de la teva sessió Supabase. La manera fàcil:
 
-- **Opció A — Via navegador (recomanat):**
-  1. `npm run dev` i entra a <http://localhost:3000>, fes login (Google/GitHub).
-  2. Obre DevTools → Application → Cookies → `localhost:3000`.
-  3. Busca la cookie `sb-<project-ref>-auth-token`. És un JSON amb un camp `access_token`. Copia aquell valor (és un JWT que comença per `eyJ...`).
+1. `npm run dev` i entra a <http://localhost:3000/login>. Fes login (Google/GitHub).
+2. Obre <http://localhost:3000/api/dev/whoami> al navegador. Retornarà un JSON amb `access_token`. Copia el valor (comença per `eyJ...`).
 
-- **Opció B — Via Supabase Dashboard:**
-  Project Settings → API → Generate a temporary JWT per un user concret. (Més feixuc, només fer-ho si l'A falla.)
+> **Per què un endpoint i no les cookies:** `@supabase/ssr` talla el cookie de sessió en dues parts (`...-auth-token.0` i `.1`) i les codifica en base64 quan el JSON és gran. Reconstruir-ho a mà és pesat. El endpoint `/api/dev/whoami` està gatejat a `NODE_ENV !== 'production'` — no s'exposa mai al deploy.
+>
+> **Nota sobre cookies residuals:** potser veus també `next-auth.session-token` o `sb-127-auth-token` al DevTools. La primera és residu d'alguna prova amb NextAuth (el projecte no en té); la segona és d'un altre projecte Supabase (`127` ≈ localhost Studio). Pots ignorar-les o esborrar-les si fan nosa visualment.
 
 **Test amb MCP Inspector:**
 
