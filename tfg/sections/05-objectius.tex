@@ -13,19 +13,25 @@ es basi en judici subjectiu.
 El TFG té tres objectius generals:
 
 \begin{enumerate}
-  \item \textbf{Dissenyar i implementar un servidor Model Context Protocol
-    (MCP) multi-tenant} sobre el codebase existent de Synapse Notes, de
-    manera que agents autònoms (p.~ex.\ Claude Desktop o Cursor) puguin
-    consumir la base de coneixement personal de cada usuari amb aïllament
-    per tenant i sota OAuth 2.1.
+  \item \textbf{Dissenyar i implementar la plataforma base Synapse
+    Notes} (Part~A): un SaaS multi-tenant amb autenticació OAuth,
+    model de dades protegit per RLS, CRUD de notes i xat contextual
+    basat en RAG amb cerca vectorial pgvector.
 
-  \item \textbf{Analitzar la superfície d'atac} de l'agent resultant amb
-    el marc de la Lethal Trifecta \autocite{willison2025trifecta} i
-    aplicar mitigacions documentades eina a eina.
+  \item \textbf{Dissenyar i implementar un servidor Model Context
+    Protocol (MCP) multi-tenant sobre aquesta plataforma} (Part~B),
+    de manera que agents autònoms (p.~ex.\ Claude Desktop o Cursor)
+    puguin consumir la base de coneixement personal de cada usuari
+    amb aïllament per tenant sota OAuth~2.1, i complementar-la amb
+    3~agents en segon pla que enriqueixen la base de dades sense
+    intervenció humana.
 
-  \item \textbf{Avaluar empíricament} l'aïllament multi-tenant (Row-Level
-    Security), el rendiment de la cerca híbrida (pgvector amb HNSW) i la
-    resistència a la injecció indirecta de prompt mitjançant una suite
+  \item \textbf{Analitzar la superfície d'atac} del sistema resultant
+    amb el marc de la Lethal Trifecta
+    \autocite{willison2025trifecta} i \textbf{avaluar empíricament}
+    l'aïllament multi-tenant (Row-Level Security), el rendiment de
+    la cerca vectorial (pgvector amb HNSW) i la resistència a la
+    injecció indirecta de \emph{prompt} mitjançant una suite
     automatitzada de red-team.
 \end{enumerate}
 
@@ -35,49 +41,59 @@ El TFG té tres objectius generals:
 Els objectius específics són mesurables i verificables:
 
 \begin{description}
-  \item[O1.] Implementar 6 eines MCP (\texttt{search\_notes},
+  \item[O1.] Entregar la plataforma base Synapse Notes com a SaaS
+    funcional i desplegat a Vercel, amb: (a)~OAuth de Google i GitHub
+    sobre Supabase Auth, (b)~CRUD de notes amb editor ric i etiquetes,
+    (c)~xat en \emph{streaming} amb RAG via pgvector i \emph{tool
+    calling} (eina \texttt{getNotesByTag}), (d)~UI en CA/ES/EN amb
+    Shadcn/UI i mode fosc, (e)~aïllament de dades per RLS entre
+    tenants a totes les taules d'usuari.
+    \emph{Verificació:} URL pública accessible i vídeo de demo de la
+    Part~A cobrint els 5 fluxos.
+
+  \item[O2.] Implementar 6 eines MCP (\texttt{search\_notes},
     \texttt{get\_note}, \texttt{create\_note}, \texttt{update\_note},
     \texttt{tag\_notes} i \texttt{summarise\_notes}) exposades via
     transport Streamable HTTP amb autenticació OAuth 2.1.
     \emph{Verificació:} les 6 eines s'invoquen correctament des de MCP
     Inspector i des de Claude Desktop com a client MCP remot.
 
-  \item[O2.] Implementar 3 agents en segon pla
+  \item[O3.] Implementar 3 agents en segon pla
     (\texttt{embedding-backfill}, \texttt{auto-tag},
     \texttt{weekly-digest}) sobre Edge Functions de Supabase amb
     \texttt{pg\_cron}.
     \emph{Verificació:} els 3 agents s'executen segons la seva
     programació i escriuen traces a la taula \texttt{agent\_events}.
 
-  \item[O3.] Definir un model d'amenaces explícit per eina aplicant el
+  \item[O4.] Definir un model d'amenaces explícit per eina aplicant el
     marc de la Lethal Trifecta i documentar-lo amb una taula de 6 files
     (una per eina).
-    \emph{Verificació:} secció~9.4 de la memòria amb la taula, arbre
-    d'atacs de l'eina més exposada (\texttt{summarise\_notes}) i
-    justificació de cada classificació.
+    \emph{Verificació:} secció del capítol~de disseny de seguretat amb
+    la taula, arbre d'atacs de l'eina més exposada
+    (\texttt{summarise\_notes}) i justificació de cada classificació.
 
-  \item[O4.] Obtenir \textbf{zero fuites} en 15 o més tests d'aïllament
+  \item[O5.] Obtenir \textbf{zero fuites} en 15 o més tests d'aïllament
     de RLS que intentin accés creuat entre tenants a través de cada
     camí del MCP.
     \emph{Verificació:} \texttt{tests/rls/isolation.test.ts} amb
     15 o més casos, tots en verd al CI.
 
-  \item[O5.] Aconseguir una taxa de mitigació $\geq 80\,\%$ en 15 o més
+  \item[O6.] Aconseguir una taxa de mitigació $\geq 80\,\%$ en 15 o més
     atacs red-team de Promptfoo contra el servidor MCP.
     \emph{Verificació:} informe de Promptfoo exportat a
     \texttt{tests/security/reports/} amb el ràtio pass/fail.
 
-  \item[O6.] Mantenir latència $p_{95} < 500$~ms a \texttt{search\_notes}
+  \item[O7.] Mantenir latència $p_{95} < 500$~ms a \texttt{search\_notes}
     amb 100 tenants concurrents a la prova de càrrega.
     \emph{Verificació:} informe de càrrega amb taula de percentils p50,
     p95 i p99.
 
-  \item[O7.] Documentar un flux de demostració extrem a extrem amb
+  \item[O8.] Documentar un flux de demostració extrem a extrem amb
     Claude Desktop com a client MCP remot.
     \emph{Verificació:} vídeo de demo de 2--3 minuts inclòs als annexos.
 
-  \item[O8.] Produir $\geq 30$ tests automatitzats entre unitaris i
-    d'integració.
+  \item[O9.] Produir $\geq 30$ tests automatitzats entre unitaris i
+    d'integració (Part~A + Part~B).
     \emph{Verificació:} informe de cobertura del CI amb el recompte.
 \end{description}
 
@@ -88,21 +104,38 @@ Els objectius anteriors mapegen directament competències del Grau en
 Enginyeria Informàtica de la Universitat Rovira i Virgili:
 
 \begin{itemize}
-  \item \textbf{Seguretat en Xarxes (SX).} OAuth 2.1, JWT, verificació de
-    tokens i modelatge d'amenaces (O1, O3, O4, O5).
+  \item \textbf{Seguretat de Xarxes (SX).} OAuth multi-proveïdor
+    (Google, GitHub) a la Part~A, OAuth~2.1 per a MCP a la Part~B,
+    verificació de JWT, modelatge d'amenaces amb el marc Lethal
+    Trifecta i avaluació empírica de mitigacions amb Promptfoo
+    (O1, O2, O4, O6).
 
-  \item \textbf{Sistemes Concurrents (SCE).} Agents en segon pla amb
-    \texttt{pg\_cron}, cues i execució diferida (O2, O6).
+  \item \textbf{Sistemes Distribuïts (SD).} Arquitectura
+    client/servidor del MCP (transport Streamable HTTP sobre HTTP/S,
+    protocol JSON-RPC 2.0), agents en segon pla desplegats com a Edge
+    Functions amb \texttt{pg\_cron} i execució diferida, i prova de
+    càrrega amb 100 tenants concurrents (O2, O3, O7).
 
-  \item \textbf{Bases de Dades (BD).} Modelat relacional, polítiques de
-    RLS, índex HNSW per a cerca vectorial (O1, O4, O6).
+  \item \textbf{Bases de Dades Avançades (BDA).} Modelat relacional
+    multi-tenant, polítiques de Row-Level Security, cerca vectorial
+    amb pgvector i índex HNSW sobre embeddings de 768 dimensions
+    filtrats per tenant (O1, O5, O7).
 
-  \item \textbf{Enginyeria del Software (ES).} Diagrames UML de casos
-    d'ús, arquitectura, disseny orientat a tests i documentació en
-    estàndard ADA (tot el TFG).
+  \item \textbf{Intel·ligència Artificial (IA).} Xat contextual basat
+    en Retrieval-Augmented Generation amb embeddings de Google Gemini
+    i \emph{tool calling} via Vercel AI SDK a la Part~A, i exposició
+    de la base de coneixement a LLMs externs mitjançant eines MCP a
+    la Part~B (O1, O2).
 
-  \item \textbf{Compiladors.} Parsing d'schemes Zod a les eines MCP per
-    validar inputs (O1).
+  \item \textbf{Desenvolupament Avançat d'Aplicacions Web (DAAW).}
+    Construcció de la plataforma Part~A amb Next.js~15 (App Router),
+    React~19 amb Server Components i Server Actions, TypeScript i
+    Tailwind amb Shadcn/UI; desplegament continu a Vercel (O1).
+
+  \item \textbf{Anàlisi i Disseny d'Aplicacions (ADA).} Especificació
+    de 19 casos d'ús funcionals i 11 requisits no funcionals,
+    diagrames UML, arquitectura en diagrames C4 i disseny orientat a
+    tests (tot el TFG).
 \end{itemize}
 
 L'àrea més rellevant és la de seguretat: el capítol~9.4 construeix un

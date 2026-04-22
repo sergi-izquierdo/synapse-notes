@@ -36,23 +36,46 @@ una especificació de seguretat pròpia
 \autocite{mcpspec2026security,mcpspec2026auth} que fixa
 OAuth 2.1 com a esquema d'autorització.
 
-Synapse Notes és una plataforma SaaS multi-tenant de notes amb xat
-contextual RAG, desenvolupada per l'autor durant el primer quadrimestre
-del curs 2025--2026. Utilitza Next.js 15 (App Router), Supabase
-(Postgres amb l'extensió pgvector), Google Gemini (\emph{embedding-001})
-i, des d'abril de 2026, Claude Haiku 4.5 com a model de xat. En el seu
-estat actual, implementa fluxos CRUD de notes, autenticació via OAuth
-(Google i GitHub) i cerca vectorial sobre els embeddings dels
-continguts. Tot l'accés a dades està protegit per polítiques Row-Level
-Security (RLS) de PostgreSQL.
+\textbf{Synapse Notes} és el projecte desenvolupat com a Treball de
+Fi de Grau al llarg del curs 2025--2026. L'execució s'ha estructurat
+en dues parts complementàries, cadascuna amb els seus propis
+entregables i criteris de verificació:
+
+\begin{itemize}
+  \item \textbf{Part~A. Plataforma base} (octubre~2025 -- abril~2026).
+    Disseny i implementació d'un SaaS multi-tenant de notes amb xat
+    contextual RAG. \emph{Stack:} Next.js~15 amb App Router, React~19,
+    TypeScript, Tailwind~4 i Shadcn/UI; Supabase com a capa de dades
+    (PostgreSQL amb l'extensió pgvector) i d'autenticació; Google
+    Gemini \texttt{embedding-001} per als embeddings i Vercel AI SDK
+    per al xat en \emph{streaming} amb \emph{tool calling}. La
+    plataforma implementa OAuth de Google i GitHub, CRUD de notes,
+    internacionalització (CA/ES/EN) i desplegament continu a Vercel.
+    Tot l'accés a dades queda protegit per polítiques Row-Level
+    Security (RLS) de PostgreSQL.
+
+  \item \textbf{Part~B. Extensió crítica per a agents d'IA}
+    (abril -- juny~2026). Aportació de recerca i seguretat del
+    treball: servidor \textbf{MCP multi-tenant} amb OAuth~2.1 sobre
+    Supabase Auth, 3~agents en segon pla sobre Edge Functions de
+    Supabase amb \texttt{pg\_cron}, i un model d'amenaces formal
+    basat en la \emph{Lethal Trifecta}
+    \autocite{willison2025trifecta} amb avaluació empírica de les
+    mitigacions. Des d'abril de 2026, el model de xat passa a
+    Claude Haiku~4.5 per homogeneïtzar proveïdor amb la passada de
+    seguretat del servidor MCP.
+\end{itemize}
 
 \section{Motivació}
 \label{sec:motivacio}
 
-El salt qualitatiu que porta aquest TFG a Synapse Notes no és afegir
-funcionalitats d'usuari finals (el producte ja les té), sinó
-\textbf{convertir la plataforma en una superfície accessible per agents
-d'IA de manera segura}. La pregunta de recerca que guia el treball és:
+La Part~A del TFG consolida una plataforma RAG funcional i els patrons
+de SaaS multi-tenant (autenticació OAuth, aïllament per RLS, cerca
+vectorial i xat en \emph{streaming} amb eines). La Part~B construeix
+sobre aquesta base l'aportació que fa el treball defensable davant el
+tribunal: \textbf{convertir la plataforma en una superfície accessible
+per agents d'IA de manera segura}. La pregunta de recerca que guia la
+Part~B i vertebra la memòria és:
 
 \begin{quote}
   \emph{Com es dissenya, implementa i avalua empíricament un servidor MCP
@@ -86,12 +109,14 @@ La motivació és tripla:
 
   \item \textbf{Alineació formativa.} Els objectius del TFG cobreixen
     competències centrals del Grau en Enginyeria Informàtica de la
-    Universitat Rovira i Virgili: \emph{Seguretat de Xarxes} (OAuth,
-    JWT, modelatge d'amenaces), \emph{Sistemes Concurrents} (agents en
-    segon pla, cues i \texttt{pg\_cron}), \emph{Bases de Dades}
-    (RLS, pgvector, HNSW) i \emph{Enginyeria del Software} (diagrames
-    UML, arquitectura, tests). Aquesta triangulació justifica el TFG a
-    l'ETSE.
+    URV: \emph{Seguretat de Xarxes} (OAuth~2.1, JWT, modelatge
+    d'amenaces), \emph{Sistemes Distribuïts} (arquitectura
+    client/servidor MCP, agents en segon pla amb \texttt{pg\_cron}),
+    \emph{Bases de Dades Avançades} (RLS, pgvector, HNSW),
+    \emph{Intel·ligència Artificial} (RAG, LLMs, \emph{tool calling}),
+    \emph{Desenvolupament Avançat d'Aplicacions Web} (Next.js, React,
+    App Router) i \emph{Anàlisi i Disseny d'Aplicacions} (UML, casos
+    d'ús, requisits). Aquesta triangulació justifica el TFG a l'ETSE.
 \end{enumerate}
 
 \section{Ús esperat i usuaris objectiu}
@@ -102,31 +127,52 @@ coneixement personal no trivial que vol interrogar-la amb un agent
 d'IA. Els tres fluxos d'ús esperats són:
 
 \begin{itemize}
-  \item \textbf{Xat RAG integrat.} L'usuari accedeix a la UI web i
-    pregunta sobre les seves notes amb llenguatge natural. El sistema
-    recupera els fragments rellevants via pgvector i els passa al LLM.
-    Aquest flux ja existeix i no és l'aportació del TFG.
+  \item \textbf{Xat RAG integrat} (Part~A). L'usuari accedeix a la UI
+    web i pregunta sobre les seves notes amb llenguatge natural. El
+    sistema recupera els fragments rellevants via pgvector i els passa
+    al LLM (Claude Haiku~4.5) en \emph{streaming}, amb \emph{tool
+    calling} disponible (\texttt{getNotesByTag}).
 
-  \item \textbf{Agents externs via MCP.} L'usuari connecta el seu
-    client MCP preferit (Claude Desktop, Cursor, un agent propi) a la
-    seva instància de Synapse. El client autentica via OAuth 2.1, rep
-    un JWT per tenant i invoca eines com \texttt{search\_notes} o
-    \texttt{summarise\_notes}. \textbf{Aquest és el flux nou del TFG.}
+  \item \textbf{Agents externs via MCP} (Part~B). L'usuari connecta
+    el seu client MCP preferit (Claude Desktop, Cursor, un agent propi)
+    a la seva instància de Synapse. El client autentica via OAuth~2.1,
+    rep un JWT per tenant i invoca eines com \texttt{search\_notes} o
+    \texttt{summarise\_notes}.
 
-  \item \textbf{Agents en segon pla.} Tres agents (backfill
-    d'embeddings, auto-etiquetatge, resum setmanal) operen sense
-    intervenció de l'usuari, sota \texttt{pg\_cron} a Supabase, i
-    escriuen els seus resultats a taules auditables
-    \autocite{supabase2026cron,supabase2026largejobs}. \textbf{També
-    és aportació del TFG.}
+  \item \textbf{Agents en segon pla} (Part~B). Tres agents
+    (\texttt{embedding-backfill}, \texttt{auto-tag},
+    \texttt{weekly-digest}) operen sense intervenció de l'usuari, sota
+    \texttt{pg\_cron} a Supabase, i escriuen els seus resultats a
+    taules auditables
+    \autocite{supabase2026cron,supabase2026largejobs}.
 \end{itemize}
 
 \section{Abast del treball}
 \label{sec:abast}
 
-L'abast del TFG és l'anomenat \emph{Opció~C} al registre de decisions
-\texttt{docs/tfg/00-decision-log.md}: es conserva el codebase de Synapse
-Notes, i s'hi afegeixen tres contribucions:
+L'abast del TFG és el conjunt del projecte Synapse Notes, organitzat en
+les dues parts presentades a la secció~\ref{sec:context}. Les
+aportacions concretes s'enumeren a continuació.
+
+\textbf{Part~A. Plataforma base} (desenvolupament continu d'octubre~2025
+a abril~2026):
+
+\begin{enumerate}
+  \item Autenticació OAuth multi-proveïdor (Google i GitHub) sobre
+    Supabase Auth, amb sessió persistent i protecció de rutes a
+    Next.js.
+  \item Model de dades multi-tenant amb polítiques RLS sobre
+    \texttt{notes}, \texttt{chats} i \texttt{messages}, i RPC
+    \texttt{match\_notes} per a cerca vectorial amb pgvector.
+  \item CRUD de notes i xat en \emph{streaming} via Vercel AI SDK amb
+    \emph{tool calling} (\texttt{getNotesByTag}), integrat amb el
+    context RAG.
+  \item UI internacionalitzada (CA/ES/EN) amb Shadcn/UI, paleta
+    d'ordres, mode fosc i desplegament continu a Vercel.
+\end{enumerate}
+
+\textbf{Part~B. Extensió crítica per a agents d'IA} (desenvolupament
+intensiu del 19~d'abril al 5~de juny de 2026):
 
 \begin{enumerate}
   \item Un servidor \textbf{MCP multi-tenant} amb 6 eines
@@ -150,10 +196,10 @@ Notes, i s'hi afegeixen tres contribucions:
 
 Les exclusions explícites (aplicació mòbil, workspaces d'equip,
 facturació, panell d'administració, cerca full-text, fine-tuning de LLM,
-Supabase auto-allotjat) queden documentades a \texttt{01-scope.md}.
-L'abast es \emph{congela} al final de la setmana~1 com a mesura de
-contenció d'\emph{scope creep}, un dels dos riscos alts identificats
-al capítol~\ref{ch:planificacio}.
+Supabase auto-allotjat) queden justificades com a treball futur a la
+valoració final. L'abast de la Part~B es \emph{congela} al final de la
+primera setmana com a mesura de contenció d'\emph{scope creep}, un dels
+dos riscos alts identificats al capítol~\ref{ch:planificacio}.
 
 \section{Organització del document}
 \label{sec:organitzacio}
@@ -165,9 +211,11 @@ La memòria segueix l'estàndard ADA de la URV, amb 17 seccions:
     objectius). Fixen el context, el vocabulari i els criteris de
     verificació.
   \item \textbf{Capítol~\ref{ch:planificacio}} (planificació).
-    Calendari de 47 dies, fases, Gantt i taula de riscos.
-  \item \textbf{Capítol~\ref{ch:requisits}} (requisits). 15 casos
-    d'ús funcionals i 11 requisits no funcionals.
+    Fases de Part~A i Part~B, calendari intensiu de 47 dies per a la
+    Part~B, Gantt i taula de riscos.
+  \item \textbf{Capítol~\ref{ch:requisits}} (requisits). 19 casos
+    d'ús funcionals (4 de Part~A + 15 de Part~B) i 11 requisits
+    no funcionals.
   \item \textbf{Capítol~8 (disseny)}. Arquitectura C4, disseny de BD
     amb polítiques RLS, disseny del servidor MCP i \emph{disseny de
     seguretat} (contribució principal, Lethal Trifecta eina a eina).

@@ -1,11 +1,17 @@
 \chapter{Planificació}
 \label{ch:planificacio}
 
-Aquest capítol descriu la metodologia de treball, la divisió en fases i
-el diagrama de Gantt que conduirà el TFG des del 19 d'abril de 2026 fins
-a l'entrega per a la primera convocatòria el 5 de juny de 2026. La
-finestra total és de 47 dies naturals sota una hipòtesi sostenible
-d'unes 25 hores setmanals.
+Aquest capítol descriu la metodologia de treball i la planificació
+temporal del TFG. El projecte s'ha executat en dues grans fases: la
+\textbf{Part~A} (plataforma base), desenvolupada de manera iterativa
+entre octubre~2025 i abril~2026 al llarg del curs acadèmic, i la
+\textbf{Part~B} (extensió MCP, agents en segon pla i model d'amenaces),
+desenvolupada en una finestra intensiva de 47 dies naturals entre el
+19~d'abril i el 5~de juny de 2026 sota una hipòtesi sostenible d'unes
+25~hores setmanals. La taula~\ref{tab:fases} contextualitza ambdues
+parts; el detall dia a dia d'aquest capítol se centra en la Part~B,
+on es concentra la contribució defensable del TFG i on cal un control
+estricte d'abast.
 
 \section{Metodologia}
 \label{sec:metodologia}
@@ -13,9 +19,8 @@ d'unes 25 hores setmanals.
 El desenvolupament segueix una metodologia \textbf{iterativa amb fites
 setmanals}. Cada setmana té un conjunt acotat d'entregables de codi i de
 memòria i un \emph{criteri de sortida} verificable (test verd, benchmark
-registrat, secció escrita). Els criteris de sortida es documenten al
-fitxer \texttt{docs/tfg/extend.md} del repositori, que serveix de registre
-viu del progrés.
+registrat, secció escrita). El progrés es registra de forma contínua en
+un log intern de desenvolupament.
 
 La metodologia adopta tres pràctiques:
 
@@ -25,9 +30,9 @@ La metodologia adopta tres pràctiques:
     L'aïllament RLS es verifica amb la suite
     \texttt{tests/rls/isolation.test.ts}.
   \item \textbf{Control d'abast estricte.} Qualsevol funcionalitat fora
-    de \texttt{docs/tfg/01-scope.md} es deriva al capítol de treball
-    futur. Les decisions de canvi queden al registre
-    \texttt{docs/tfg/00-decision-log.md}.
+    de l'abast definit a la secció~\ref{sec:abast} es deriva al capítol
+    de treball futur. Els canvis d'abast durant el desenvolupament es
+    registren amb data, justificació i impacte estimat.
   \item \textbf{Escriptura en paral·lel.} La memòria no es redacta al
     final: cada setmana avança seccions concretes, de manera que la
     setmana~6 és d'\emph{empenta final} i no de redacció des de zero.
@@ -47,7 +52,8 @@ temps d'entrega però dins del calendari de la defensa.
     \toprule
     \# & Fase & Dates & Durada & Focus \\
     \midrule
-    1 & Fonaments & 19/04--26/04 & 8 d & Recerca, scaffold, PoC MCP, seccions 1--8 memòria \\
+    0 & Plataforma base (Part~A) & 10/25--04/26 & $\sim$180 d & Auth OAuth, model de dades RLS, xat RAG, UI i18n, deploy Vercel \\
+    1 & Fonaments (Part~B) & 19/04--26/04 & 8 d & Recerca MCP, scaffold, PoC MCP, seccions 1--8 memòria \\
     2 & Nucli MCP & 27/04--10/05 & 14 d & 6 eines MCP, OAuth 2.1, desplegament \\
     3 & Agents i seguretat & 11/05--24/05 & 14 d & 3 agents en segon pla, Lethal Trifecta, Promptfoo \\
     4 & Avaluació i memòria & 25/05--05/06 & 12 d & Tests, benchmarks, seccions 9--17, entrega \\
@@ -56,15 +62,20 @@ temps d'entrega però dins del calendari de la defensa.
   \end{tabular}
 \end{table}
 
-\subsection{Càrrega setmanal estimada}
+\subsection{Càrrega setmanal estimada (Part~B)}
 
 La taula~\ref{tab:carrega-setmanal} recull els entregables principals i
-l'estimació d'hores per setmana. L'estimació agrega codi, memòria i
-administració, i assumeix una dedicació de 25 h setmanals de mitjana.
+l'estimació d'hores per setmana durant la finestra intensiva de la
+Part~B (19~d'abril -- 5~de juny de 2026). L'estimació agrega codi,
+memòria i administració, i assumeix una dedicació de 25~h setmanals de
+mitjana. La Part~A (Fase~0) no es desglossa setmana a setmana perquè
+es va desenvolupar de forma iterativa al llarg del curs acadèmic; el
+total aproximat és de 390~h distribuïdes de manera desigual en funció
+dels períodes d'avaluació.
 
 \begin{table}[htbp]
   \centering
-  \caption{Càrrega setmanal estimada per fase.}
+  \caption{Càrrega setmanal estimada per a la Part~B.}
   \label{tab:carrega-setmanal}
   \begin{tabular}{clc}
     \toprule
@@ -125,7 +136,7 @@ redactar a la setmana~1 i congelar l'abast al final de la setmana~1.
     Saturar límits d'Edge Functions a tests & Mitjana & Mitjà & Projecte Supabase aïllat; càrrega amb Supabase local \\
     Tall de Gemini durant la demo & Baixa & Mitjà & Vídeo alternatiu; mode fallback manual \\
     Memòria infravalorada, \emph{crunch} de temps & Alta & Alt & Redacció des de setmana~1; no deixar-ho a setmana~6 \\
-    Tutor no respon al canvi d'abast & Baixa & Baix & Marc Sánchez va donar llibertat oberta; documentat al decision log \\
+    Tutor no respon al canvi d'abast & Baixa & Baix & Llibertat oberta acordada a la reunió inicial; cada canvi es comunica i es documenta amb data i justificació \\
     Malaltia o col·lisió amb exàmens & Mitjana & Alt & Marge a setmanes~4 i~7; defensa es pot moure 2--3 d \\
     \emph{Scope creep} (``només una eina més'') & Alta & Alt & Abast congelat al final de setmana~1; peticions fora van a treball futur \\
     \bottomrule

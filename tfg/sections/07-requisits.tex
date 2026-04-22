@@ -24,9 +24,52 @@ Els actors del sistema són:
 \section{Requisits funcionals}
 \label{sec:rf}
 
-Els 15 casos d'ús es divideixen en quatre blocs: operacions sobre eines
-MCP (RF01--RF06), operacions d'agents en segon pla (RF07--RF09), fluxos
+Els casos d'ús es divideixen en cinc blocs: funcionalitats de la
+plataforma base Part~A (RF-A1--RF-A4), operacions sobre eines MCP
+(RF01--RF06), operacions d'agents en segon pla (RF07--RF09), fluxos
 d'autorització (RF10--RF12) i interfície d'activitat (RF13--RF15).
+
+\subsection{Plataforma base (Part~A)}
+
+\paragraph{RF-A1. Iniciar sessió amb OAuth.}
+\textbf{Actor:} usuari final via UI web.
+\textbf{Precondició:} l'usuari té compte a Google o GitHub.
+\textbf{Flux principal:} l'usuari clica ``Sign in'' i completa el flux
+OAuth contra Supabase Auth. En tornar al \emph{callback}, queda logat i
+el seu \texttt{user\_id} queda disponible via \texttt{auth.uid()}.
+\textbf{Postcondició:} sessió establerta; accés autoritzat a les
+rutes protegides; les polítiques RLS apliquen a tot l'accés posterior.
+
+\paragraph{RF-A2. Gestionar notes (CRUD).}
+\textbf{Actor:} usuari autenticat via UI web.
+\textbf{Precondició:} sessió vàlida.
+\textbf{Flux principal:} l'usuari crea, llegeix, actualitza i esborra
+notes des del dashboard mitjançant \emph{server actions}. Cada
+escriptura encua la generació de l'embedding Gemini de manera
+asíncrona.
+\textbf{Postcondició:} estat persistit a \texttt{notes}; RLS garanteix
+que només el propietari pot llegir o modificar les seves files.
+
+\paragraph{RF-A3. Xat contextual amb RAG.}
+\textbf{Actor:} usuari autenticat via UI web.
+\textbf{Precondició:} sessió vàlida; opcionalment, la base de
+coneixement té notes indexades.
+\textbf{Flux principal:} l'usuari escriu una pregunta al xat. El
+servidor genera l'embedding de la consulta, recupera els fragments
+rellevants de \texttt{notes} via \texttt{match\_notes} (pgvector)
+i/o invoca l'eina \texttt{getNotesByTag} per a cerques per etiqueta,
+i transmet la resposta del LLM en \emph{streaming} via Vercel AI SDK.
+\textbf{Postcondició:} la conversa es desa a \texttt{chats} i
+\texttt{messages}.
+
+\paragraph{RF-A4. Canviar l'idioma de la UI.}
+\textbf{Actor:} usuari (autenticat o no).
+\textbf{Precondició:} --.
+\textbf{Flux principal:} l'usuari selecciona l'idioma al selector
+(català, castellà, anglès). El valor es persisteix a
+\texttt{localStorage} via el \texttt{LanguageProvider}.
+\textbf{Postcondició:} UI renderitzada a l'idioma triat; persistència
+entre sessions al mateix navegador.
 
 \subsection{Eines MCP}
 
@@ -50,8 +93,8 @@ altre tenant (RLS).
 
 \paragraph{RF03. Crear una nota.}
 \textbf{Actor:} usuari via client MCP.
-\textbf{Precondició:} JWT vàlid; confirmació humana obtinguda
-(veure~D2 al decision log).
+\textbf{Precondició:} JWT vàlid; confirmació humana obtinguda segons
+el patró d'aprovació definit al capítol de disseny de seguretat.
 \textbf{Flux principal:} \texttt{create\_note(title, content, tags)}
 valida l'input amb un schema Zod i insereix la nota.
 \textbf{Postcondició:} la nota queda creada amb \texttt{user\_id} igual
@@ -80,7 +123,8 @@ operació atòmica.
 \textbf{Flux principal:} \texttt{summarise\_notes(ids)} recupera els
 continguts, els etiqueta com a contingut no confiable
 (\texttt{<untrusted>}), genera un resum amb LLM, passa el resum pel
-filtre de sortida (veure~D3) i el retorna.
+filtre de sortida definit al capítol de disseny de seguretat, i el
+retorna.
 \textbf{Postcondició:} resum neutralitzat en cas d'injecció detectada.
 
 \subsection{Agents en segon pla}
@@ -221,7 +265,7 @@ capítol~\ref{ch:legislacio}.
 \subsection{Mantenibilitat}
 
 \paragraph{RNF10.} \textbf{Cobertura de tests}. $\geq 30$ tests
-automatitzats al CI (unitaris i d'integració). Veure O8.
+automatitzats al CI (unitaris i d'integració). Veure O9.
 
 \paragraph{RNF11.} \textbf{Migracions idempotents}. Totes les migracions
 SQL fan servir \texttt{IF NOT EXISTS} / \texttt{IF EXISTS} per ser
