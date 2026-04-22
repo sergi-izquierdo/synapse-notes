@@ -96,7 +96,7 @@
 - [ ] Recursos MCP: `notes://recent`, `notes://tag/{tag}`.
 - [ ] Prompt MCP: `daily-review`.
 - [ ] Tests unitaris per a cada eina amb mock de Supabase (≥ 15 tests). _2026-04-22 (Fase 1), 11/15 tests: 7 a `src/lib/mcp/auth.test.ts` + 4 a `src/services/notes.service.test.ts`. Els 4 restants arribaran a la Fase 2 amb les eines noves._
-- [ ] Desplegament a Vercel preview. Provar amb Claude Desktop com a client MCP remot.
+- [ ] Desplegament a Vercel preview. Provar amb Claude Desktop com a client MCP remot. _2026-04-22 (Fase 2.0): deploy a **production** (no preview — el deploy previ tenia el PoC insegur). Eliminades `MCP_POC_TOKEN` i `MCP_POC_USER_ID` del projecte Vercel. Status Ready. URL: `https://synapse-notes-fndtghjma-sergis-projects-2e66a325.vercel.app`. **Pendent d'acció manual:** desactivar Vercel Deployment Protection per production al dashboard perquè el URL sigui accessible des de clients MCP externs (Inspector, Claude Desktop). Prova amb Claude Desktop queda per Fase 3._
 - [ ] Commit: "feat(mcp): 6 tools with oauth and rls passthrough".
 
 ### Memòria

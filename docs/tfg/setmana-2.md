@@ -18,8 +18,8 @@
 | Fase | Contingut | Data prevista | Estat |
 |------|-----------|---------------|-------|
 | 1 | Refactor del PoC al patró definitiu (JWT + RLS + service factory) | 2026-04-22 | ✅ Fet |
-| 2 | Les 5 eines restants + NotesService expandit (≥15 tests) | 2026-04-27 → 29 | Pendent |
-| 3 | Resources + prompt + deploy Vercel + prova amb Claude Desktop + memòria §9.1/§9.3 | 2026-04-30 → 05-03 | Pendent |
+| 2 | Deploy Vercel production + les 5 eines restants + NotesService expandit (≥15 tests) | 2026-04-27 → 29 | En curs (deploy fet, eines pendents) |
+| 3 | Resources + prompt + prova amb Claude Desktop com a client MCP remot + memòria §9.1/§9.3 | 2026-04-30 → 05-03 | Pendent |
 
 ---
 
@@ -124,9 +124,43 @@ Si en falla algun, és senyal que una refactorització posterior ha trencat el c
 
 ---
 
-## Fase 2 — Les 5 eines restants (pendent)
+## Fase 2 — Deploy Vercel + 5 eines restants (en curs)
 
-_S'escriurà quan arribi el moment de tirar-ho endavant._
+### 2.0 Deploy Vercel production (2026-04-22)
+
+El deploy previ a Vercel era del 2026-04-19 (commit `e11ed04`) i encara tenia el PoC amb token hardcoded. Calia redesplegar amb Fase 1.
+
+**Actions preses:**
+
+1. `vercel env rm MCP_POC_TOKEN production --yes` → eliminat.
+2. `vercel env rm MCP_POC_USER_ID production --yes` → eliminat.
+3. `vercel --prod --yes` → deploy de `main` a production. Estat: **Ready** ✓.
+4. URL de production: https://synapse-notes-fndtghjma-sergis-projects-2e66a325.vercel.app
+5. Smoke test amb `curl -X POST .../api/mcp` sense auth → HTTP 401.
+
+**Complicació detectada — Vercel Deployment Protection:**
+
+El HTTP 401 del smoke test **no** és la nostra auth MCP; és la capa de Vercel Deployment Protection (activada per defecte al projecte). Qualsevol petició externa (MCP Inspector, Claude Desktop, curl) topa amb una pàgina HTML "Authentication Required" de Vercel abans d'arribar al nostre `route.ts`.
+
+Per a un TFG amb demo pública, l'opció canònica és **desactivar la protecció per a production** i deixar-la activa per a preview deployments. La seguretat real la fa JWT + RLS al nostre codi.
+
+**Passos pendents (decisió i acció fora-de-codi):**
+
+- [ ] Decidir entre (A) _Only Preview Deployments_ i (B) _Protection Bypass Token_.
+- [ ] Aplicar el canvi al dashboard: https://vercel.com/sergis-projects-2e66a325/synapse-notes/settings/deployment-protection
+- [ ] Redeploy o simplement re-test: curl hauria de rebre JSON-RPC d'error (no HTML d'auth).
+- [ ] Repetir l'smoke test d'MCP Inspector contra la URL de Vercel (amb un JWT de local via `/api/dev/whoami` — el JWT val per a qualsevol entorn que usi el mateix Supabase dev).
+
+### 2.x Les 5 eines restants (encara no iniciat)
+
+Eines previstes: `get_note`, `create_note`, `update_note`, `tag_notes`, `summarise_notes`.
+
+Cada una afegirà:
+- Un mètode al `NotesService` (amb tests unitaris).
+- Un fitxer `src/lib/mcp/tools/<name>.ts` amb schema Zod + handler factory.
+- Registre al `createMcpServer`.
+
+Requereix ≥15 tests unitaris totals (tenim 11; 4 més mínim, un per eina).
 
 ## Fase 3 — Resources + prompt + deploy (pendent)
 
@@ -141,3 +175,4 @@ _Idem._
 | 2026-04-22 | 1 | Refactor complet del PoC. 5 fitxers nous (auth, notes.service, tool, server factory) + route.ts reduït a 30 línies + 2 fitxers de test (11 nous tests). 16/16 verds, lint i build nets. |
 | 2026-04-22 | 1 | Afegit `/api/dev/whoami` dev-only per facilitar extracció del JWT (substitueix el cookie-digging). Commit `1b0cadf`. |
 | 2026-04-22 | 1 | **Fase 1 verificada end-to-end** via MCP Inspector: JWT obtingut del endpoint, tool `search_notes` amb query `pLATANO` retorna les 5 notes reals del Sergi ordenades per similarity (top-1 "Platano" 0.976, molt superior al 0.73 del PoC perquè la query pràcticament coincideix amb el contingut). RLS passthrough confirmat implícitament: el client amb JWT només veu les notes del user autenticat. Prova d'aïllament creuat entre tenants queda per Setmana 3 (suite de 15 tests RLS). |
+| 2026-04-22 | 2 | **Deploy Vercel production amb Fase 1.** POC env vars (`MCP_POC_TOKEN`, `MCP_POC_USER_ID`) esborrades del projecte Vercel. `vercel --prod --yes` OK, status **Ready**. URL: `https://synapse-notes-fndtghjma-sergis-projects-2e66a325.vercel.app`. Smoke test detecta **Vercel Deployment Protection** aturant peticions externes abans d'arribar al nostre codi (HTTP 401 + HTML d'auth de Vercel, no JSON-RPC). Acció pendent del Sergi: desactivar protection per production al dashboard. Una vegada fet, es pot apuntar MCP Inspector al URL remot amb un JWT de local. |
