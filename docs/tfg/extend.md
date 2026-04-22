@@ -84,18 +84,18 @@
 
 ### Codi
 
-- [ ] `src/lib/mcp/server.ts`: extracció del servidor MCP amb factory `createMcpServer(supabase)`.
-- [ ] `src/lib/mcp/auth.ts`: verificació del JWT de Supabase (extret del header `Authorization: Bearer ...`).
-- [ ] `src/lib/mcp/tools/search-notes.ts`: handler amb schema Zod, cerca híbrida.
+- [x] `src/lib/mcp/server.ts`: extracció del servidor MCP amb factory `createMcpServer(supabase)`. _2026-04-22 (Fase 1), adapter trivial que registra `search_notes` — les eines restants s'afegeixen a la Fase 2._
+- [x] `src/lib/mcp/auth.ts`: verificació del JWT de Supabase (extret del header `Authorization: Bearer ...`). _2026-04-22 (Fase 1), `extractBearerToken` + `createMcpSupabaseClient`, JWT validat via `supabase.auth.getUser(jwt)` i propagat al client per RLS passthrough._
+- [x] `src/lib/mcp/tools/search-notes.ts`: handler amb schema Zod, cerca híbrida. _2026-04-22 (Fase 1), migrat des del PoC. Cerca semàntica pura (pgvector) de moment, híbrida queda a Setmana 3 quan afegim full-text si cal._
 - [ ] `src/lib/mcp/tools/get-note.ts`.
 - [ ] `src/lib/mcp/tools/create-note.ts`.
 - [ ] `src/lib/mcp/tools/update-note.ts`.
 - [ ] `src/lib/mcp/tools/tag-notes.ts`.
 - [ ] `src/lib/mcp/tools/summarise-notes.ts` (sense filtre de seguretat encara).
-- [ ] Servei `NotesService` amb factory i client injectat. Les eines el consumeixen.
+- [x] Servei `NotesService` amb factory i client injectat. Les eines el consumeixen. _2026-04-22 (Fase 1), ubicat a `src/services/notes.service.ts` (decisió D5: nivell top perquè Server Actions actuals i agents de Setmana 4 el puguin reutilitzar). Només exposa `searchByEmbedding` de moment; la resta de mètodes s'afegeixen a la Fase 2._
 - [ ] Recursos MCP: `notes://recent`, `notes://tag/{tag}`.
 - [ ] Prompt MCP: `daily-review`.
-- [ ] Tests unitaris per a cada eina amb mock de Supabase (≥ 15 tests).
+- [ ] Tests unitaris per a cada eina amb mock de Supabase (≥ 15 tests). _2026-04-22 (Fase 1), 11/15 tests: 7 a `src/lib/mcp/auth.test.ts` + 4 a `src/services/notes.service.test.ts`. Els 4 restants arribaran a la Fase 2 amb les eines noves._
 - [ ] Desplegament a Vercel preview. Provar amb Claude Desktop com a client MCP remot.
 - [ ] Commit: "feat(mcp): 6 tools with oauth and rls passthrough".
 
