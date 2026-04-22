@@ -42,6 +42,8 @@ This repository is also the codebase for the author's bachelor's thesis (TFG) at
 
 ## Getting started
 
+**Requirements:** Node.js 24+ (the CI pins Node 24; earlier versions use an older npm resolver that rejects the lockfile). `npm install` will warn you if your version is below the `engines` field in `package.json`.
+
 1. **Clone and install:**
 
    ```bash
