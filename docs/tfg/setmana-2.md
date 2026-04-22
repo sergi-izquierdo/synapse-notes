@@ -160,6 +160,19 @@ Per a un TFG amb demo pública, l'opció canònica és **desactivar la protecci�
 
 **Smoke test complet d'MCP Inspector contra remot:** pendent de repetir amb un JWT de local (`npm run dev` + `/api/dev/whoami` → copiar token → Inspector apuntant a `https://synapse-notes.vercel.app/api/mcp`). El JWT val per production perquè tots dos entorns usen el mateix Supabase dev.
 
+### 2.0-bis — Fix OAuth redirect (2026-04-23)
+
+Després del deploy, login amb GitHub redirigia a l'antic URL `https://synapse-notes-silk.vercel.app/?code=...` (del deploy oblidat a un altre compte Vercel). Diagnòstic: el codi a `src/actions/auth.ts:14` envia `redirectTo: ${origin}/auth/callback` correctament, però Supabase **ignora** aquest `redirectTo` si no està a l'allowlist — llavors cau al Site URL, que encara era `synapse-notes-silk`.
+
+**Resolució (Supabase Dashboard → Authentication → URL Configuration):**
+
+- Site URL: `https://synapse-notes-silk.vercel.app` → `https://synapse-notes.vercel.app`
+- Redirect URLs: afegit `https://synapse-notes.vercel.app/**` i `http://localhost:3000/**` (patrons glob — `/**` perquè el callback va a `/auth/callback` i deixa marge per a futures rutes d'auth).
+
+**GitHub/Google OAuth Apps:** no s'han tocat. El seu Callback URL apunta a `https://ilcajfngpxehmwkqjqwt.supabase.co/auth/v1/callback` (Supabase), no a les nostres URLs — aquest valor és estable i no canvia quan canvien els dominis de l'aplicació.
+
+**Verificat (2026-04-23):** login amb GitHub redirigeix correctament a `https://synapse-notes.vercel.app/`. Login amb Google també. Fase 2.0 tancada al 100%.
+
 ### 2.x Les 5 eines restants (encara no iniciat)
 
 Eines previstes: `get_note`, `create_note`, `update_note`, `tag_notes`, `summarise_notes`.
@@ -185,3 +198,4 @@ _Idem._
 | 2026-04-22 | 1 | Afegit `/api/dev/whoami` dev-only per facilitar extracció del JWT (substitueix el cookie-digging). Commit `1b0cadf`. |
 | 2026-04-22 | 1 | **Fase 1 verificada end-to-end** via MCP Inspector: JWT obtingut del endpoint, tool `search_notes` amb query `pLATANO` retorna les 5 notes reals del Sergi ordenades per similarity (top-1 "Platano" 0.976, molt superior al 0.73 del PoC perquè la query pràcticament coincideix amb el contingut). RLS passthrough confirmat implícitament: el client amb JWT només veu les notes del user autenticat. Prova d'aïllament creuat entre tenants queda per Setmana 3 (suite de 15 tests RLS). |
 | 2026-04-22 | 2 | **Deploy Vercel production amb Fase 1 — complet.** POC env vars esborrades. Primer `vercel --prod --yes` OK però deployment Protection bloquejava accés extern → Sergi la desactiva al dashboard. Segon problema: totes les rutes retornen 404 perquè el Framework Preset del projecte era `Other` en comptes de `Next.js`. Solucionat amb `vercel.json` pinnant `framework: nextjs` (commit `732b824`) + redeploy. Alias `synapse-notes.vercel.app` apuntat al nou deploy. Verificacions: `/api/health` 200, `/` 307, `/api/mcp` sense Bearer 401 del nostre codi. Smoke test MCP Inspector contra remot queda pendent (el JWT de local val per al mateix Supabase dev). |
+| 2026-04-23 | 2 | **Fix OAuth redirect al domini nou.** Login amb GitHub redirigia a l'antic `synapse-notes-silk.vercel.app` (Supabase Site URL desactualitzada del deploy al compte Vercel oblidat). Actualitzat Site URL a `https://synapse-notes.vercel.app` i afegit `https://synapse-notes.vercel.app/**` + `http://localhost:3000/**` a l'allowlist de Redirect URLs. GitHub/Google OAuth Apps no s'han tocat (el seu callback apunta a Supabase directament). Verificat: login GitHub i Google redirigeixen correctament al domini actual. Fase 2.0 tancada. |
