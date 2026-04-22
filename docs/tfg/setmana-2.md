@@ -144,12 +144,21 @@ El HTTP 401 del smoke test **no** és la nostra auth MCP; és la capa de Vercel 
 
 Per a un TFG amb demo pública, l'opció canònica és **desactivar la protecció per a production** i deixar-la activa per a preview deployments. La seguretat real la fa JWT + RLS al nostre codi.
 
-**Passos pendents (decisió i acció fora-de-codi):**
+**Resolució (2026-04-22, en seqüència):**
 
-- [ ] Decidir entre (A) _Only Preview Deployments_ i (B) _Protection Bypass Token_.
-- [ ] Aplicar el canvi al dashboard: https://vercel.com/sergis-projects-2e66a325/synapse-notes/settings/deployment-protection
-- [ ] Redeploy o simplement re-test: curl hauria de rebre JSON-RPC d'error (no HTML d'auth).
-- [ ] Repetir l'smoke test d'MCP Inspector contra la URL de Vercel (amb un JWT de local via `/api/dev/whoami` — el JWT val per a qualsevol entorn que usi el mateix Supabase dev).
+1. Sergi desactiva Deployment Protection per production al dashboard. ✓
+2. Descobert un 404 a totes les rutes (inclús `/api/health`). Causa: el Framework Preset del projecte Vercel era `Other`, no `Next.js` — Vercel intentava servir `public/` estàtic en comptes de les lambdas de Next.js. El build passava net però el serving era incorrecte.
+3. Afegit `vercel.json` al repo amb `{"framework": "nextjs"}` per pinnejar el preset des del codi (immune a drift del dashboard). Commit `732b824`. ✓
+4. Redeploy `vercel --prod --yes` → nou URL `https://synapse-notes-i46i6lmgk-sergis-projects-2e66a325.vercel.app` amb status Ready. ✓
+5. Alias curt `synapse-notes.vercel.app` repointejat al nou deploy. ✓
+
+**Verificació remota (tota OK):**
+
+- `GET https://synapse-notes.vercel.app/api/health` → **200** amb JSON `{"status":"ok",...}`
+- `GET https://synapse-notes.vercel.app/` → **307** (redirect a login si no hi ha sessió, comportament correcte)
+- `POST https://synapse-notes.vercel.app/api/mcp` sense Bearer → **401** (és el nostre `McpAuthError`, no la capa de Vercel)
+
+**Smoke test complet d'MCP Inspector contra remot:** pendent de repetir amb un JWT de local (`npm run dev` + `/api/dev/whoami` → copiar token → Inspector apuntant a `https://synapse-notes.vercel.app/api/mcp`). El JWT val per production perquè tots dos entorns usen el mateix Supabase dev.
 
 ### 2.x Les 5 eines restants (encara no iniciat)
 
@@ -175,4 +184,4 @@ _Idem._
 | 2026-04-22 | 1 | Refactor complet del PoC. 5 fitxers nous (auth, notes.service, tool, server factory) + route.ts reduït a 30 línies + 2 fitxers de test (11 nous tests). 16/16 verds, lint i build nets. |
 | 2026-04-22 | 1 | Afegit `/api/dev/whoami` dev-only per facilitar extracció del JWT (substitueix el cookie-digging). Commit `1b0cadf`. |
 | 2026-04-22 | 1 | **Fase 1 verificada end-to-end** via MCP Inspector: JWT obtingut del endpoint, tool `search_notes` amb query `pLATANO` retorna les 5 notes reals del Sergi ordenades per similarity (top-1 "Platano" 0.976, molt superior al 0.73 del PoC perquè la query pràcticament coincideix amb el contingut). RLS passthrough confirmat implícitament: el client amb JWT només veu les notes del user autenticat. Prova d'aïllament creuat entre tenants queda per Setmana 3 (suite de 15 tests RLS). |
-| 2026-04-22 | 2 | **Deploy Vercel production amb Fase 1.** POC env vars (`MCP_POC_TOKEN`, `MCP_POC_USER_ID`) esborrades del projecte Vercel. `vercel --prod --yes` OK, status **Ready**. URL: `https://synapse-notes-fndtghjma-sergis-projects-2e66a325.vercel.app`. Smoke test detecta **Vercel Deployment Protection** aturant peticions externes abans d'arribar al nostre codi (HTTP 401 + HTML d'auth de Vercel, no JSON-RPC). Acció pendent del Sergi: desactivar protection per production al dashboard. Una vegada fet, es pot apuntar MCP Inspector al URL remot amb un JWT de local. |
+| 2026-04-22 | 2 | **Deploy Vercel production amb Fase 1 — complet.** POC env vars esborrades. Primer `vercel --prod --yes` OK però deployment Protection bloquejava accés extern → Sergi la desactiva al dashboard. Segon problema: totes les rutes retornen 404 perquè el Framework Preset del projecte era `Other` en comptes de `Next.js`. Solucionat amb `vercel.json` pinnant `framework: nextjs` (commit `732b824`) + redeploy. Alias `synapse-notes.vercel.app` apuntat al nou deploy. Verificacions: `/api/health` 200, `/` 307, `/api/mcp` sense Bearer 401 del nostre codi. Smoke test MCP Inspector contra remot queda pendent (el JWT de local val per al mateix Supabase dev). |

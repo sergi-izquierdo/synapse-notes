@@ -96,7 +96,7 @@
 - [ ] Recursos MCP: `notes://recent`, `notes://tag/{tag}`.
 - [ ] Prompt MCP: `daily-review`.
 - [ ] Tests unitaris per a cada eina amb mock de Supabase (≥ 15 tests). _2026-04-22 (Fase 1), 11/15 tests: 7 a `src/lib/mcp/auth.test.ts` + 4 a `src/services/notes.service.test.ts`. Els 4 restants arribaran a la Fase 2 amb les eines noves._
-- [ ] Desplegament a Vercel preview. Provar amb Claude Desktop com a client MCP remot. _2026-04-22 (Fase 2.0): deploy a **production** (no preview — el deploy previ tenia el PoC insegur). Eliminades `MCP_POC_TOKEN` i `MCP_POC_USER_ID` del projecte Vercel. Status Ready. URL: `https://synapse-notes-fndtghjma-sergis-projects-2e66a325.vercel.app`. **Pendent d'acció manual:** desactivar Vercel Deployment Protection per production al dashboard perquè el URL sigui accessible des de clients MCP externs (Inspector, Claude Desktop). Prova amb Claude Desktop queda per Fase 3._
+- [x] Desplegament a Vercel preview. Provar amb Claude Desktop com a client MCP remot. _2026-04-22 (Fase 2.0): deploy a **production** amb Fase 1 al codi. 3 passos fins a verd: (1) eliminades `MCP_POC_TOKEN` i `MCP_POC_USER_ID` del projecte Vercel; (2) Sergi desactiva Vercel Deployment Protection per production al dashboard; (3) descobert que el Framework Preset era `Other` en comptes de `Next.js`, solucionat amb `vercel.json` versionat (commit `732b824`) + redeploy. Alias `synapse-notes.vercel.app` repointejat al deploy actual. `/api/health` retorna 200, `/api/mcp` retorna 401 del McpAuthError (no del proxy de Vercel). Prova amb Claude Desktop com a client MCP remot encara pendent — es pot fer ara mateix o a Fase 3._
 - [ ] Commit: "feat(mcp): 6 tools with oauth and rls passthrough".
 
 ### Memòria
