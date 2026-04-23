@@ -18,10 +18,13 @@ interface MessageActionsProps {
     canAct: boolean;
 }
 
-// Per-bubble floating action strip. Appears on hover of the parent
-// bubble (which owns the `group` class). Layout is inverted for user
-// bubbles so the icons sit on the left edge of the right-aligned
-// chip, and vice versa for assistant bubbles.
+// Per-bubble floating action strip. The whole strip (including its
+// background chip) fades together — previously only the buttons had
+// opacity-0, leaving an empty white chip floating over the bubble on
+// mobile where hover doesn't exist. Desktop stays hover-revealed;
+// mobile shows the strip at rest since there's no hover affordance.
+// Positioned -bottom-2 so it sits just under the bubble; aligned
+// left/right based on role so it doesn't spill off the side.
 export function MessageActions({
     role,
     text,
@@ -45,17 +48,14 @@ export function MessageActions({
         }
     };
 
-    const buttonClass = cn(
-        "h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
-        role === "user"
-            ? "text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
-    );
+    const buttonClass =
+        "h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/60";
 
     return (
         <div
             className={cn(
-                "absolute -bottom-2 flex items-center gap-0.5 rounded-md border bg-background px-0.5 py-0.5 shadow-sm",
+                "absolute -bottom-2 z-10 flex items-center gap-0.5 rounded-md border bg-background px-0.5 py-0.5 shadow-sm",
+                "opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity",
                 role === "user"
                     ? "right-2 border-primary/30"
                     : "left-2 border-border/60",
@@ -65,7 +65,7 @@ export function MessageActions({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className={cn(buttonClass, "text-muted-foreground hover:text-foreground hover:bg-muted/60")}
+                className={buttonClass}
                 onClick={handleCopy}
                 aria-label="Copy message"
                 title="Copy"
@@ -81,7 +81,7 @@ export function MessageActions({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className={cn(buttonClass, "text-muted-foreground hover:text-foreground hover:bg-muted/60")}
+                    className={buttonClass}
                     onClick={onEdit}
                     disabled={!canAct}
                     aria-label="Edit message"
@@ -95,7 +95,7 @@ export function MessageActions({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className={cn(buttonClass, "text-muted-foreground hover:text-foreground hover:bg-muted/60")}
+                    className={buttonClass}
                     onClick={onRegenerate}
                     disabled={!canAct}
                     aria-label="Regenerate response"
@@ -109,7 +109,7 @@ export function MessageActions({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className={cn(buttonClass, "text-muted-foreground hover:text-foreground hover:bg-muted/60")}
+                    className={buttonClass}
                     onClick={onBranch}
                     disabled={!canAct}
                     aria-label="Branch chat from here"
@@ -123,7 +123,9 @@ export function MessageActions({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className={cn(buttonClass, "text-muted-foreground hover:text-destructive hover:bg-destructive/10")}
+                    className={cn(
+                        "h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+                    )}
                     onClick={onDelete}
                     disabled={!canAct}
                     aria-label="Delete message"

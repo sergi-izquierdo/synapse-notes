@@ -144,8 +144,10 @@
     /* All headings inherit the sans UI stack (Inter Tight) by default
      * so the landing hero and the dashboard title stay in sync. To
      * opt into the Young Serif display face on a specific heading,
-     * add the `.font-display` class. Literata (font-body) remains the
-     * reading surface for rendered Markdown (prose) and note editor. */
+     * add the `.font-display` class. `.font-body` is opt-in too — we
+     * no longer apply Literata to every `.prose` block so the chat
+     * bubbles and note cards read in the same UI font as the chrome
+     * around them. */
     h1,
     h2,
     h3 {
@@ -157,7 +159,6 @@
         letter-spacing: -0.01em;
     }
 
-    .prose,
     .font-body {
         font-family: var(--font-body), Georgia, serif;
     }

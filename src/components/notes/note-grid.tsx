@@ -300,7 +300,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   clicks on plain text propagate up to the card and open
                   the edit modal. */}
               <CardContent className="flex-1 p-5 pb-2 max-h-[260px] overflow-hidden mask-gradient-b">
-                <div className="prose prose-sm dark:prose-invert wrap-break-word font-body text-card-foreground pointer-events-none">
+                <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
                   <NoteMarkdown
                     key={note.content}
                     noteId={note.id}

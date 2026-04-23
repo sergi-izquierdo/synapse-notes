@@ -477,7 +477,11 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                 <p className="text-xs text-muted-foreground">Ask me about your notes.</p>
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-5 pb-4">
+                            // gap-8 rather than gap-5 so the floating
+                            // MessageActions strip below each bubble
+                            // doesn't crowd the next one — the strip
+                            // is ~28px tall sitting at -bottom-2.
+                            <div className="flex flex-col gap-8 pb-4">
                                 {messages.map((m) => {
                                     const parts = m.parts ?? []
                                     const textParts = parts.filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
@@ -557,10 +561,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                <div className={cn(
-                                                    "prose prose-sm dark:prose-invert break-words leading-relaxed max-w-none",
-                                                    m.role === 'assistant' && "font-body"
-                                                )}>
+                                                <div className="prose prose-sm dark:prose-invert break-words leading-relaxed max-w-none">
                                                     {textParts.map((part, index) => (
                                                         <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]}>
                                                             {part.text}
