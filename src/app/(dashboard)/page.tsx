@@ -31,7 +31,7 @@ export default async function DashboardPage() {
       <ChatSidebar userId={user.id} />
 
       {/* CONTINGUT PRINCIPAL (NOTES) */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-dot-pattern">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Scroll només a la zona de contingut */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto max-w-5xl p-6 space-y-8">
