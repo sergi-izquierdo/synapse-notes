@@ -237,7 +237,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                     className="flex items-baseline gap-1.5"
                                                                 >
                                                                     <span className={cn(
-                                                                        "font-semibold tabular-nums",
+                                                                        "font-semibold tabular-nums shrink-0",
                                                                         m.role === 'user'
                                                                             ? "text-primary-foreground"
                                                                             : "text-primary",
@@ -245,7 +245,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                     )}>
                                                                         §{index + 1}
                                                                     </span>
-                                                                    <span className="truncate">
+                                                                    <span className="break-words">
                                                                         <span className={cn(
                                                                             m.role === 'user'
                                                                                 ? "text-primary-foreground/90"
@@ -259,7 +259,12 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                                 {JSON.stringify(toolInput)}
                                                                             </span>
                                                                         ) : null}
-                                                                        <span className="opacity-70">
+                                                                        <span className={cn(
+                                                                            "opacity-70",
+                                                                            !isRunning && (m.role === 'user'
+                                                                                ? "text-primary-foreground"
+                                                                                : "text-secondary")
+                                                                        )}>
                                                                             {' · '}
                                                                             {isRunning ? 'pending' : 'done'}
                                                                         </span>
