@@ -128,12 +128,12 @@ export function EditNoteDialog({
           </Button>
         </div>
 
-        <div className="p-6 pt-4">
+        <div className="px-6 pt-4 pb-2">
           <Textarea
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="min-h-[300px] resize-none text-base border-none focus-visible:ring-0 p-0 shadow-none font-sans"
+            className="min-h-[300px] resize-none text-base border border-border/60 focus-visible:ring-1 focus-visible:ring-primary p-4 shadow-none font-sans rounded-md"
             placeholder="Type here..."
           />
         </div>

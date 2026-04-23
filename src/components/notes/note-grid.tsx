@@ -9,8 +9,7 @@ import { Trash2, Search, Pencil, X } from "lucide-react";
 import { deleteNote } from "@/actions/notes";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { NoteMarkdown } from "./note-markdown";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -108,12 +107,18 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               tabIndex={0}
               aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
             >
-              {/* Card Content — editorial body */}
+              {/* Card Content — editorial body. Task-list checkboxes are
+                  the only interactive target here (see NoteMarkdown);
+                  clicks on plain text propagate up to the card and open
+                  the edit modal. */}
               <CardContent className="flex-1 p-5 pb-2 max-h-[260px] overflow-hidden mask-gradient-b">
                 <div className="prose prose-sm dark:prose-invert wrap-break-word font-body text-card-foreground pointer-events-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {note.content}
-                  </ReactMarkdown>
+                  <NoteMarkdown
+                    key={note.content}
+                    noteId={note.id}
+                    content={note.content}
+                    tags={note.tags || []}
+                  />
                 </div>
               </CardContent>
 

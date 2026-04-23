@@ -120,22 +120,23 @@ export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder={t.dashboard.placeholder}
-        className="min-h-[120px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0 font-sans"
+        className="min-h-[140px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0 font-sans"
       />
 
-      {/* ZONA DE TAGS */}
-      <div className="px-6 pb-2">
+      {/* ZONA DE TAGS — visually separated from the textarea and the
+          action row by hairlines on a slightly darker surface. */}
+      <div className="border-t border-border/60 bg-muted/15 px-6 py-4">
         <TagSelector
           selectedTags={tags}
           setSelectedTags={setTags}
-          availableTags={availableTags} // Autocomplete available tags
+          availableTags={availableTags}
         />
       </div>
 
-      <div className="flex items-center justify-end bg-muted/10 p-3 px-6">
+      <div className="flex items-center justify-end border-t border-border/60 bg-muted/25 px-6 py-3">
         <Button
           type="submit"
-          className="rounded-full px-6 shadow-md bg-primary hover:bg-primary/90 text-white font-semibold transition-transform hover:scale-105 active:scale-95"
+          className="rounded-full px-6 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-transform hover:scale-105 active:scale-95"
         >
           <Send className="mr-2 h-4 w-4" /> {t.dashboard.save}
         </Button>
