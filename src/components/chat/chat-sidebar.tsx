@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, Send, Bot, Loader2, MessageCircle } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from 'ai'
 import { isToolUIPart, getToolName } from 'ai'
@@ -199,20 +199,14 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-5 pb-4">
-                                <AnimatePresence initial={false}>
                                 {messages.map((m) => {
                                     const parts = m.parts ?? []
                                     const textParts = parts.filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
                                     const toolParts = parts.filter(isToolUIPart)
 
                                     return (
-                                        <motion.div
+                                        <div
                                             key={m.id}
-                                            layout
-                                            initial={{ y: 8, opacity: 0 }}
-                                            animate={{ y: 0, opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            transition={{ duration: 0.18, ease: 'easeOut' }}
                                             className={cn(
                                                 "flex w-full",
                                                 m.role === 'user' ? "justify-end" : "justify-start"
@@ -347,10 +341,9 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                     </aside>
                                                 )}
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     )
                                 })}
-                                </AnimatePresence>
                                 {isLoading && (
                                     <div className="flex justify-start">
                                         <div className="bg-card border border-border/60 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-xs flex items-center gap-2 text-muted-foreground">
