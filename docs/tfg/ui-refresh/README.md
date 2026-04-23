@@ -10,23 +10,36 @@ direcció distintiva sense caure en estètica generic-AI.
 > Aquest doc és la **font d'estat** de la branca. Les captures prèvies
 > són a [`baseline/`](./baseline/README.md).
 
-## Direcció acordada (2026-04-23)
+## Direcció acordada (revisada 2026-04-23)
 
-**Concepte:** *Editorial-technical* — biblioteca + terminal tècnica.
-Combina Linear/Notion productivity restraint amb tocs AI-native sense
-caure al "purple gradient SaaS".
+**Concepte:** *Editorial-technical* — navy dashboard amb accent càlid.
+Combina Linear/Stripe productivity restraint amb tocs editorial
+(serifs a llegura, mono a metadata). La paleta **Midnight Cartography
+(hue 200)** es va descartar durant la revisió perquè el teal llegia
+verdós al monitor del Sergi. La paleta definitiva és **Navy + Amber**
+(ex-Mockup C de la ronda d'alternatives).
 
-**Variant triada: 3 — Midnight Cartography** (light + dark coherents)
+**Paleta final — Navy + Amber**
 
-- **Dark ground:** `oklch(0.18 0.025 200)` deep blue-green
-- **Dark text:** `oklch(0.92 0.025 85)` parchment cream
-- **Primary accent:** `oklch(0.82 0.065 80)` parchment-gold
-- **Secondary:** `oklch(0.58 0.075 150)` topographic green
-- **Light ground:** `oklch(0.97 0.008 85)` paper càlid (coordinació amb dark)
+- **Dark ground:** `oklch(0.19 0.04 255)` deep navy (hue 255 = blau
+  pur, sense tint teal/verd)
+- **Dark text:** `oklch(0.95 0.01 250)` near-white amb tint fred
+- **Primary accent:** `oklch(0.76 0.14 72)` warm amber
+- **Secondary:** `oklch(0.55 0.04 250)` slate steel
+- **Light ground:** `oklch(0.985 0.005 250)` frost white
+- **Light primary:** `oklch(0.58 0.13 70)` amber darker (per AA
+  contrast sobre white)
+
+**Tipografia** (mantinguda del MC abandonat)
+
 - **Display:** Young Serif (Google Fonts)
 - **Body:** Literata (Google Fonts)
-- **UI chrome:** Inter Tight Display
+- **UI chrome:** Inter Tight
 - **Mono:** JetBrains Mono
+
+> *Si més endavant volem fer la paleta més "sans-first / productivity
+> pure" substituïm per Manrope + JetBrains Mono, seguint el mockup C
+> original. Avui és un commit de fonts només, ortogonal a la paleta.*
 
 **Signature element:** footnote system per a tool calls del RAG/MCP
 (números superscript + marge editorial, timestamps *proceedings*).
@@ -41,7 +54,7 @@ gradients, glass blur, aurora, typewriter decoratiu, emojis com a icons.
 |---|------|-------|--------|
 | UI-0 | Foundations cleanup | ✅ Fet | `636d6f3` |
 | UI-1 | Motion integration | Pendent | — |
-| UI-2 | Design system tokens | ✅ Fet | `e1fdac1` |
+| UI-2 | Design system tokens | ✅ Fet | `e1fdac1` (MC inicial) + `17d5eaa` (swap a Navy+Amber) |
 | UI-3 | Core screens redesign | ✅ Fet | `f79ff2c`, `28780ec` |
 | UI-4 | Footnote system (signature) | Pendent | — |
 | UI-5 | Landing + UUPM checklist | Pendent | — |
