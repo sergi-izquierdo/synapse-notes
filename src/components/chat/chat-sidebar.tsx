@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, Send, Bot, Loader2, MessageCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -19,12 +19,34 @@ import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import type { Chat, Message } from '@/types/database'
 
+// Grow the chat textarea from 40px up to 160px as content fills it.
+// Kept local to this file; if we need this anywhere else we can lift
+// it to src/lib/hooks.
+function useAutoResize(minHeight = 40, maxHeight = 160) {
+    const ref = useRef<HTMLTextAreaElement>(null)
+    const adjust = useCallback(
+        (reset = false) => {
+            const el = ref.current
+            if (!el) return
+            if (reset) {
+                el.style.height = `${minHeight}px`
+                return
+            }
+            el.style.height = `${minHeight}px`
+            el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+        },
+        [minHeight, maxHeight],
+    )
+    return { ref, adjust }
+}
+
 export function ChatSidebar({ userId }: { userId: string }) {
     const [chatId, setChatId] = useState<string | null>(null)
     const [chatList, setChatList] = useState<Chat[]>([])
     const [input, setInput] = useState('')
     const [isMounted, setIsMounted] = useState(false)
     const [sheetOpen, setSheetOpen] = useState(false)
+    const { ref: inputRef, adjust: adjustInputHeight } = useAutoResize(40, 160)
 
     const supabase = createClient()
 
@@ -123,6 +145,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
         const content = input
         setInput('')
+        adjustInputHeight(true)
 
         await sendMessage(
             { role: 'user', parts: [{ type: 'text', text: content }] },
@@ -356,14 +379,26 @@ export function ChatSidebar({ userId }: { userId: string }) {
                         )}
                     </ScrollArea>
 
-                    {/* INPUT */}
+                    {/* INPUT — auto-resizing textarea. Enter (no shift/modifier)
+                        sends; Shift+Enter inserts a newline. */}
                     <div className="p-3 border-t border-border/60 bg-background/80 backdrop-blur-sm">
-                        <form onSubmit={handleSend} className="relative flex items-center">
-                            <Input
+                        <form onSubmit={handleSend} className="relative flex items-end">
+                            <Textarea
+                                ref={inputRef}
                                 value={input}
-                                onChange={(e) => setInput(e.target.value)}
+                                onChange={(e) => {
+                                    setInput(e.target.value)
+                                    adjustInputHeight()
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault()
+                                        handleSend()
+                                    }
+                                }}
+                                rows={1}
                                 placeholder="Ask something..."
-                                className="pr-10 h-10 rounded-lg border-border focus-visible:ring-primary bg-background"
+                                className="pr-10 min-h-[40px] max-h-[160px] resize-none rounded-lg border-border focus-visible:ring-primary bg-background py-2 text-sm"
                                 aria-label="Chat message"
                             />
                             <Button
@@ -371,7 +406,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                 size="icon"
                                 disabled={isLoading}
                                 aria-label="Send message"
-                                className="absolute right-1 h-8 w-8 rounded-md"
+                                className="absolute right-1 bottom-1 h-8 w-8 rounded-md"
                             >
                                 <Send className="h-4 w-4" />
                             </Button>

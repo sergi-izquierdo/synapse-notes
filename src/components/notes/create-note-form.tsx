@@ -119,6 +119,14 @@ export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
         name="content"
         value={content}
         onChange={(e) => setContent(e.target.value)}
+        onKeyDown={(e) => {
+          // Ctrl/⌘ + Enter submits. Enter alone inserts newline as
+          // users expect from a multi-line compose box.
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            formRef.current?.requestSubmit();
+          }
+        }}
         placeholder={t.dashboard.placeholder}
         className="min-h-[140px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0 font-sans"
       />
