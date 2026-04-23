@@ -10,6 +10,7 @@ import type { UIMessage } from 'ai'
 import { isToolUIPart, getToolName } from 'ai'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
+import { regenerateStaleTitlesAction } from '@/actions/chats'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
@@ -53,6 +54,23 @@ export function ChatSidebar({ userId }: { userId: string }) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration guard
         setIsMounted(true)
         fetchChats()
+
+        // One-time-per-session backfill for chats still titled "Nova Conversa".
+        // Runs in the background and re-fetches when done so the sidebar
+        // flips from fallback mono labels to real Haiku-generated titles.
+        if (typeof window !== 'undefined' && !sessionStorage.getItem('synapse-titles-backfilled')) {
+            sessionStorage.setItem('synapse-titles-backfilled', '1')
+            regenerateStaleTitlesAction()
+                .then((result) => {
+                    if (result.ok && result.updated > 0) {
+                        fetchChats()
+                    }
+                })
+                .catch((err) => {
+                    console.error('Title backfill failed:', err)
+                    sessionStorage.removeItem('synapse-titles-backfilled')
+                })
+        }
     }, [])
 
     if (!isMounted) return null

@@ -87,37 +87,40 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
           {filteredNotes.map((note) => (
             <Card
               key={note.id}
-              className="group relative flex flex-col overflow-hidden border-muted-foreground/10 bg-background/80 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-primary/40 cursor-pointer"
+              className="group relative flex flex-col overflow-hidden border-border/60 bg-card transition-colors duration-200 hover:border-primary/40 hover:shadow-md cursor-pointer"
               onClick={() => setEditingNote({ ...note, tags: note.tags || [] })}
+              role="button"
+              tabIndex={0}
+              aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
             >
-              {/* Card Content */}
-              <CardContent className="flex-1 p-6 pb-2 max-h-[300px] overflow-hidden mask-gradient-b">
-                <div className="prose prose-sm dark:prose-invert wrap-break-word text-foreground/90 pointer-events-none">
+              {/* Card Content — editorial body */}
+              <CardContent className="flex-1 p-5 pb-2 max-h-[260px] overflow-hidden mask-gradient-b">
+                <div className="prose prose-sm dark:prose-invert wrap-break-word font-body text-card-foreground pointer-events-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {note.content}
                   </ReactMarkdown>
                 </div>
               </CardContent>
 
-              {/* TAGS */}
+              {/* TAGS — smallcaps style */}
               {note.tags && note.tags.length > 0 && (
-                <div className="px-6 pb-2 flex flex-wrap gap-1">
+                <div className="px-5 pb-2 flex flex-wrap gap-1">
                   {note.tags.map((tag) => (
                     <Badge
                       key={tag}
                       variant="outline"
-                      className="text-[10px] px-1.5 py-0 border-primary/20 text-muted-foreground bg-primary/5"
+                      className="text-[10px] px-1.5 py-0 border-border/60 text-muted-foreground bg-muted/30 uppercase tracking-wider font-mono"
                     >
-                      #{tag}
+                      {tag}
                     </Badge>
                   ))}
                 </div>
               )}
 
-              {/* FOOTER */}
-              <CardFooter className="flex justify-between border-t bg-muted/30 p-3 opacity-0 transition-opacity group-hover:opacity-100 mt-2">
-                <span className="text-[10px] text-muted-foreground font-medium">
-                  {new Date(note.created_at).toLocaleDateString()}
+              {/* FOOTER — proceedings-style timestamp */}
+              <CardFooter className="flex justify-between border-t border-border/60 bg-muted/20 px-5 py-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 mt-2">
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  §{new Date(note.created_at).toLocaleDateString("ca-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                 </span>
 
                 <div
