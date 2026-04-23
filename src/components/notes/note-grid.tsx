@@ -215,7 +215,12 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
             <Card
               className={cn(
                 "group relative flex flex-col overflow-hidden border-border/60 bg-card transition-colors duration-200 hover:border-primary/40 hover:shadow-md cursor-pointer",
-                note.starred && "border-primary/40 bg-primary/[0.03]",
+                // Starred cards get a solid amber-tinted background
+                // (color-mix blends primary into card so we don't get
+                // a transparent bg that lets the animated background
+                // bleed through). Border echoes the accent.
+                note.starred &&
+                  "border-primary/40 bg-[color-mix(in_oklch,var(--primary)_7%,var(--card))]",
               )}
               onClick={() => setEditingNote({ ...note, tags: note.tags || [] })}
               role="button"

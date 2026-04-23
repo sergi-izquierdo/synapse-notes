@@ -4,7 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Send, Bot, Loader2, MessageCircle, Download, X, Check } from 'lucide-react'
+import {
+    Plus,
+    Send,
+    Bot,
+    Loader2,
+    MessageCircle,
+    Download,
+    X,
+    Check,
+    ChevronLeft,
+} from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from 'ai'
@@ -19,7 +29,12 @@ import {
     regenerateStaleTitlesAction,
 } from '@/actions/chats'
 import { cn } from '@/lib/utils'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetTitle,
+} from '@/components/ui/sheet'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
@@ -56,6 +71,9 @@ export function ChatSidebar({ userId }: { userId: string }) {
     const [sheetOpen, setSheetOpen] = useState(false)
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
     const [editDraft, setEditDraft] = useState('')
+    // Which pane is visible on phones. Desktop (md+) renders both
+    // sides always; this toggle is purely a mobile affordance.
+    const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
     const { ref: inputRef, adjust: adjustInputHeight } = useAutoResize(40, 160)
 
     // The `useChat` callbacks are captured once at hook init, so they
@@ -179,6 +197,9 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
     async function loadChat(id: string) {
         setChatId(id)
+        // On mobile, selecting a chat flips the single-pane view to
+        // the conversation. Desktop ignores this state.
+        setMobileView('chat')
         await loadChatMessages(id)
     }
 
@@ -197,6 +218,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         setInput('')
         setChatId(data.id)
         setChatList([data, ...chatList])
+        setMobileView('chat')
         return data.id
     }
 
@@ -350,6 +372,18 @@ export function ChatSidebar({ userId }: { userId: string }) {
             {/* HEADER */}
             <div className="p-4 border-b border-border/60 flex items-center justify-between bg-background/80">
                 <div className="flex items-center gap-2 font-semibold text-foreground">
+                    {mobileView === 'chat' && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setMobileView('list')}
+                            className="md:hidden h-8 w-8 -ml-2"
+                            aria-label="Back to chat list"
+                            title="Chat list"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                    )}
                     <Bot className="h-5 w-5 text-primary" />
                     Synapse AI
                 </div>
@@ -373,9 +407,16 @@ export function ChatSidebar({ userId }: { userId: string }) {
             </div>
 
             <div className="flex flex-1 overflow-hidden">
-                {/* HISTORIAL */}
+                {/* HISTORIAL — full-width on mobile when the list view
+                    is active, fixed 48 on desktop. */}
                 <motion.div
-                    className="w-48 border-r border-border/60 bg-muted/20 flex flex-col py-2 px-1 gap-0.5 overflow-y-auto hide-scrollbar"
+                    className={cn(
+                        "border-border/60 bg-muted/20 flex-col py-2 px-1 gap-0.5 overflow-y-auto hide-scrollbar",
+                        "md:flex md:w-48 md:border-r",
+                        mobileView === 'list'
+                            ? "flex w-full"
+                            : "hidden md:flex",
+                    )}
                     role="list"
                     aria-label="Chat history"
                     initial="hidden"
@@ -417,8 +458,17 @@ export function ChatSidebar({ userId }: { userId: string }) {
                     })}
                 </motion.div>
 
-                {/* ZONA XAT */}
-                <div className="flex-1 flex flex-col h-full bg-background/50">
+                {/* ZONA XAT — hidden on mobile when the user is
+                    browsing the chat list. */}
+                <div
+                    className={cn(
+                        "flex-col h-full bg-background/50",
+                        "md:flex md:flex-1",
+                        mobileView === 'chat'
+                            ? "flex flex-1"
+                            : "hidden md:flex",
+                    )}
+                >
                     <ScrollArea className="flex-1 p-4">
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-2">
@@ -743,6 +793,10 @@ export function ChatSidebar({ userId }: { userId: string }) {
                 <SheetContent side="left" className="w-[85vw] sm:max-w-[400px] p-0 flex flex-col">
                     <VisuallyHidden.Root>
                         <SheetTitle>Synapse AI Chat</SheetTitle>
+                        <SheetDescription>
+                            Chat with your notes. Switch between history and the
+                            active conversation from the header.
+                        </SheetDescription>
                     </VisuallyHidden.Root>
                     {sidebarContent}
                 </SheetContent>

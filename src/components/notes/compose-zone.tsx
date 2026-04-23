@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
     Sheet,
     SheetContent,
+    SheetDescription,
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet";
@@ -54,6 +55,9 @@ export function ComposeZone({ availableTags }: { availableTags: string[] }) {
                     >
                         <SheetHeader className="px-5 pt-5 pb-2">
                             <SheetTitle>New note</SheetTitle>
+                            <SheetDescription className="sr-only">
+                                Write and tag a new note. Save closes the sheet.
+                            </SheetDescription>
                         </SheetHeader>
                         <div className="p-4 pt-0">
                             <CreateNoteForm
