@@ -7,6 +7,59 @@
 % d'idioma. Mesura: % d'escenaris passing. Captures de pantalla dels 5
 % fluxos principals als annexos.
 
+\subsection{Desplegament i superfície funcional (abril 2026)}
+% A documentar al redactat final: la Part~A es va desplegar a
+% production (https://synapse-notes.vercel.app) durant la sessió
+% 2026-04-23 amb el merge de la branca feat/ui-refresh (40 commits,
+% ~9.500 LOC afegides). Inclou refresc complet del sistema de disseny
+% (paleta Navy+Amber amb OKLCH, tipografia Inter Tight + Young Serif
+% + Literata + JetBrains Mono, Background Paths animats via Framer
+% Motion) i set QoL phases (QoL-1…QoL-7) que porten la plataforma a
+% paritat funcional amb apps competidores (Notion, Bear, Obsidian):
+% snortcuts globals (F1 help, /, N, J/K, 1/2/3, ↑), star/pin, archive
+% (soft-delete), duplicate, undo-delete toast, char/word counters,
+% tags manager, export JSON/MD, regenerate/edit/branch al xat,
+% compose via bottom sheet a mòbil, haptics.
+%
+% Mètriques de línia base a registrar abans de la defensa:
+%   - Lighthouse (mobile, desktop) a /login i /dashboard
+%   - Temps fins a First Contentful Paint amb xarxa 3G emulada
+%   - % de compliance amb WCAG AA (axe-core)
+
+\subsection{Bugs detectats i resolts en acceptació (2026-04-23)}
+% El cicle de revisió post-merge va destapar dos bugs de fons que
+% mereixen menció al redactat final perquè il·lustren problemes
+% clàssics d'arquitectura:
+%
+% 1. "Regenerate" duplicava respostes del xat — root cause: la taula
+%    public.messages tenia RLS activada amb polítiques INSERT i SELECT
+%    però cap DELETE ni UPDATE. supabase-js retornava error: null amb
+%    0 files afectades, i l'acció pensava que havia esborrat. Al
+%    costat servidor s'inseria la nova resposta al damunt i la
+%    recàrrega mostrava totes dues. Mateix patró que el forat detectat
+%    a public.chats UPDATE dos dies abans. Resolució: migració
+%    20260424220000_messages_delete_update_policy.sql amb DELETE +
+%    UPDATE scoped per l'owner del chat.
+%    Lliçó per al capítol 9.4: la silenciositat de les RLS (0-rows-
+%    affected sense error) és un mode de fallada freqüent — les accions
+%    servidor haurien d'exigir .select() + comprovar data.length > 0.
+%
+% 2. El xat no reconeixia notes existents si la RAG no les retornava
+%    al top-10. La query "Noms de gat?" no feia match amb "Noms de
+%    gat: Kuro, Shiro" per ranking, i el model responia "no existeix
+%    aquesta nota". Resolució: ajust de calibració (§ següent) +
+%    reestructuració del system prompt amb un "inventari a nivell de
+%    títol" de totes les notes vives en context, perquè el model
+%    tingui sempre coneixement lèxic de què hi ha al sistema encara
+%    que la RAG no retorni el vector.
+
+\subsection{Verificació accessibilitat de Radix Dialog}
+% Durant la sessió es van detectar i corregir warnings d'a11y del
+% Radix Dialog ("Missing Description or aria-describedby") als
+% bottom sheets del compose i del chat mòbil. SheetDescription
+% afegida (visually-hidden al chat, visible al compose). Documentar
+% com a exemple d'iteració en directe sobre requisits d'accessibilitat.
+
 \section{Bateria de tests unitaris (Part~B)}
 % TODO: vitest, cobertura, ≥15 casos per al servidor MCP.
 
@@ -25,6 +78,26 @@
 % Observació 2026-04-19: threshold 0.1 massa permissiu per a Gemini embedding-001.
 % Soroll aleatori (query ``asdfghjkl...'') retorna top-5 notes amb similarity 0.46-0.58.
 % Mitigació proposada: pujar a 0.55-0.65 o afegir re-ranker.
+%
+% Actualització 2026-04-23: observació complementària amb corpus real
+% de 18 notes — el problema dominant NO era soroll aleatori (queries
+% plausibles) sinó recall insuficient. La query en català "Noms de
+% gat?" no feia match amb una nota titulada "Noms de gat: Kuro, Shiro"
+% perquè quedava fora del top-10 (match\_count=10). Correcció al xat
+% RAG de /api/chat/route.ts:
+%   - match\_threshold 0.1 → 0.05  (més permissiu en el recall)
+%   - match\_count 10 → 20  (coverage total del corpus típic)
+%   - Inventari a nivell de títol al system prompt, llistant totes les
+%     notes vives (first non-blank line + tags) abans del bloc RAG.
+%     Garanteix que el model té context lèxic encara que el vector
+%     ranking descarti la nota rellevant.
+%
+% Per al MCP server (Part~B) el problema és al revés: threshold
+% massa permissiu provoca falsos positius al red-team. Cal documentar
+% que la calibració òptima difereix entre xat RAG (prioritza recall,
+% amb escut lèxic) i MCP tools (prioritza precision per a limitar
+% ataques d'injecció). Figura proposada: corba precision-recall amb
+% threshold com a variable.
 
 \section{Resultats i discussió}
 % TODO: taula-resum de métriques aconseguides vs objectius O1-O9.

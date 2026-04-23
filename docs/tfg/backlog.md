@@ -65,7 +65,25 @@ El model NO hauria d'haver dit "només hi ha una nota amb el contingut
 credibilitat de la demo (el tribunal pot preguntar pel recall i ara
 la resposta és fluixa).
 
-**Commit que ho tanca:** _pendent_.
+**Resolució:** _2026-04-23, commit `3ae6f3f` (`fix(ui/chat): scroll,
+LLM note recognition, star anchor on cards`)._ Tres canvis a
+`src/app/api/chat/route.ts`:
+
+1. `match_threshold` 0.1 → **0.05** i `match_count` 10 → **20** — el
+   cas típic (15-30 notes) ara rep una passada completa.
+2. Afegit un **inventari a nivell de títol** al `systemPrompt`
+   (`📚 EVERY NOTE (title-level inventory — one line per note)`) amb
+   primer línia no-buida + llista de tags per cada nota viva. El
+   model "sap" sempre que existeixen les notes encara que la RAG no
+   les retorni al top-20.
+3. System prompt reestructurat amb 3 prioritats: (1) resposta des
+   del MEMORY, (2) reconèixer des de l'INVENTORY i cridar
+   `getNotesByTag` si una nota hi consta però el cos no està al
+   MEMORY, (3) tools. Frase explícita: *"Never tell the user a note
+   doesn't exist if it is listed in the INVENTORY"*.
+
+Inventari filtra per `archived_at IS NULL` per no inflar el context
+amb files arxivades.
 
 ---
 
@@ -231,4 +249,130 @@ branches noves (`feat/qol-2`, etc.) per tenir diffs revisables.
 - **Attachment file upload** al chat — requereix Supabase Storage i
   gestió de filets. Quedar per post-TFG.
 - **Custom keyboard shortcuts** (usuari defineix els seus) — overkill.
+
+---
+
+## 3. Post-merge bug fixes (2026-04-23)
+
+Totes les QoL-1…7 van ser fusionades a `main` via
+`addbc50 Merge feat/ui-refresh: UI refresh + QoL-1…7`. La finestra
+de revisió a production va destapar vuit bugs i un forat RLS, tots
+corregits el mateix dia. Cada fix té el seu commit específic.
+
+### Correccions visuals
+
+- [x] **Background Paths invisible en light mode** — la classe era
+      `text-foreground/10 dark:text-primary/25`, ~10% de foreground
+      sobre un card pàl·lid no es veia. Canvi a
+      `text-primary/35 dark:text-primary/25` (mateix ambre a les
+      dues variants, opacitat una mica més alta en light perquè el
+      fons blanc no l'empasti). Commit `41bc61b`.
+- [x] **Fonts no uniformes al xat i als cards** — Literata (serif
+      editorial) sagnava als bubbles de l'assistent i al prose dels
+      cards via `.prose { font-family: var(--font-body) }` global +
+      classes `font-body` explícites. Read com a "fonts diferents a
+      cada superfície". Eliminat l'override global i les dues
+      classes explícites; tot hereta ara Inter Tight. `.font-body`
+      queda com a utilitat opt-in. Commit `3710693`.
+- [x] **Card amb estrella semi-transparent** — `bg-primary/[0.03]`
+      sobreescrivia `bg-card` (tailwind-merge) i deixava passar el
+      fons animat. Substituït per
+      `bg-[color-mix(in_oklch,var(--primary)_7%,var(--card))]` —
+      sòlid, ambre-tint estable. Commit `41bc61b`.
+- [x] **Estrella "flotant" al mig del card** — quan els altres
+      botons (Duplicate/Archive/Delete) estaven `opacity-0` en
+      escriptori, el cluster right-aligned deixava l'estrella al
+      costat esquerre de 3 espais invisibles. Moguda a l'últim fill
+      del flex row perquè, quan els altres estan amagats, quedi
+      ancorada al `top-2 right-2`. Commit `3ae6f3f`.
+- [x] **Chip flotant buit sota bubbles al mòbil** — la caixa del
+      `<MessageActions>` tenia `bg-background + border + shadow-sm`
+      sempre visibles i només els botons interiors tenien
+      `opacity-0 group-hover:opacity-100`. A mòbil (sense hover)
+      quedava un chip blanc buit cobrint el bubble. Moguda la
+      transició d'opacitat al contenidor sencer amb el patró
+      `opacity-100 md:opacity-0 md:group-hover:opacity-100` que ja
+      gastem a les cards. També bump de `gap-5 → gap-8` al
+      contenidor de missatges perquè el chip no toqui el bubble de
+      sota. Commit `3710693`.
+
+### Correccions estructurals
+
+- [x] **Sidebar del xat massa comprimida al mòbil** — la `Sheet` de
+      85vw intentava encabir els 48w d'historial + la conversa, i a
+      telèfon les respostes quedaven a una paraula per línia.
+      Afegit `mobileView: 'list' | 'chat'` state: `loadChat` /
+      `createNewChat` canvien a `'chat'`; botó `<ChevronLeft>`
+      al header (només `md:hidden`) torna a la llista. A `md+`
+      tots dos panells continuen renderitzant-se alhora. Commit
+      `41bc61b`.
+- [x] **El xat no tenia scroll** — la `ScrollArea` vivia en un
+      flex-col sense `min-h-0`, i el fill creixia més enllà de
+      l'alçada del pane en comptes d'encabir-se i scrollar. Afegit
+      `min-h-0` al classe del `ScrollArea`. Commit `3ae6f3f`.
+- [x] **Avisos d'a11y `Missing Description or aria-describedby` al
+      DialogContent** — el bottom sheet del compose i el sheet del
+      chat mòbil no tenien `SheetDescription`. Afegit (visible al
+      compose, `VisuallyHidden` al chat on el títol ja està
+      visually-hidden). Commit `41bc61b`.
+
+### Correccions funcionals
+
+- [x] **L'assistent no trobava notes existents ("Noms de gat")** —
+      veure §1 d'aquest backlog per detall. Resolt al commit
+      `3ae6f3f` amb threshold 0.1→0.05, match_count 10→20, i
+      inventari de títols dins del system prompt.
+- [x] **Shortcut `?` bloquejava escriure interrogants** — el
+      handler global capturava `e.key === "?"` fins i tot dins de
+      textareas. Canvi a **F1** (rarament reclamat per navegadors,
+      històricament "help"), amb `preventDefault` per matar la
+      pestanya d'ajuda de Firefox. F1 ara és l'únic shortcut que
+      dispara dins d'inputs. Commit `7c1a684`.
+- [x] **Shortcuts mostraven només `⌘` (Mac)** — els handlers
+      acceptaven `metaKey || ctrlKey` des del principi, però el
+      `<KeyboardShortcutsDialog>` pintava només `⌘`. Afegida
+      detecció de plataforma via `userAgentData.platform ||
+      navigator.platform` i substitució d'un sentinel `MOD` a la
+      taula de shortcuts (declaratiu, una sola línia per
+      combinació). Ara apareix `Ctrl` a Windows/Linux. Commit
+      `7c1a684`.
+- [x] **Regenerate duplicava bubbles en comptes de reemplaçar-los**
+      (root cause: RLS) — `deleteMessageAction` i
+      `deleteMessageAndFollowingAction` cridaven
+      `supabase.from("messages").delete()` i supabase-js retornava
+      `error: null` amb 0 files afectades. La taula `public.messages`
+      tenia RLS activa amb INSERT + SELECT però **no** DELETE ni
+      UPDATE, exactament el mateix patró que vam corregir a `chats`
+      UPDATE el 2026-04-23. Nova migració
+      `20260424220000_messages_delete_update_policy.sql` afegeix
+      `"Users can delete messages of their chats"` i
+      `"Users can update messages of their chats"`, totes dues
+      ancorades en `exists (select 1 from chats c where c.id =
+      messages.chat_id and c.user_id = auth.uid())`. Aplicada al
+      remot via MCP (`apply_migration`). Commit `b4c5b01`.
+
+### Migrations aplicades en aquesta sessió
+
+| Timestamp (local) | Nom | Què fa | Com |
+|---|---|---|---|
+| 20260424120000 | `notes_starred` | `starred boolean default false` + índex compost `notes_user_starred_created_idx` | Aplicada via MCP (QoL-3) |
+| 20260424200000 | `notes_archived` | `archived_at timestamptz` + índex parcial `notes_user_live_created_idx` on `archived_at IS NULL` | Aplicada via MCP (QoL-7) |
+| 20260424220000 | `messages_delete_update_policy` | DELETE + UPDATE policies a `public.messages` scoped per chat owner | Aplicada via MCP (post-merge fix) |
+
+### Deploy a production
+
+- **Push:** `9669b28..addbc50 main -> main` (merge commit) +
+  `addbc50..3710693` (font fix) + `3710693..3ae6f3f` (scroll/RAG/
+  star) + `3ae6f3f..7c1a684` (F1 / cross-platform) + `7c1a684..b4c5b01` (RLS policy).
+- **Vercel:** el GitHub integration no va autodeployar del push a
+  `main`, així que vam instal·lar Vercel CLI i llançar
+  `vercel --prod --yes`. Produït `dpl_HGq2GGhLEg6pwh5ShDP4saafyVRU`
+  (primer deploy) i successius per cada fix. Tots aliased a
+  `https://synapse-notes.vercel.app` (també accessible via
+  `synapse-notes-fn59vg9pi-sergis-projects-2e66a325.vercel.app` i
+  URLs posteriors).
+- **Follow-up pendent:** investigar a
+  **Vercel → synapse-notes → Settings → Git** per què el push-to-
+  main no dispara build automàtic. Hipòtesi: integration pausada o
+  production branch mal configurada. Tornar-ho a mirar a Setmana 3.
 

@@ -6,7 +6,7 @@ A multi-tenant "second brain" SaaS for personal notes, with built-in RAG chat an
 
 This repository is also the codebase for the author's bachelor's thesis (TFG) at the Universitat Rovira i Virgili (ETSE, Computer Engineering), targeted for June 2026.
 
-> **Status (April 2026):** Part A (platform) feature-complete and deployed. Part B (MCP server and security evaluation) in active development until 5 June 2026.
+> **Status (April 2026):** Part A (platform) feature-complete and live at **[synapse-notes.vercel.app](https://synapse-notes.vercel.app)**. Part B (MCP server and security evaluation) in active development until 5 June 2026.
 
 ---
 
@@ -14,10 +14,13 @@ This repository is also the codebase for the author's bachelor's thesis (TFG) at
 
 **Part A — Platform (Oct 2025 → Apr 2026).** A production-ready SaaS:
 
-- Multi-tenant notes with rich editor, tags and OAuth sign-in (Google + GitHub)
-- RAG chat over your own notes via pgvector similarity + Vercel AI SDK streaming with tool calling
-- Internationalised UI (Catalan, Spanish, English) with dark mode and command palette
-- Row-Level Security on every user-facing table
+- Multi-tenant notes with rich editor, tags, star/pin, archive (soft-delete), duplicate and undo-delete toast
+- RAG chat over your own notes via pgvector similarity + Vercel AI SDK streaming with tool calling, plus editor-style actions on every turn (copy, regenerate, edit & re-run, branch, export as Markdown)
+- Internationalised UI (Catalan, Spanish, English) with light / dark / system theme
+- Full keyboard control: command palette, global shortcuts (`F1` help, `/` search, `N` compose, `J/K` chat nav, `1/2/3` top-tag filter, `↑` prompt recall)
+- Responsive: editorial desktop layout, bottom-sheet compose and single-pane chat on mobile, with haptic feedback on checkbox toggles
+- Settings panel: profile, theme picker, data export (JSON + Markdown), tags manager (rename / merge / delete), keyboard shortcuts reference, revoke-all-sessions, danger zone
+- Row-Level Security on every user-facing table — including DELETE/UPDATE policies on `chats` and `messages` so client mutations can't be silently dropped
 - Continuous deployment to Vercel
 
 **Part B — MCP extension & security research (Apr → Jun 2026).** Active work:
