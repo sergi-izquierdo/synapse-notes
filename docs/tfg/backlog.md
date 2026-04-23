@@ -135,18 +135,33 @@ Features funcionals que s'esperen de qualsevol note app moderna.
 - [x] **Tag chip click** al card → toggle del filtre per aquell tag;
       estat actiu amb tint primary a la badge
 
-### Fase QoL-5 — Settings page expansion
+### Fase QoL-5 — Settings page expansion ✅ (parcial)
 
 La `/settings` actual és mínima. Expansió completa.
 
-- [ ] **Profile card**: avatar del provider OAuth, display name, email
-- [ ] **Appearance**: theme picker gran (light/dark/system), language
-- [ ] **Data**: export all (notes + chats) JSON/MD, import MD drag-drop
-- [ ] **Tags manager**: llista, rename, merge, delete
-- [ ] **Keyboard shortcuts reference** (taula amb tots els shortcuts)
-- [ ] **Chats**: clear all chats
-- [ ] **Session**: log out of all devices via Supabase Auth
-- [ ] **Danger zone**: delete all notes, delete account
+- [x] **Profile card** — avatar OAuth (`user_metadata.avatar_url|picture`),
+      display name, email, nota + chat counts. Provider detectat via
+      `identities[0].provider`.
+- [x] **Appearance** — theme picker light/dark/system (3 botons
+      cards), Language card separat.
+- [x] **Data (export)** — JSON (lossless, inclou embeddings-less
+      payload) i Markdown (editorial-friendly, dropable a Obsidian).
+      Download client-side via `Blob` + anchor.click().
+- [x] **Tags manager** — llista ordenada per freq, rename inline amb
+      Enter/Esc (renaming a un tag existent = merge + dedupe),
+      delete amb confirmació.
+- [x] **Keyboard shortcuts reference** — botó que obre el
+      `<KeyboardShortcutsDialog>` existent (font única).
+- [x] **Chats** — clear all chats amb counter + confirmació.
+- [x] **Session** — `signOut({ scope: 'global' })` revoca tots els
+      refresh tokens i redirecta a /login.
+- [x] **Danger zone: delete all notes** — amb counter + confirmació.
+- [ ] **Danger zone: delete account** — requereix admin API
+      (service_role) + row cleanup; deferit.
+- [ ] **Data (import)** — MD drag-drop parser; deferit.
+
+Settings page passa de CSR pur a RSC que carrega profile+counts+tags
+abans d'entregar la vista al client.
 
 ### Fase QoL-6 — Chat mechanics
 
