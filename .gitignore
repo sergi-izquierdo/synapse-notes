@@ -44,6 +44,9 @@ yarn-error.log*
 .claude/skills/**/__pycache__/
 .claude/skills/**/*.pyc
 
+# Playwright MCP runtime artifacts (yml snapshots, console logs)
+.playwright-mcp/
+
 # vercel
 .vercel
 

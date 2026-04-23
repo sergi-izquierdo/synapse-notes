@@ -1,0 +1,15 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "Synapse Notes logo" [ref=e6]
+      - generic [ref=e18]: Synapse Notes
+      - generic [ref=e19]: El teu segon cervell, potenciat per IA.
+    - generic [ref=e20]:
+      - button "Continuar amb Google" [ref=e22] [cursor=pointer]:
+        - img
+        - text: Continuar amb Google
+      - button "Continuar amb GitHub" [ref=e24] [cursor=pointer]:
+        - img
+        - text: Continuar amb GitHub
+  - region "Notifications alt+T"
+  - alert [ref=e25]
