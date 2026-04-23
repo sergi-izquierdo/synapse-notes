@@ -60,14 +60,19 @@ export function ChatSidebar({ userId }: { userId: string }) {
         // flips from fallback mono labels to real Haiku-generated titles.
         if (typeof window !== 'undefined' && !sessionStorage.getItem('synapse-titles-backfilled')) {
             sessionStorage.setItem('synapse-titles-backfilled', '1')
+            console.info('[chat] triggering title backfill…')
             regenerateStaleTitlesAction()
                 .then((result) => {
+                    console.info('[chat] title backfill result:', result)
                     if (result.ok && result.updated > 0) {
                         fetchChats()
+                    } else if (!result.ok) {
+                        // Reset so the user can retry next session.
+                        sessionStorage.removeItem('synapse-titles-backfilled')
                     }
                 })
                 .catch((err) => {
-                    console.error('Title backfill failed:', err)
+                    console.error('[chat] title backfill threw:', err)
                     sessionStorage.removeItem('synapse-titles-backfilled')
                 })
         }

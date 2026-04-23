@@ -27,11 +27,14 @@ export async function regenerateStaleTitlesAction() {
         return { ok: false as const, reason: "unauthenticated", updated: 0 };
     }
 
+    // A "stale" chat is one whose title is still the default placeholder
+    // ("Nova Conversa"), missing (NULL), or empty. Any of those three states
+    // leaves the sidebar unreadable, so we treat them all the same.
     const { data: staleChats, error: chatsError } = await supabase
         .from("chats")
-        .select("id")
+        .select("id, title")
         .eq("user_id", user.id)
-        .eq("title", "Nova Conversa");
+        .or("title.is.null,title.eq.,title.eq.Nova Conversa");
 
     if (chatsError) {
         return { ok: false as const, reason: chatsError.message, updated: 0 };

@@ -120,7 +120,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               {/* FOOTER — proceedings-style timestamp */}
               <CardFooter className="flex justify-between border-t border-border/60 bg-muted/20 px-5 py-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 mt-2">
                 <span className="text-[10px] text-muted-foreground font-mono">
-                  §{new Date(note.created_at).toLocaleDateString("ca-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                  {new Date(note.created_at).toLocaleDateString("ca-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                 </span>
 
                 <div
