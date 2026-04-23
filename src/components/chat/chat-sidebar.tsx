@@ -231,11 +231,26 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                             const toolName = getToolName(part)
                                                             const isRunning = part.state !== 'output-available'
                                                             const toolInput = 'input' in part ? (part as { input?: unknown }).input : undefined
-                                                            return (
-                                                                <div
-                                                                    key={`tool-${index}`}
-                                                                    className="flex items-baseline gap-1.5"
-                                                                >
+                                                            const toolOutput = 'output' in part ? (part as { output?: unknown }).output : undefined
+
+                                                            // Try to pretty-print the output. Most tool handlers return
+                                                            // JSON strings; parse + re-stringify for readability, fall
+                                                            // back to the raw string/value otherwise.
+                                                            let prettyOutput: string | null = null
+                                                            if (!isRunning && toolOutput !== undefined && toolOutput !== null) {
+                                                                if (typeof toolOutput === 'string') {
+                                                                    try {
+                                                                        prettyOutput = JSON.stringify(JSON.parse(toolOutput), null, 2)
+                                                                    } catch {
+                                                                        prettyOutput = toolOutput
+                                                                    }
+                                                                } else {
+                                                                    prettyOutput = JSON.stringify(toolOutput, null, 2)
+                                                                }
+                                                            }
+
+                                                            const header = (
+                                                                <>
                                                                     <span className={cn(
                                                                         "font-semibold tabular-nums shrink-0",
                                                                         m.role === 'user'
@@ -268,8 +283,45 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                             {' · '}
                                                                             {isRunning ? 'pending' : 'done'}
                                                                         </span>
+                                                                        {prettyOutput !== null && (
+                                                                            <span className="ml-1 opacity-60 inline-block transition-transform group-open:rotate-90">
+                                                                                ▸
+                                                                            </span>
+                                                                        )}
                                                                     </span>
-                                                                </div>
+                                                                </>
+                                                            )
+
+                                                            if (prettyOutput === null) {
+                                                                return (
+                                                                    <div
+                                                                        key={`tool-${index}`}
+                                                                        className="flex items-baseline gap-1.5"
+                                                                    >
+                                                                        {header}
+                                                                    </div>
+                                                                )
+                                                            }
+
+                                                            return (
+                                                                <details
+                                                                    key={`tool-${index}`}
+                                                                    className="group"
+                                                                >
+                                                                    <summary className="flex items-baseline gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                                                                        {header}
+                                                                    </summary>
+                                                                    <pre
+                                                                        className={cn(
+                                                                            "mt-1 ml-5 px-2 py-1.5 rounded text-[10px] whitespace-pre-wrap break-words max-h-48 overflow-auto border",
+                                                                            m.role === 'user'
+                                                                                ? "bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground/80"
+                                                                                : "bg-muted/30 border-border/40 text-muted-foreground"
+                                                                        )}
+                                                                    >
+                                                                        {prettyOutput}
+                                                                    </pre>
+                                                                </details>
                                                             )
                                                         })}
                                                     </aside>
