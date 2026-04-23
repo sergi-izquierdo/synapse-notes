@@ -42,6 +42,7 @@ export function FilterBar({
       <div className="relative flex-1 w-full">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          data-search-shortcut=""
           placeholder={t.common.search_placeholder}
           className="pl-9 bg-background/50 backdrop-blur-sm border-muted-foreground/20"
           value={searchTerm}

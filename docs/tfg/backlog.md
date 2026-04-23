@@ -91,16 +91,18 @@ Bug real + els atajos més demanats d'any en any a apps de notes.
 - [ ] **Timestamps relatius** a note cards (`fa 2h`, `ahir`) via
       `date-fns/formatDistanceToNow`
 
-### Fase QoL-2 — Navigation shortcuts
+### Fase QoL-2 — Navigation shortcuts ✅
 
 Accelera el keyboard-first workflow.
 
-- [ ] **/** global → focus al search de notes
-- [ ] **N** global → focus al compose textarea (fora command palette)
-- [ ] **?** global → overlay amb tots els shortcuts disponibles
-      (component nou `<KeyboardShortcutsSheet>`)
-- [ ] **J/K** al sidebar chats → navegar amunt/avall (Vim-style)
-- [ ] **↑** al chat input buit → recuperar última pregunta
+- [x] **/** global → focus al search de notes (via `data-search-shortcut`,
+      compatible amb i18n EN/ES/CA)
+- [x] **N** global → focus al compose textarea (`textarea[name="content"]`)
+- [x] **?** global → overlay amb tots els shortcuts disponibles
+      (`<KeyboardShortcutsDialog>` + `<GlobalShortcuts>` al dashboard layout)
+- [x] **J/K** al sidebar chats → navegar amunt/avall via `CustomEvent`
+      (`chat-nav-next`/`chat-nav-prev`)
+- [x] **↑** al chat input buit → recuperar última pregunta (`lastPrompt` state)
 
 ### Fase QoL-3 — Note features base
 

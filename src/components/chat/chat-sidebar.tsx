@@ -44,6 +44,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
     const [chatId, setChatId] = useState<string | null>(null)
     const [chatList, setChatList] = useState<Chat[]>([])
     const [input, setInput] = useState('')
+    const [lastPrompt, setLastPrompt] = useState('')
     const [isMounted, setIsMounted] = useState(false)
     const [sheetOpen, setSheetOpen] = useState(false)
     const { ref: inputRef, adjust: adjustInputHeight } = useAutoResize(40, 160)
@@ -99,9 +100,44 @@ export function ChatSidebar({ userId }: { userId: string }) {
         }
     }, [])
 
+    // J/K sidebar navigation — wired via custom events dispatched by
+    // GlobalShortcuts. Kept here (not lifted) so the handler can close
+    // over the current chatList/chatId without extra plumbing.
+    useEffect(() => {
+        const findCurrentIdx = () => chatList.findIndex((c) => c.id === chatId)
+        const next = () => {
+            if (chatList.length === 0) return
+            const idx = findCurrentIdx()
+            if (idx === -1) {
+                loadChat(chatList[0]!.id)
+                return
+            }
+            if (idx < chatList.length - 1) loadChat(chatList[idx + 1]!.id)
+        }
+        const prev = () => {
+            if (chatList.length === 0) return
+            const idx = findCurrentIdx()
+            if (idx === -1) {
+                loadChat(chatList[0]!.id)
+                return
+            }
+            if (idx > 0) loadChat(chatList[idx - 1]!.id)
+        }
+        document.addEventListener('chat-nav-next', next)
+        document.addEventListener('chat-nav-prev', prev)
+        return () => {
+            document.removeEventListener('chat-nav-next', next)
+            document.removeEventListener('chat-nav-prev', prev)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatList, chatId])
+
     if (!isMounted) return null
 
-    const loadChat = async (id: string) => {
+    // Function declaration (not `const`) so the J/K useEffect above
+    // can close over it without a temporal-dead-zone error — hoisted
+    // to the top of the component body.
+    async function loadChat(id: string) {
         setChatId(id)
         const { data } = await supabase.from('messages').select('*').eq('chat_id', id).order('created_at', { ascending: true })
 
@@ -145,6 +181,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
         const content = input
         setInput('')
+        setLastPrompt(content)
         adjustInputHeight(true)
 
         await sendMessage(
@@ -394,6 +431,21 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault()
                                         handleSend()
+                                        return
+                                    }
+                                    // ↑ on an empty input recalls the last
+                                    // prompt the user sent — mirrors shell
+                                    // history behaviour.
+                                    if (
+                                        e.key === 'ArrowUp' &&
+                                        input === '' &&
+                                        lastPrompt
+                                    ) {
+                                        e.preventDefault()
+                                        setInput(lastPrompt)
+                                        requestAnimationFrame(() =>
+                                            adjustInputHeight(),
+                                        )
                                     }
                                 }}
                                 rows={1}
