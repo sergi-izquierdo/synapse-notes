@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,21 +35,72 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   const { t, language } = useLanguage();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editingNote, setEditingNote] = useState<{
     id: number;
     content: string;
     tags: string[];
   } | null>(null);
 
+  // Frequency map used by the filter selector, the top-3 keyboard
+  // shortcuts, and (when we want to surface popular tags) any UI.
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const note of notes) {
+      for (const tag of note.tags ?? []) {
+        counts[tag] = (counts[tag] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [notes]);
+
+  // Top 3 tags by usage, alpha-sorted as a tie-break. Consumed by the
+  // 1/2/3 quick-filter shortcut below.
+  const topTags = useMemo(
+    () =>
+      availableTags
+        .slice()
+        .sort((a, b) => {
+          const diff = (tagCounts[b] ?? 0) - (tagCounts[a] ?? 0);
+          return diff !== 0 ? diff : a.localeCompare(b);
+        })
+        .slice(0, 3),
+    [availableTags, tagCounts],
+  );
+
+  // Toggle a tag in the active filter set — shared between the card
+  // badge click and the 1/2/3 custom event listener.
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
+
+  // 1/2/3 quick-filter: GlobalShortcuts dispatches notes-filter-top-tag
+  // with detail.index (1-based). We translate the index into the
+  // current top tag and toggle its filter.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const index = (e as CustomEvent<{ index: number }>).detail?.index;
+      if (!index) return;
+      const tag = topTags[index - 1];
+      if (tag) toggleTagFilter(tag);
+    };
+    document.addEventListener("notes-filter-top-tag", handler);
+    return () =>
+      document.removeEventListener("notes-filter-top-tag", handler);
+  }, [topTags]);
+
+  // AND filter: a note must carry every selected tag to match.
   const filteredNotes = notes.filter((note) => {
     const matchesSearch = note.content
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
-    const matchesTag = selectedTag
-      ? note.tags && note.tags.includes(selectedTag)
-      : true;
-    return matchesSearch && matchesTag;
+    const noteTags = note.tags ?? [];
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.every((t) => noteTags.includes(t));
+    return matchesSearch && matchesTags;
   });
 
   // Delete with a 5-second undo toast. We hard-delete on the server and
@@ -98,13 +149,13 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
 
   return (
     <>
-      {/* ✅ NEW FILTER BAR */}
       <FilterBar
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
-        selectedTag={selectedTag}
-        setSelectedTag={setSelectedTag}
+        selectedTags={selectedTags}
+        setSelectedTags={setSelectedTags}
         availableTags={availableTags}
+        tagCounts={tagCounts}
       />
 
       {/* GRID */}
@@ -211,18 +262,43 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </div>
               </CardContent>
 
-              {/* TAGS — smallcaps style */}
+              {/* TAGS — smallcaps style. Click toggles a filter on that
+                  tag; active tags get a primary-tinted chip so the
+                  filter state reads from the card too. */}
               {note.tags && note.tags.length > 0 && (
-                <div className="px-5 pb-2 flex flex-wrap gap-1">
-                  {note.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 border-border/60 text-muted-foreground bg-muted/30 uppercase tracking-wider font-mono"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
+                <div
+                  className="px-5 pb-2 flex flex-wrap gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {note.tags.map((tag) => {
+                    const active = selectedTags.includes(tag);
+                    return (
+                      <Badge
+                        key={tag}
+                        asChild
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] px-1.5 py-0 uppercase tracking-wider font-mono cursor-pointer transition-colors",
+                          active
+                            ? "border-primary/60 text-primary bg-primary/10"
+                            : "border-border/60 text-muted-foreground bg-muted/30 hover:border-primary/40 hover:text-primary",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleTagFilter(tag)}
+                          aria-pressed={active}
+                          aria-label={
+                            active
+                              ? `Remove ${tag} from filter`
+                              : `Filter by ${tag}`
+                          }
+                        >
+                          {tag}
+                        </button>
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
 

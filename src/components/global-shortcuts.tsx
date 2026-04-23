@@ -87,6 +87,25 @@ export function GlobalShortcuts() {
                 document.dispatchEvent(new CustomEvent(eventName));
                 return;
             }
+
+            // 1 / 2 / 3 — toggle filter by top-N tag. NoteGrid owns the
+            // freq map and resolves the index → tag so this handler
+            // stays unaware of the current tag roster.
+            if (
+                (e.key === "1" || e.key === "2" || e.key === "3") &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.altKey &&
+                !e.shiftKey
+            ) {
+                e.preventDefault();
+                document.dispatchEvent(
+                    new CustomEvent("notes-filter-top-tag", {
+                        detail: { index: Number(e.key) },
+                    }),
+                );
+                return;
+            }
         };
 
         document.addEventListener("keydown", handler);

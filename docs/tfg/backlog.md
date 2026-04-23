@@ -123,12 +123,17 @@ Features funcionals que s'esperen de qualsevol note app moderna.
       *(descartat per ara — la sort starred-first ja cobreix el
       "primerament"; afegir una secció separada fragmenta la pàgina)*
 
-### Fase QoL-4 — Tags refinement
+### Fase QoL-4 — Tags refinement ✅
 
-- [ ] **Tag autocomplete** amb freq count al TagSelector
-- [ ] **Multi-tag filter** (convertir el current select a checkbox list)
-- [ ] **Keyboard quick-filter 1/2/3** per top tags
-- [ ] **Tag chip click** al card → filtra notes amb aquest tag
+- [x] **Tag autocomplete** amb freq count al TagSelector (opcional
+      `tagCounts` prop; sort by count desc, alpha tie-break)
+- [x] **Multi-tag filter** — FilterBar passa a multi-select via
+      `TagSelector(allowCreate=false)`; chips eliminables, AND filter
+- [x] **Keyboard quick-filter 1/2/3** — GlobalShortcuts dispatcha
+      `notes-filter-top-tag` amb detail.index, NoteGrid resol al top-N
+      tag i fa toggle
+- [x] **Tag chip click** al card → toggle del filtre per aquell tag;
+      estat actiu amb tint primary a la badge
 
 ### Fase QoL-5 — Settings page expansion
 
