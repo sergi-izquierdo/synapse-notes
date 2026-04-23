@@ -35,7 +35,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
             setTimeout(() => fetchChats(), 3000)
         },
         onError: (error) => {
-            console.error("❌ Error al xat:", error)
+            console.error("Error al xat:", error)
             toast.error("Error al xat")
         }
     })
@@ -46,7 +46,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) return
 
-        const { data, error } = await supabase.from('chats').select('*').order('created_at', { ascending: false })
+        const { data } = await supabase.from('chats').select('*').order('created_at', { ascending: false })
         if (data) setChatList(data)
     }
 
@@ -188,57 +188,91 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-5 pb-4">
-                                {messages.map((m) => (
-                                    <div key={m.id} className={cn(
-                                        "flex w-full",
-                                        m.role === 'user' ? "justify-end" : "justify-start"
-                                    )}>
-                                        <div className={cn(
-                                            "max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm",
-                                            m.role === 'user'
-                                                ? "bg-primary text-primary-foreground rounded-tr-sm"
-                                                : "bg-card border border-border/60 rounded-tl-sm text-card-foreground"
+                                {messages.map((m) => {
+                                    const parts = m.parts ?? []
+                                    const textParts = parts.filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
+                                    const toolParts = parts.filter(isToolUIPart)
+
+                                    return (
+                                        <div key={m.id} className={cn(
+                                            "flex w-full",
+                                            m.role === 'user' ? "justify-end" : "justify-start"
                                         )}>
                                             <div className={cn(
-                                                "prose prose-sm dark:prose-invert break-words leading-relaxed max-w-none",
-                                                m.role === 'assistant' && "font-body"
+                                                "max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm",
+                                                m.role === 'user'
+                                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
+                                                    : "bg-card border border-border/60 rounded-tl-sm text-card-foreground"
                                             )}>
-                                                {m.parts ? (
-                                                    m.parts.map((part, index) => {
-                                                        // CASE 1: TEXT
-                                                        if (part.type === 'text') {
-                                                            return (
-                                                                <ReactMarkdown key={index} remarkPlugins={[remarkGfm]}>
-                                                                    {part.text}
-                                                                </ReactMarkdown>
-                                                            )
-                                                        }
+                                                <div className={cn(
+                                                    "prose prose-sm dark:prose-invert break-words leading-relaxed max-w-none",
+                                                    m.role === 'assistant' && "font-body"
+                                                )}>
+                                                    {textParts.map((part, index) => (
+                                                        <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]}>
+                                                            {part.text}
+                                                        </ReactMarkdown>
+                                                    ))}
+                                                </div>
 
-                                                        // CASE 2: TOOL INVOCATION
-                                                        if (isToolUIPart(part)) {
+                                                {/* Editorial footnotes for tool invocations. Numbered with § so the
+                                                    message reads like a short paper: body above, sources below. */}
+                                                {toolParts.length > 0 && (
+                                                    <aside
+                                                        className={cn(
+                                                            "mt-3 pt-2 border-t space-y-1 font-mono text-[10px] not-prose",
+                                                            m.role === 'user'
+                                                                ? "border-primary-foreground/20 text-primary-foreground/80"
+                                                                : "border-border/60 text-muted-foreground"
+                                                        )}
+                                                        aria-label="Tool invocations"
+                                                    >
+                                                        {toolParts.map((part, index) => {
                                                             const toolName = getToolName(part)
                                                             const isRunning = part.state !== 'output-available'
-
+                                                            const toolInput = 'input' in part ? (part as { input?: unknown }).input : undefined
                                                             return (
-                                                                <div key={index} className="flex flex-col gap-1 my-2 text-xs text-muted-foreground bg-muted/40 p-2 rounded-md font-mono border border-border/40">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={cn(isRunning ? "animate-pulse text-primary" : "text-secondary")}>
-                                                                            {isRunning ? '\u26A1' : '\u2713'}
-                                                                        </span>
-                                                                        <span className="font-bold">
+                                                                <div
+                                                                    key={`tool-${index}`}
+                                                                    className="flex items-baseline gap-1.5"
+                                                                >
+                                                                    <span className={cn(
+                                                                        "font-semibold tabular-nums",
+                                                                        m.role === 'user'
+                                                                            ? "text-primary-foreground"
+                                                                            : "text-primary",
+                                                                        isRunning && "animate-pulse"
+                                                                    )}>
+                                                                        §{index + 1}
+                                                                    </span>
+                                                                    <span className="truncate">
+                                                                        <span className={cn(
+                                                                            m.role === 'user'
+                                                                                ? "text-primary-foreground/90"
+                                                                                : "text-foreground/85"
+                                                                        )}>
                                                                             {toolName}
                                                                         </span>
-                                                                    </div>
+                                                                        {toolInput ? (
+                                                                            <span className="opacity-70">
+                                                                                {' · '}
+                                                                                {JSON.stringify(toolInput)}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        <span className="opacity-70">
+                                                                            {' · '}
+                                                                            {isRunning ? 'pending' : 'done'}
+                                                                        </span>
+                                                                    </span>
                                                                 </div>
                                                             )
-                                                        }
-                                                        return null
-                                                    })
-                                                ) : null}
+                                                        })}
+                                                    </aside>
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                                 {isLoading && (
                                     <div className="flex justify-start">
                                         <div className="bg-card border border-border/60 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-xs flex items-center gap-2 text-muted-foreground">

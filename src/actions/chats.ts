@@ -71,12 +71,27 @@ export async function regenerateStaleTitlesAction() {
 
                 if (!cleanTitle) return;
 
-                const { error: updateError } = await supabase
+                // `.select("id")` forces the query to return the rows it
+                // actually wrote. Without it, Supabase returns `error: null`
+                // even when RLS silently blocks the update (0 rows affected).
+                // We only count a success if the row is in the response.
+                const { data: updatedRows, error: updateError } = await supabase
                     .from("chats")
                     .update({ title: cleanTitle })
-                    .eq("id", chat.id);
+                    .eq("id", chat.id)
+                    .select("id");
 
-                if (!updateError) updated += 1;
+                if (updateError) {
+                    console.error(
+                        "regenerateStaleTitlesAction: update failed for",
+                        chat.id,
+                        updateError,
+                    );
+                    return;
+                }
+                if (updatedRows && updatedRows.length > 0) {
+                    updated += 1;
+                }
             } catch (err) {
                 console.error(
                     "regenerateStaleTitlesAction: failed for chat",
