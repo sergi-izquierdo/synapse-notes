@@ -131,6 +131,12 @@ export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
         className="min-h-[140px] w-full resize-none border-none bg-transparent p-6 text-lg placeholder:text-muted-foreground/50 focus-visible:ring-0 font-sans"
       />
 
+      {/* META ROW — live character counter sits directly under the
+          textarea, mono so the digits don't reflow as they tick. */}
+      <div className="flex items-center justify-end px-6 pb-2 -mt-1 font-mono text-[10px] text-muted-foreground/70 tabular-nums">
+        {content.length} {content.length === 1 ? "char" : "chars"}
+      </div>
+
       {/* ZONA DE TAGS — visually separated from the textarea and the
           action row by hairlines on a slightly darker surface. */}
       <div className="border-t border-border/60 bg-muted/15 px-6 py-4">
