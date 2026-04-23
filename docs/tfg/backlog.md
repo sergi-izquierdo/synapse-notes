@@ -68,3 +68,104 @@ la resposta és fluixa).
 **Commit que ho tanca:** _pendent_.
 
 ---
+
+## 2. UI Quality-of-Life roadmap
+
+Llista completa de millores QoL proposades el 2026-04-23 durant la
+revisió final de la branca `feat/ui-refresh`. Totes aprovades pel
+Sergi, organitzades en 7 fases per prioritat d'impacte/cost. Cada
+fase és un bloc independent, committejables per separat.
+
+### Fase QoL-1 — Fixes crítics + shortcuts bàsics
+
+Bug real + els atajos més demanats d'any en any a apps de notes.
+
+- [ ] **Fix regeneració títols de chat** — `updated: 17` retorna OK
+      però RLS silenciosament bloca l'UPDATE (ja tenim `.select()`
+      retornant data, però potser falta política UPDATE a la taula
+      `chats`). Investigar policies + fix.
+- [ ] **⌘Enter / Ctrl+Enter** al compose textarea → save note
+- [ ] **⌘Enter** al chat input → send (verificar si form.submit funciona)
+- [ ] **Esc** a modals → close (shadcn Dialog ja ho fa, verificar)
+- [ ] **Auto-resize** del chat textarea (extret del #6 Animated AI Input)
+- [ ] **Timestamps relatius** a note cards (`fa 2h`, `ahir`) via
+      `date-fns/formatDistanceToNow`
+
+### Fase QoL-2 — Navigation shortcuts
+
+Accelera el keyboard-first workflow.
+
+- [ ] **/** global → focus al search de notes
+- [ ] **N** global → focus al compose textarea (fora command palette)
+- [ ] **?** global → overlay amb tots els shortcuts disponibles
+      (component nou `<KeyboardShortcutsSheet>`)
+- [ ] **J/K** al sidebar chats → navegar amunt/avall (Vim-style)
+- [ ] **↑** al chat input buit → recuperar última pregunta
+
+### Fase QoL-3 — Note features base
+
+Features funcionals que s'esperen de qualsevol note app moderna.
+
+- [ ] **Star/pin** nota (columna `starred boolean` a DB, ordenació al top)
+- [ ] **Character count** al compose form (small text sota textarea)
+- [ ] **Word count** al edit modal
+- [ ] **Duplicate note** action (menú context card o icon hover)
+- [ ] **Toast amb undo** al delete note (5s per recuperar)
+- [ ] **Hover enhanced** card (mostrar timestamp/tags sempre, no hover-only)
+- [ ] **Recent notes** secció top-3 primerament al dashboard
+
+### Fase QoL-4 — Tags refinement
+
+- [ ] **Tag autocomplete** amb freq count al TagSelector
+- [ ] **Multi-tag filter** (convertir el current select a checkbox list)
+- [ ] **Keyboard quick-filter 1/2/3** per top tags
+- [ ] **Tag chip click** al card → filtra notes amb aquest tag
+
+### Fase QoL-5 — Settings page expansion
+
+La `/settings` actual és mínima. Expansió completa.
+
+- [ ] **Profile card**: avatar del provider OAuth, display name, email
+- [ ] **Appearance**: theme picker gran (light/dark/system), language
+- [ ] **Data**: export all (notes + chats) JSON/MD, import MD drag-drop
+- [ ] **Tags manager**: llista, rename, merge, delete
+- [ ] **Keyboard shortcuts reference** (taula amb tots els shortcuts)
+- [ ] **Chats**: clear all chats
+- [ ] **Session**: log out of all devices via Supabase Auth
+- [ ] **Danger zone**: delete all notes, delete account
+
+### Fase QoL-6 — Chat mechanics
+
+Features de xat que Claude Desktop, ChatGPT, Cursor tenen.
+
+- [ ] **Regenerate response** al missatge d'assistent
+- [ ] **Edit user message** + re-run (pruning subsequent messages)
+- [ ] **Copy message** botó al hover del bubble
+- [ ] **Export conversation** a MD (download)
+- [ ] **Branch chat**: fork des d'un missatge específic
+
+### Fase QoL-7 — Mobile + misc visuals
+
+- [ ] **Archive notes** (`archived_at timestamp` a DB, hide en lloc de
+      delete)
+- [ ] **Skeleton loading** al note grid inicial (en lloc de spinner)
+- [ ] **Empty state il·lustrat** (SVG simple) quan 0 notes
+- [ ] **Integrar #6 Animated AI Input** al chat (si QoL-1 auto-resize
+      no és suficient)
+- [ ] **Swipe actions** a note cards mobile (swipe → delete)
+- [ ] **Bottom sheet compose** mobile (drawer des de FAB)
+- [ ] **Tactile haptics** mobile al toggle checkbox
+
+### Merge strategy
+
+Cada fase = 1 o 2 commits, agrupats. Quan 3 fases consecutives siguin
+verdes, merge al main (petits PRs en lloc d'un sol PR monstre).
+Preferible acabar QoL-1 → merge feat/ui-refresh → seguir la resta en
+branches noves (`feat/qol-2`, etc.) per tenir diffs revisables.
+
+### Fora d'abast (explícit)
+
+- **Attachment file upload** al chat — requereix Supabase Storage i
+  gestió de filets. Quedar per post-TFG.
+- **Custom keyboard shortcuts** (usuari defineix els seus) — overkill.
+
