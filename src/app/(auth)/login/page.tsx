@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { signInWith } from "@/actions/auth";
 import { BrainCircuit, Github } from "lucide-react";
+import { BackgroundPaths } from "@/components/backgrounds/background-paths";
 
 function GoogleIcon() {
   return (
@@ -23,8 +24,10 @@ function GoogleIcon() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="px-6 py-5 flex items-center justify-between max-w-6xl mx-auto w-full">
+    <div className="relative min-h-screen flex flex-col bg-background overflow-hidden">
+      <BackgroundPaths />
+
+      <header className="relative z-10 px-6 py-5 flex items-center justify-between max-w-6xl mx-auto w-full">
         <div className="flex items-center gap-2.5">
           <BrainCircuit className="h-7 w-7 text-primary" aria-hidden />
           <span className="text-lg font-semibold tracking-tight">
@@ -42,7 +45,7 @@ export default function LoginPage() {
         </a>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-6 py-12">
+      <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-12">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 max-w-5xl w-full items-center">
           {/* Hero pitch */}
           <div className="space-y-6 text-center lg:text-left">
@@ -124,7 +127,7 @@ export default function LoginPage() {
         </div>
       </main>
 
-      <footer className="px-6 py-5 text-center text-xs text-muted-foreground">
+      <footer className="relative z-10 px-6 py-5 text-center text-xs text-muted-foreground">
         <p className="font-mono">
           §&nbsp;Treball de Fi de Grau · Sergi Izquierdo · URV Tarragona · Juny
           2026
