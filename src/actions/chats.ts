@@ -2,6 +2,7 @@
 
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -103,4 +104,181 @@ export async function regenerateStaleTitlesAction() {
     );
 
     return { ok: true as const, updated };
+}
+
+// Shared auth helper — keeps every action below from repeating the same
+// three lines. Returns null client when unauthenticated so callers can
+// short-circuit with a typed error.
+async function requireChatAccess(chatId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { supabase: null, user: null, error: "Unauthorized" as const };
+
+    // RLS already scopes chats/messages to the owner; fetching the chat
+    // also validates that the caller actually owns it before we start
+    // mutating rows.
+    const { data: chat, error } = await supabase
+        .from("chats")
+        .select("id, user_id, title")
+        .eq("id", chatId)
+        .single();
+    if (error || !chat) return { supabase: null, user: null, error: "Chat not found" as const };
+    if (chat.user_id !== user.id) return { supabase: null, user: null, error: "Forbidden" as const };
+
+    return { supabase, user, chat, error: null };
+}
+
+/**
+ * Delete a single message. Used before `regenerate({ messageId })` so
+ * the stale assistant row doesn't linger when the new response is
+ * persisted by the /api/chat route.
+ */
+export async function deleteMessageAction(chatId: string, messageId: string) {
+    const { supabase, error } = await requireChatAccess(chatId);
+    if (error || !supabase) return { error };
+
+    const { error: deleteError } = await supabase
+        .from("messages")
+        .delete()
+        .eq("id", messageId)
+        .eq("chat_id", chatId);
+
+    if (deleteError) {
+        console.error("Supabase Error:", deleteError);
+        return { error: "Error deleting message." };
+    }
+
+    return { success: true };
+}
+
+/**
+ * Delete a message and every message that comes after it in the same
+ * chat. Used when the user edits a prior message — the rewrite has to
+ * prune the downstream conversation so the new send starts fresh.
+ */
+export async function deleteMessageAndFollowingAction(
+    chatId: string,
+    messageId: string,
+) {
+    const { supabase, error } = await requireChatAccess(chatId);
+    if (error || !supabase) return { error };
+
+    const { data: pivot, error: fetchError } = await supabase
+        .from("messages")
+        .select("created_at")
+        .eq("id", messageId)
+        .eq("chat_id", chatId)
+        .single();
+    if (fetchError || !pivot) return { error: "Pivot message not found." };
+
+    const { error: deleteError } = await supabase
+        .from("messages")
+        .delete()
+        .eq("chat_id", chatId)
+        .gte("created_at", pivot.created_at as string);
+
+    if (deleteError) {
+        console.error("Supabase Error:", deleteError);
+        return { error: "Error pruning messages." };
+    }
+
+    return { success: true };
+}
+
+/**
+ * Branch the chat: create a new chat whose messages are a copy of the
+ * original chat up to *and including* the pivot message. The user ends
+ * up in a fresh conversation they can continue without disturbing the
+ * original timeline.
+ */
+export async function branchChatAction(
+    chatId: string,
+    pivotMessageId: string,
+) {
+    const { supabase, user, chat, error } = await requireChatAccess(chatId);
+    if (error || !supabase || !user || !chat) return { error };
+
+    const { data: pivot, error: pivotError } = await supabase
+        .from("messages")
+        .select("created_at")
+        .eq("id", pivotMessageId)
+        .eq("chat_id", chatId)
+        .single();
+    if (pivotError || !pivot) return { error: "Pivot message not found." };
+
+    const { data: toCopy, error: msgsError } = await supabase
+        .from("messages")
+        .select("role, content, created_at")
+        .eq("chat_id", chatId)
+        .lte("created_at", pivot.created_at as string)
+        .order("created_at", { ascending: true });
+
+    if (msgsError) return { error: "Error reading original messages." };
+
+    const branchTitle = chat.title
+        ? `↳ ${String(chat.title).substring(0, 56)}`
+        : "Branch";
+
+    const { data: newChat, error: createError } = await supabase
+        .from("chats")
+        .insert({ user_id: user.id, title: branchTitle })
+        .select()
+        .single();
+    if (createError || !newChat) {
+        console.error("Supabase Error:", createError);
+        return { error: "Error creating branch chat." };
+    }
+
+    if (toCopy && toCopy.length > 0) {
+        const rows = toCopy.map((m) => ({
+            chat_id: newChat.id,
+            role: m.role as string,
+            content: m.content as string,
+        }));
+        const { error: insertError } = await supabase.from("messages").insert(rows);
+        if (insertError) {
+            // Clean up the empty chat so the user doesn't see an orphan
+            // row if the bulk copy fails midway.
+            await supabase.from("chats").delete().eq("id", newChat.id);
+            console.error("Supabase Error:", insertError);
+            return { error: "Error copying messages into branch." };
+        }
+    }
+
+    revalidatePath("/");
+    return { success: true, newChatId: newChat.id as string };
+}
+
+/**
+ * Export a chat as a Markdown document: H1 title, short header, then
+ * one H2 per turn (`# User` / `# Assistant`). Kept server-side so the
+ * caller doesn't need to re-fetch messages.
+ */
+export async function exportChatAsMarkdownAction(chatId: string) {
+    const { supabase, chat, error } = await requireChatAccess(chatId);
+    if (error || !supabase || !chat) return { error };
+
+    const { data: messages, error: messagesError } = await supabase
+        .from("messages")
+        .select("role, content, created_at")
+        .eq("chat_id", chatId)
+        .order("created_at", { ascending: true });
+
+    if (messagesError) return { error: "Error fetching messages." };
+
+    const header = `# ${chat.title ?? "Untitled chat"}\n\nExported ${new Date().toISOString().split("T")[0]} · ${messages?.length ?? 0} messages\n`;
+    const body = (messages ?? [])
+        .map((m) => {
+            const label = m.role === "user" ? "User" : "Assistant";
+            return `## ${label}\n\n${m.content}`;
+        })
+        .join("\n\n---\n\n");
+
+    return {
+        success: true,
+        title: chat.title as string | null,
+        data: `${header}\n${body}\n`,
+    };
 }

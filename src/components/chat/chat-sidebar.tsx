@@ -4,20 +4,27 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Send, Bot, Loader2, MessageCircle } from 'lucide-react'
+import { Plus, Send, Bot, Loader2, MessageCircle, Download, X, Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from 'ai'
 import { isToolUIPart, getToolName } from 'ai'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
-import { regenerateStaleTitlesAction } from '@/actions/chats'
+import {
+    branchChatAction,
+    deleteMessageAction,
+    deleteMessageAndFollowingAction,
+    exportChatAsMarkdownAction,
+    regenerateStaleTitlesAction,
+} from '@/actions/chats'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import type { Chat, Message } from '@/types/database'
+import { MessageActions } from './message-actions'
 
 // Grow the chat textarea from 40px up to 160px as content fills it.
 // Kept local to this file; if we need this anywhere else we can lift
@@ -47,16 +54,33 @@ export function ChatSidebar({ userId }: { userId: string }) {
     const [lastPrompt, setLastPrompt] = useState('')
     const [isMounted, setIsMounted] = useState(false)
     const [sheetOpen, setSheetOpen] = useState(false)
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+    const [editDraft, setEditDraft] = useState('')
     const { ref: inputRef, adjust: adjustInputHeight } = useAutoResize(40, 160)
+
+    // The `useChat` callbacks are captured once at hook init, so they
+    // can't read the latest chatId from state. This ref stays in sync
+    // with chatId and lets onFinish resync the DB-side ids back into
+    // the UI once the server has inserted the new rows.
+    const chatIdRef = useRef<string | null>(null)
+    useEffect(() => {
+        chatIdRef.current = chatId
+    }, [chatId])
 
     const supabase = createClient()
 
-    const { messages, status, sendMessage, setMessages } = useChat({
+    const { messages, status, sendMessage, setMessages, regenerate } = useChat({
         onFinish: () => {
-            // Re-fetch chats to pick up auto-generated titles
             fetchChats()
-            // Title generation is async on the server, so re-fetch after a delay
             setTimeout(() => fetchChats(), 3000)
+            // Server-side onFinish inserts the persisted rows after our
+            // client stream closes. Give it a beat, then reload so the
+            // UI message ids match DB ids — prerequisite for regenerate
+            // / edit / branch targeting specific rows.
+            setTimeout(() => {
+                const id = chatIdRef.current
+                if (id) loadChatMessages(id)
+            }, 600)
         },
         onError: (error) => {
             console.error("Error al xat:", error)
@@ -134,21 +158,28 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
     if (!isMounted) return null
 
-    // Function declaration (not `const`) so the J/K useEffect above
-    // can close over it without a temporal-dead-zone error — hoisted
-    // to the top of the component body.
+    // Function declarations (not `const`) so the J/K useEffect and the
+    // onFinish callback above can close over them without a temporal-
+    // dead-zone error — hoisted to the top of the component body.
+    async function loadChatMessages(id: string) {
+        const { data } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_id', id)
+            .order('created_at', { ascending: true })
+
+        if (!data) return
+        const uiMessages = data.map((m: Message) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            parts: [{ type: 'text' as const, text: m.content }],
+        }))
+        setMessages(uiMessages as UIMessage[])
+    }
+
     async function loadChat(id: string) {
         setChatId(id)
-        const { data } = await supabase.from('messages').select('*').eq('chat_id', id).order('created_at', { ascending: true })
-
-        if (data) {
-            const uiMessages = data.map((m: Message) => ({
-                id: m.id,
-                role: m.role as 'user' | 'assistant',
-                parts: [{ type: 'text' as const, text: m.content }]
-            }))
-            setMessages(uiMessages as UIMessage[])
-        }
+        await loadChatMessages(id)
     }
 
     const createNewChat = async () => {
@@ -190,6 +221,130 @@ export function ChatSidebar({ userId }: { userId: string }) {
         )
     }
 
+    // Derive the text body of a UI message so copy / export flows
+    // don't have to walk the parts array in every caller.
+    const messageText = (m: UIMessage): string =>
+        (m.parts ?? [])
+            .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
+            .map((p) => p.text ?? '')
+            .join('\n')
+            .trim()
+
+    // Regenerate an assistant reply: strip the stale row from the DB
+    // so our server doesn't leave orphan history, then ask the SDK to
+    // re-run with trigger='regenerate-message'. The API route reads
+    // that trigger and skips re-persisting the user question.
+    const handleRegenerate = async (messageId: string) => {
+        if (!chatId) return
+        const result = await deleteMessageAction(chatId, messageId)
+        if (result?.error) {
+            toast.error('Regenerate failed', { description: result.error })
+            return
+        }
+        try {
+            await regenerate({
+                messageId,
+                body: { chatId },
+            })
+        } catch (err) {
+            console.error('regenerate failed', err)
+            toast.error('Regenerate failed')
+        }
+    }
+
+    const startEdit = (messageId: string, text: string) => {
+        setEditingMessageId(messageId)
+        setEditDraft(text)
+    }
+
+    const cancelEdit = () => {
+        setEditingMessageId(null)
+        setEditDraft('')
+    }
+
+    // Save an edited user message: prune the original and everything
+    // that followed in the DB, trim the local messages array to match,
+    // then send the new content. Server's normal submit-message path
+    // persists the rewrite + the fresh assistant reply.
+    const saveEdit = async (messageId: string) => {
+        if (!chatId) return
+        const next = editDraft.trim()
+        if (!next) {
+            cancelEdit()
+            return
+        }
+
+        const index = messages.findIndex((m) => m.id === messageId)
+        if (index === -1) {
+            cancelEdit()
+            return
+        }
+
+        const result = await deleteMessageAndFollowingAction(chatId, messageId)
+        if (result?.error) {
+            toast.error('Edit failed', { description: result.error })
+            return
+        }
+
+        // Keep only the messages that precede the one being edited.
+        setMessages(messages.slice(0, index) as UIMessage[])
+        cancelEdit()
+        setLastPrompt(next)
+
+        await sendMessage(
+            { role: 'user', parts: [{ type: 'text', text: next }] },
+            { body: { chatId } },
+        )
+    }
+
+    const handleBranch = async (messageId: string) => {
+        if (!chatId) return
+        const result = await branchChatAction(chatId, messageId)
+        if (result?.error || !result?.newChatId) {
+            toast.error('Branch failed', { description: result?.error })
+            return
+        }
+        toast.success('Chat branched')
+        await fetchChats()
+        await loadChat(result.newChatId)
+    }
+
+    const handleDeleteMessage = async (messageId: string) => {
+        if (!chatId) return
+        const result = await deleteMessageAction(chatId, messageId)
+        if (result?.error) {
+            toast.error('Delete failed', { description: result.error })
+            return
+        }
+        setMessages(messages.filter((m) => m.id !== messageId) as UIMessage[])
+    }
+
+    const handleExportChat = async () => {
+        if (!chatId) return
+        const result = await exportChatAsMarkdownAction(chatId)
+        if (result?.error || !result?.data) {
+            toast.error('Export failed', { description: result?.error })
+            return
+        }
+        const stamp = new Date().toISOString().split('T')[0]
+        const slug =
+            (result.title || 'chat')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/(^-|-$)/g, '')
+                .substring(0, 40) || 'chat'
+        const blob = new Blob([result.data], { type: 'text/markdown' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${slug}-${stamp}.md`
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(url)
+        toast.success('Chat exported')
+    }
+
     const sidebarContent = (
         <>
             {/* HEADER */}
@@ -198,9 +353,23 @@ export function ChatSidebar({ userId }: { userId: string }) {
                     <Bot className="h-5 w-5 text-primary" />
                     Synapse AI
                 </div>
-                <Button variant="outline" size="sm" onClick={createNewChat} className="h-8">
-                    <Plus className="mr-2 h-3 w-3" /> Nou
-                </Button>
+                <div className="flex items-center gap-1">
+                    {chatId && messages.length > 0 && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleExportChat}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            aria-label="Export conversation as Markdown"
+                            title="Export conversation"
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={createNewChat} className="h-8">
+                        <Plus className="mr-2 h-3 w-3" /> Nou
+                    </Button>
+                </div>
             </div>
 
             <div className="flex flex-1 overflow-hidden">
@@ -263,21 +432,81 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     const parts = m.parts ?? []
                                     const textParts = parts.filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
                                     const toolParts = parts.filter(isToolUIPart)
+                                    const fullText = messageText(m)
+                                    const isEditing = editingMessageId === m.id
+                                    // Regenerate / edit / branch rely on the UI id
+                                    // matching the DB id. A freshly-streamed message
+                                    // has a client-generated id until onFinish
+                                    // reloads it from DB — disable actions in that
+                                    // interim window rather than fail opaquely.
+                                    const isDbBacked = /^[0-9a-f-]{36}$/i.test(String(m.id ?? ''))
+                                    const canAct = isDbBacked && !isLoading
 
                                     return (
                                         <div
                                             key={m.id}
                                             className={cn(
-                                                "flex w-full",
+                                                "group relative flex w-full",
                                                 m.role === 'user' ? "justify-end" : "justify-start"
                                             )}
                                         >
                                             <div className={cn(
-                                                "max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm",
+                                                "relative max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm",
                                                 m.role === 'user'
                                                     ? "bg-primary text-primary-foreground rounded-tr-sm"
                                                     : "bg-card border border-border/60 rounded-tl-sm text-card-foreground"
                                             )}>
+                                                {isEditing ? (
+                                                    <div className="flex flex-col gap-2 min-w-[220px]">
+                                                        <Textarea
+                                                            autoFocus
+                                                            value={editDraft}
+                                                            onChange={(e) => setEditDraft(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                                                    e.preventDefault()
+                                                                    saveEdit(m.id)
+                                                                } else if (e.key === 'Escape') {
+                                                                    e.preventDefault()
+                                                                    cancelEdit()
+                                                                }
+                                                            }}
+                                                            rows={3}
+                                                            className={cn(
+                                                                "min-h-[80px] resize-none text-sm",
+                                                                m.role === 'user'
+                                                                    ? "bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 focus-visible:ring-primary-foreground/40"
+                                                                    : "",
+                                                            )}
+                                                        />
+                                                        <div className="flex justify-end gap-1">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={cancelEdit}
+                                                                className={cn(
+                                                                    "h-7 text-xs",
+                                                                    m.role === 'user' &&
+                                                                        "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground",
+                                                                )}
+                                                            >
+                                                                <X className="h-3 w-3 mr-1" />
+                                                                Cancel
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={() => saveEdit(m.id)}
+                                                                disabled={!editDraft.trim()}
+                                                                className="h-7 text-xs"
+                                                            >
+                                                                <Check className="h-3 w-3 mr-1" />
+                                                                Save & re-run
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
                                                 <div className={cn(
                                                     "prose prose-sm dark:prose-invert break-words leading-relaxed max-w-none",
                                                     m.role === 'assistant' && "font-body"
@@ -288,6 +517,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                         </ReactMarkdown>
                                                     ))}
                                                 </div>
+                                                )}
 
                                                 {/* Editorial footnotes for tool invocations. Numbered with § so the
                                                     message reads like a short paper: body above, sources below. */}
@@ -401,6 +631,29 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                     </aside>
                                                 )}
                                             </div>
+                                            {!isEditing && fullText && (
+                                                <MessageActions
+                                                    role={m.role === 'user' ? 'user' : 'assistant'}
+                                                    text={fullText}
+                                                    canAct={canAct}
+                                                    onEdit={
+                                                        m.role === 'user'
+                                                            ? () => startEdit(m.id, fullText)
+                                                            : undefined
+                                                    }
+                                                    onRegenerate={
+                                                        m.role === 'assistant'
+                                                            ? () => handleRegenerate(m.id)
+                                                            : undefined
+                                                    }
+                                                    onBranch={() => handleBranch(m.id)}
+                                                    onDelete={
+                                                        m.role === 'user'
+                                                            ? () => handleDeleteMessage(m.id)
+                                                            : undefined
+                                                    }
+                                                />
+                                            )}
                                         </div>
                                     )
                                 })}

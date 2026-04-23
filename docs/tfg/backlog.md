@@ -163,15 +163,33 @@ La `/settings` actual és mínima. Expansió completa.
 Settings page passa de CSR pur a RSC que carrega profile+counts+tags
 abans d'entregar la vista al client.
 
-### Fase QoL-6 — Chat mechanics
+### Fase QoL-6 — Chat mechanics ✅
 
 Features de xat que Claude Desktop, ChatGPT, Cursor tenen.
 
-- [ ] **Regenerate response** al missatge d'assistent
-- [ ] **Edit user message** + re-run (pruning subsequent messages)
-- [ ] **Copy message** botó al hover del bubble
-- [ ] **Export conversation** a MD (download)
-- [ ] **Branch chat**: fork des d'un missatge específic
+- [x] **Regenerate response** — `regenerate({ messageId })` del AI SDK
+      + `deleteMessageAction` per netejar la fila stale. El route
+      detecta `trigger === 'regenerate-message'` i NO re-insereix el
+      missatge user (ja persistit).
+- [x] **Edit user message + re-run** — inline textarea dins la bubble;
+      `deleteMessageAndFollowingAction` prunes, setMessages local
+      trim, després sendMessage amb el contingut editat.
+- [x] **Copy message** — botó hover a cada bubble, `navigator.
+      clipboard.writeText` amb check icon feedback (1.2s).
+- [x] **Export conversation** — botó Download al header del chat;
+      `exportChatAsMarkdownAction` genera MD amb H2 per torn i
+      slug del títol al filename.
+- [x] **Branch chat** — `branchChatAction(chatId, pivotMessageId)`
+      crea nova conversa amb títol `↳ <original>` i copia fins al
+      pivot inclusiu; client fa loadChat al nou chatId.
+
+Requisits per funcionar:
+- UI message ids s'han d'alinear amb DB ids. `onFinish` del client
+  fa `loadChatMessages(chatId)` amb 600ms de delay per esperar al
+  server-side insert. Fins que no es sincronitza, les accions queden
+  disabled via check regex UUID v4.
+- Nova columna `messages.trigger` **no** cal — el flag viatja dins
+  el body del request i el server el consumeix.
 
 ### Fase QoL-7 — Mobile + misc visuals
 
