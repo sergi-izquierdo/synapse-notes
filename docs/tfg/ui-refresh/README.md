@@ -41,7 +41,7 @@ gradients, glass blur, aurora, typewriter decoratiu, emojis com a icons.
 |---|------|-------|--------|
 | UI-0 | Foundations cleanup | ✅ Fet | `636d6f3` |
 | UI-1 | Motion integration | Pendent | — |
-| UI-2 | Design system tokens | Pendent | — |
+| UI-2 | Design system tokens | ✅ Fet | `e1fdac1` |
 | UI-3 | Core screens redesign | Pendent | — |
 | UI-4 | Footnote system (signature) | Pendent | — |
 | UI-5 | Landing + UUPM checklist | Pendent | — |
@@ -86,13 +86,61 @@ shared layout `note-card` ↔ `note-detail`, chat `AnimatePresence` +
 caret ink per streaming, command palette spring. Respect
 `prefers-reduced-motion` a tot arreu.
 
-### UI-2 — Design system tokens (pendent)
+### UI-2 — Design system tokens (2026-04-23, `e1fdac1`)
 
-Planificat: paleta Midnight Cartography a `globals.css` en les dues
-variants (light + dark), fonts via `next/font/google` (Young Serif,
-Literata, JetBrains Mono, Inter Tight Display), contour-line dividers
-com a `<hr>` replacement, tokens `--accent-parchment-gold` i
-`--accent-topographic-green`.
+Tokens i tipografia. Paleta Midnight Cartography aplicada. Cap
+component tocat — la feina de "com es veu cada pantalla" arriba a
+UI-3. En canvi, com que tot el codi consum `bg-background`,
+`text-foreground`, `bg-primary`, etc., **l'app sencera canvia
+d'aspecte d'un sol commit**.
+
+**Canvis:**
+
+- `src/app/layout.tsx`
+  - 4 fonts via `next/font/google` amb CSS variables:
+    `--font-display` (Young Serif 400), `--font-body` (Literata
+    400/500/600/700 + italic), `--font-sans` (Inter Tight
+    400/500/600/700), `--font-mono` (JetBrains Mono 400/500/600).
+  - `inter.className` al `<body>` substituït per les 4 variables.
+- `src/app/globals.css`
+  - **Light mode**: ground paper càlid `oklch(0.97 0.008 85)`, ink
+    quasi-fred `oklch(0.2 0.015 255)`, primary gold darker
+    `oklch(0.52 0.09 78)` per contrast AA.
+  - **Dark mode**: deep blue-green `oklch(0.18 0.025 200)`, parchment
+    cream `oklch(0.92 0.025 85)`, primary parchment-gold
+    `oklch(0.82 0.065 80)`. Secondary verd topogràfic
+    `oklch(0.58 0.075 150)`, destructive rust `oklch(0.64 0.14 26)`.
+  - **Chart colors** ajustats (fora lavender/violet; `chart-5` és
+    slate blue moderat, no AI-purple).
+  - **Sidebar colors** coherents amb card.
+  - **Radius** redunded a `0.5rem` (abans `0.625rem`) — lleugerament
+    més tight, més editorial.
+  - **Base layer rules**: `h1`/`h2`/`h3` i `.font-display` hereten
+    `var(--font-display)`; `.prose`/`.font-body` hereten
+    `var(--font-body)`; `code`/`kbd`/`pre`/`.font-mono` hereten
+    `var(--font-mono)`. El `<body>` es queda amb `font-sans` (Inter
+    Tight).
+  - **`<hr>` i `.contour-divider`** com a dos fi strokes amb gap —
+    referència topogràfica que substitueix el `<hr>` genèric de
+    shadcn.
+  - **`.bg-dot-pattern`** reafinat a OKLCH (no és universal ja, només
+    si algú opta-in — reservat per a landing pública).
+
+**Verificació:** 16/16 tests · 0 lint errors · build clean.
+
+**Visual check NO fet en preview deploy** perquè els preview
+deployments no hereten les env vars de production (Vercel les guarda
+només a production). El middleware caia amb
+`MIDDLEWARE_INVOCATION_FAILED`. Opcions per al futur:
+
+1. Afegir totes les env vars també a `preview` (via `vercel env add
+   <name> preview`).
+2. Fer deploy directe a production quan volguem smoke-test visual.
+3. `npm run dev` local + Playwright localhost (més ràpid).
+
+De moment s'ha saltat — amb tests + build verds la paleta aplica
+deterministament. La validació visual formal es farà a UI-3 quan
+toquem components clau.
 
 ### UI-3 — Core screens redesign (pendent)
 
