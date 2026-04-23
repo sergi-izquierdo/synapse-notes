@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LanguageProvider } from "@/components/language-provider";
 import { ThemeProvider } from "next-themes";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/sonner";
 
 // Midnight Cartography typography stack.
@@ -64,8 +65,14 @@ export default function RootLayout({
             >
                 <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                     <LanguageProvider>
-                        {children}
-                        <Toaster position="top-center" richColors closeButton />
+                        {/* Respect OS-level prefers-reduced-motion. With
+                            reducedMotion="user", Motion skips transform/
+                            opacity/scale transitions for users who asked
+                            their system to reduce motion. */}
+                        <MotionConfig reducedMotion="user">
+                            {children}
+                            <Toaster position="top-center" richColors closeButton />
+                        </MotionConfig>
                     </LanguageProvider>
                 </ThemeProvider>
             </body>

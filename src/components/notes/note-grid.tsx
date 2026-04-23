@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge"; // ✅ Necessari
@@ -83,10 +84,24 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
           {t.common.no_results}
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          initial="hidden"
+          animate="show"
+          variants={{
+            show: { transition: { staggerChildren: 0.04 } },
+          }}
+        >
           {filteredNotes.map((note) => (
-            <Card
+            <motion.div
               key={note.id}
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+            >
+            <Card
               className="group relative flex flex-col overflow-hidden border-border/60 bg-card transition-colors duration-200 hover:border-primary/40 hover:shadow-md cursor-pointer"
               onClick={() => setEditingNote({ ...note, tags: note.tags || [] })}
               role="button"
@@ -134,8 +149,9 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </div>
               </CardFooter>
             </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* EDIT DIALOG */}

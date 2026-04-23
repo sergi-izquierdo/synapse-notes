@@ -26,7 +26,7 @@ export default async function DashboardPage() {
 
   return (
     // CONTENIDOR FLEX (Pantalla Completa sense scroll al body)
-    <div className="flex h-screen w-full overflow-hidden bg-dot-pattern">
+    <div className="flex h-screen w-full overflow-hidden">
       {/* BARRA LATERAL ESQUERRA (XAT) */}
       <ChatSidebar userId={user.id} />
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, Send, Bot, Loader2, MessageCircle } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from 'ai'
 import { isToolUIPart, getToolName } from 'ai'
@@ -144,10 +145,15 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* HISTORIAL */}
-                <div
+                <motion.div
                     className="w-48 border-r border-border/60 bg-muted/20 flex flex-col py-2 px-1 gap-0.5 overflow-y-auto hide-scrollbar"
                     role="list"
                     aria-label="Chat history"
+                    initial="hidden"
+                    animate="show"
+                    variants={{
+                        show: { transition: { staggerChildren: 0.03 } },
+                    }}
                 >
                     {chatList.map((chat, index) => {
                         const hasRealTitle = chat.title && chat.title !== 'Nova Conversa';
@@ -156,10 +162,15 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             : `Untitled · ${String(chatList.length - index).padStart(2, '0')}`;
                         const isActive = chatId === chat.id;
                         return (
-                            <button
+                            <motion.button
                                 key={chat.id}
                                 role="listitem"
                                 aria-current={isActive ? 'page' : undefined}
+                                variants={{
+                                    hidden: { opacity: 0, y: -4 },
+                                    show: { opacity: 1, y: 0 },
+                                }}
+                                transition={{ duration: 0.18, ease: 'easeOut' }}
                                 className={cn(
                                     "flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors truncate",
                                     isActive
@@ -172,10 +183,10 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             >
                                 <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{displayTitle}</span>
-                            </button>
+                            </motion.button>
                         );
                     })}
-                </div>
+                </motion.div>
 
                 {/* ZONA XAT */}
                 <div className="flex-1 flex flex-col h-full bg-background/50">
@@ -188,16 +199,25 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-5 pb-4">
+                                <AnimatePresence initial={false}>
                                 {messages.map((m) => {
                                     const parts = m.parts ?? []
                                     const textParts = parts.filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
                                     const toolParts = parts.filter(isToolUIPart)
 
                                     return (
-                                        <div key={m.id} className={cn(
-                                            "flex w-full",
-                                            m.role === 'user' ? "justify-end" : "justify-start"
-                                        )}>
+                                        <motion.div
+                                            key={m.id}
+                                            layout
+                                            initial={{ y: 8, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.18, ease: 'easeOut' }}
+                                            className={cn(
+                                                "flex w-full",
+                                                m.role === 'user' ? "justify-end" : "justify-start"
+                                            )}
+                                        >
                                             <div className={cn(
                                                 "max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm",
                                                 m.role === 'user'
@@ -327,9 +347,10 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                     </aside>
                                                 )}
                                             </div>
-                                        </div>
+                                        </motion.div>
                                     )
                                 })}
+                                </AnimatePresence>
                                 {isLoading && (
                                     <div className="flex justify-start">
                                         <div className="bg-card border border-border/60 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-xs flex items-center gap-2 text-muted-foreground">
