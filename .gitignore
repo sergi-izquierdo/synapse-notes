@@ -40,6 +40,10 @@ yarn-error.log*
 # Claude Code local settings
 .claude/settings.local.json
 
+# Python bytecode from Claude skills
+.claude/skills/**/__pycache__/
+.claude/skills/**/*.pyc
+
 # vercel
 .vercel
 
