@@ -6,6 +6,7 @@ export interface Note {
   created_at: string;
   updated_at: string | null;
   embedding: number[] | null;
+  starred: boolean;
 }
 
 export interface Chat {

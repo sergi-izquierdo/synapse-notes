@@ -19,6 +19,9 @@ export default async function DashboardPage() {
   const { data: notes } = await supabase
     .from("notes")
     .select("*")
+    // Starred notes float to the top; everything else by recency.
+    // Matches the composite index notes_user_starred_created_idx.
+    .order("starred", { ascending: false })
     .order("created_at", { ascending: false });
 
   // CALCULATION: Extract unique tags

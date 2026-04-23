@@ -104,17 +104,24 @@ Accelera el keyboard-first workflow.
       (`chat-nav-next`/`chat-nav-prev`)
 - [x] **↑** al chat input buit → recuperar última pregunta (`lastPrompt` state)
 
-### Fase QoL-3 — Note features base
+### Fase QoL-3 — Note features base ✅ (pending `20260424120000_notes_starred.sql`)
 
 Features funcionals que s'esperen de qualsevol note app moderna.
 
-- [ ] **Star/pin** nota (columna `starred boolean` a DB, ordenació al top)
-- [ ] **Character count** al compose form (small text sota textarea)
-- [ ] **Word count** al edit modal
-- [ ] **Duplicate note** action (menú context card o icon hover)
-- [ ] **Toast amb undo** al delete note (5s per recuperar)
-- [ ] **Hover enhanced** card (mostrar timestamp/tags sempre, no hover-only)
+- [x] **Star/pin** nota — columna `starred boolean default false`,
+      composite index `notes_user_starred_created_idx`, sort `starred
+      desc, created_at desc`. Star button top-right del card, amber
+      fill quan pinned.
+- [x] **Character count** al compose form (mono tabular sota textarea)
+- [x] **Word count + char count** al edit modal
+- [x] **Duplicate note** action (icon hover al card, regenera embedding)
+- [x] **Toast amb undo** al delete note (5s, re-crea via `restoreNote`
+      amb nou embedding — simpler que soft-delete)
+- [x] **Hover enhanced** card (footer timestamp always-on; action
+      cluster roman hover-only per no saturar)
 - [ ] **Recent notes** secció top-3 primerament al dashboard
+      *(descartat per ara — la sort starred-first ja cobreix el
+      "primerament"; afegir una secció separada fragmenta la pàgina)*
 
 ### Fase QoL-4 — Tags refinement
 
