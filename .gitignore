@@ -47,6 +47,9 @@ yarn-error.log*
 # Playwright MCP runtime artifacts (yml snapshots, console logs)
 .playwright-mcp/
 
+# Claude Code scheduled task lockfile
+.claude/scheduled_tasks.lock
+
 # vercel
 .vercel
 
