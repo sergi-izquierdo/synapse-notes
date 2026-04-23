@@ -42,7 +42,7 @@ gradients, glass blur, aurora, typewriter decoratiu, emojis com a icons.
 | UI-0 | Foundations cleanup | ✅ Fet | `636d6f3` |
 | UI-1 | Motion integration | Pendent | — |
 | UI-2 | Design system tokens | ✅ Fet | `e1fdac1` |
-| UI-3 | Core screens redesign | Pendent | — |
+| UI-3 | Core screens redesign | ✅ Fet | `f79ff2c`, `28780ec` |
 | UI-4 | Footnote system (signature) | Pendent | — |
 | UI-5 | Landing + UUPM checklist | Pendent | — |
 
@@ -142,12 +142,70 @@ De moment s'ha saltat — amb tests + build verds la paleta aplica
 deterministament. La validació visual formal es farà a UI-3 quan
 toquem components clau.
 
-### UI-3 — Core screens redesign (pendent)
+### UI-3 — Core screens redesign (2026-04-23, `f79ff2c` + `28780ec`)
 
-Planificat: login polish, dashboard-header (fora emoji 🧠, fora AI
-purple dot), note card (editorial amb marginalia), chat bubbles amb
-distinció tipogràfica user/AI, command palette refinat, **fix del bug
-d'auto-titling dels xats** (al sidebar apareixen 25+ "Nova Conversa").
+Aplicat Midnight Cartography als components clau + resolt el bug
+funcional dels xats "Nova Conversa" × 25.
+
+**Pass 1 (commit `f79ff2c`) — header + sidebar + chat bubbles:**
+
+- `src/components/dashboard-header.tsx`
+  - Fora el gradient `from-primary to-violet-600` que pintava "Notes"
+    de violeta (era el cas més flagrant d'AI purple a l'app).
+  - Fora `🧠` del títol (UUPM rule). El `<BrainCircuit>` de Lucide ja
+    fa la feina d'identitat visual.
+  - Card header retocat a `bg-card/80` + `border-border/60` per
+    coherència amb la paleta.
+- `src/components/chat/chat-sidebar.tsx`
+  - Fallback per xats sense títol: `Untitled · 01` / `· 02` / ... en
+    JetBrains Mono en comptes de 25 copies de "Nova Conversa".
+  - Xat actiu amb `border-l-2 border-primary` marginalia editorial
+    + `bg-primary/15` en lloc del pill sòlid.
+  - ARIA: `role="list"` / `role="listitem"` + `aria-current="page"`
+    per l'element actiu.
+  - Bubbles d'assistent pasen a `bg-card` + `border-border/60` +
+    `font-body` (Literata) → es llegeix com a prosa editorial,
+    diferenciada clarament del bubble d'usuari (`bg-primary`).
+  - Tool invocation chip retonat a `text-primary`/`text-secondary`
+    (era `text-amber-500`/`text-green-500` literals).
+  - Composer squared-off en lloc de pill rodó; `border-border`;
+    `aria-label` al textarea i al botó de send.
+- `src/lib/translations.ts`
+  - Fora `🧠` del `dashboard.title` i `chat.welcome` a EN/ES/CA.
+  - Fora `🚀` del `dashboard.empty` a EN/ES/CA.
+- `eslint.config.mjs` + `tsconfig.json`
+  - Excloure `docs/**` del lint i del build worker de Next — els
+    `.tsx` d'`inspiration/` són snippets de referència, no codi del
+    build, i bloquejaven el CI amb errors d'impure fn / ref-callback.
+
+**Pass 2 (commit `28780ec`) — note grid + command palette + backfill:**
+
+- `src/components/notes/note-grid.tsx`
+  - Cards amb `bg-card` + `border-border/60` + hover a canvi de
+    color de border (no translate-y).
+  - Body de nota en `font-body` (Literata).
+  - Tags: uppercase smallcaps JetBrains Mono sense `#`, tokens
+    neutrals en comptes de primary-tinted.
+  - Footer timestamp: `§DD/MM/YY` estil *proceedings* + reveal a
+    `group-focus-visible` per teclat.
+  - Card `role="button"` + tabIndex + `aria-label`.
+- `src/components/ui/command.tsx`
+  - `CommandShortcut` ara `font-mono` — les keyboard hints (`G D`,
+    `N`, `T`, `Q`) llegeixen com a tecles de debò dins el palette.
+- `src/actions/chats.ts` (nou) — **backfill dels xats antics**
+  - `regenerateStaleTitlesAction()`: fetch tots els xats de l'user
+    amb títol `"Nova Conversa"`, agafa el primer missatge, crida
+    Haiku 4.5 per generar un títol ≤6 paraules, update al DB.
+  - Paral·lel (~25 xats → ~2s a Haiku). Failures loggued per chat.
+- `src/components/chat/chat-sidebar.tsx`
+  - `useEffect` al mount que dispara l'action una vegada per sessió
+    (gated amb `sessionStorage.synapse-titles-backfilled`). Al done,
+    re-fetch chats i els labels mono flipejen a títols reals sense
+    haver de recarregar.
+
+**Verificació:** 16/16 tests · 0 lint errors · build clean. La captura
+comparativa abans/després queda per a UI-4/UI-5 (cal fer login al
+Playwright de nou).
 
 ### UI-4 — Footnote system (pendent — el signature)
 
