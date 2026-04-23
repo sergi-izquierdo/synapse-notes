@@ -57,7 +57,7 @@ gradients, glass blur, aurora, typewriter decoratiu, emojis com a icons.
 | UI-2 | Design system tokens | ✅ Fet | `e1fdac1` (MC inicial) + `17d5eaa` (swap a Navy+Amber) |
 | UI-3 | Core screens redesign | ✅ Fet | `f79ff2c`, `28780ec` |
 | UI-4 | Footnote system (signature) | Pendent | — |
-| UI-5 | Landing + UUPM checklist | Pendent | — |
+| UI-5 | Landing + UUPM checklist + cleanup | ✅ Fet | pending commit |
 
 ## Log per fase
 
