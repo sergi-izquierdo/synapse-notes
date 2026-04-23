@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Copy, Star } from "lucide-react";
+import { Trash2, Copy, Star, Archive } from "lucide-react";
 import {
+  archiveNote,
   deleteNote,
   duplicateNote,
   restoreNote,
   toggleNoteStarred,
+  unarchiveNote,
 } from "@/actions/notes";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
@@ -147,6 +149,32 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     }
   };
 
+  // Archive is a soft-delete: the row stays in the DB (with its
+  // embedding intact), the dashboard query just hides it. Undo is a
+  // single unarchive call — cheaper than the hard-delete restore
+  // path because the embedding doesn't need regenerating.
+  const handleArchive = async (id: number) => {
+    const result = await archiveNote(id);
+    if (result?.error) {
+      toast.error("Archive failed", { description: result.error });
+      return;
+    }
+    toast.success("Note archived", {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const restore = await unarchiveNote(id);
+          if (restore?.error) {
+            toast.error("Restore failed", { description: restore.error });
+          } else {
+            toast.success("Note restored");
+          }
+        },
+      },
+    });
+  };
+
   return (
     <>
       <FilterBar
@@ -158,8 +186,11 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
         tagCounts={tagCounts}
       />
 
-      {/* GRID */}
-      {filteredNotes.length === 0 ? (
+      {/* GRID — three states: zero notes (illustrated), zero matches
+          (concise filter hint), or the real grid. */}
+      {notes.length === 0 ? (
+        <EmptyNotesState />
+      ) : filteredNotes.length === 0 ? (
         <div className="text-center text-muted-foreground py-10 opacity-50">
           {t.common.no_results}
         </div>
@@ -191,10 +222,11 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               tabIndex={0}
               aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
             >
-              {/* ACTION CLUSTER — top-right. Star is always visible when
-                  starred (so pinned state reads at a glance) and fades
-                  in on hover otherwise. Duplicate + Delete are hover-
-                  only so the card stays quiet at rest. */}
+              {/* ACTION CLUSTER — top-right. On desktop the cluster is
+                  hover-revealed so the card stays quiet at rest; on
+                  mobile hover doesn't exist, so the icons are always
+                  visible. Star stays visible-when-starred regardless
+                  of breakpoint so pinned state reads at a glance. */}
               <div
                 className="absolute top-2 right-2 flex gap-0.5 z-10"
                 onClick={(e) => e.stopPropagation()}
@@ -207,7 +239,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                     "h-7 w-7 transition-opacity",
                     note.starred
                       ? "opacity-100 text-amber-500 hover:text-amber-500"
-                      : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
+                      : "opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
                   )}
                   onClick={() =>
                     handleToggleStar(note.id, Boolean(note.starred))
@@ -227,7 +259,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                  className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                   onClick={() => handleDuplicate(note.id)}
                   aria-label="Duplicate note"
                   title="Duplicate"
@@ -238,7 +270,18 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                  className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                  onClick={() => handleArchive(note.id)}
+                  aria-label="Archive note"
+                  title="Archive"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                   onClick={() => handleDelete(note.id)}
                   aria-label="Delete note"
                   title="Delete"
@@ -328,5 +371,99 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
         />
       )}
     </>
+  );
+}
+
+// Illustrated empty state — only rendered when the user has truly
+// zero notes (not when a filter pared them down). The SVG is inline
+// so we don't ship a separate asset round-trip. Strokes use currentColor
+// so the mark follows the foreground theme.
+function EmptyNotesState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <svg
+        width="120"
+        height="120"
+        viewBox="0 0 120 120"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="text-muted-foreground/40"
+        aria-hidden
+      >
+        <rect
+          x="22"
+          y="16"
+          width="56"
+          height="72"
+          rx="6"
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="none"
+        />
+        <rect
+          x="34"
+          y="26"
+          width="60"
+          height="72"
+          rx="6"
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="currentColor"
+          fillOpacity="0.06"
+        />
+        <line
+          x1="44"
+          y1="44"
+          x2="82"
+          y2="44"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.5"
+        />
+        <line
+          x1="44"
+          y1="56"
+          x2="74"
+          y2="56"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.4"
+        />
+        <line
+          x1="44"
+          y1="68"
+          x2="78"
+          y2="68"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.3"
+        />
+        <line
+          x1="44"
+          y1="80"
+          x2="64"
+          y2="80"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.2"
+        />
+      </svg>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">
+          Your second brain is empty.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Write your first note above — press{" "}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+            N
+          </kbd>{" "}
+          to focus the compose box.
+        </p>
+      </div>
+    </div>
   );
 }

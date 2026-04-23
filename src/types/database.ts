@@ -7,6 +7,7 @@ export interface Note {
   updated_at: string | null;
   embedding: number[] | null;
   starred: boolean;
+  archived_at: string | null;
 }
 
 export interface Chat {

@@ -48,6 +48,12 @@ export function NoteMarkdown({ noteId, content, tags }: NoteMarkdownProps) {
     const handleToggle = (index: number) => {
         const next = toggleMarkdownCheckbox(localContent, index);
         setLocalContent(next);
+        // Tiny haptic tick on devices that support it (iOS Safari
+        // ignores the API, Android Chrome/Firefox honour it). Feature-
+        // detected so we don't fail in desktop browsers.
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            navigator.vibrate?.(10);
+        }
         startTransition(async () => {
             await updateNote(noteId, next, tags);
         });

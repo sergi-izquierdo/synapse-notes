@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
-import { CreateNoteForm } from "@/components/notes/create-note-form";
+import { ComposeZone } from "@/components/notes/compose-zone";
 import { NoteGrid } from "@/components/notes/note-grid";
 import { LogOut } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
@@ -19,6 +19,9 @@ export default async function DashboardPage() {
   const { data: notes } = await supabase
     .from("notes")
     .select("*")
+    // Archived notes are hidden from the main grid. The partial
+    // index notes_user_live_created_idx covers this query.
+    .is("archived_at", null)
     // Starred notes float to the top; everything else by recency.
     // Matches the composite index notes_user_starred_created_idx.
     .order("starred", { ascending: false })
@@ -54,8 +57,7 @@ export default async function DashboardPage() {
             {/* Creació i Grid */}
             <div className="space-y-8 pb-20">
               <section>
-                {/* ✅ PASSING TAGS TO CREATE FORM */}
-                <CreateNoteForm availableTags={availableTags} />
+                <ComposeZone availableTags={availableTags} />
               </section>
 
               <section>

@@ -16,18 +16,34 @@ export default async function SettingsPage() {
     } = await supabase.auth.getUser();
     if (!user) return redirect("/login");
 
-    const [{ count: notesCount }, { count: chatsCount }, { data: tagRows }] =
-        await Promise.all([
-            supabase
-                .from("notes")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", user.id),
-            supabase
-                .from("chats")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", user.id),
-            supabase.from("notes").select("tags").eq("user_id", user.id),
-        ]);
+    const [
+        { count: notesCount },
+        { count: archivedCount },
+        { count: chatsCount },
+        { data: tagRows },
+    ] = await Promise.all([
+        supabase
+            .from("notes")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .is("archived_at", null),
+        supabase
+            .from("notes")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .not("archived_at", "is", null),
+        supabase
+            .from("chats")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id),
+        // Tag counts reflect live notes — archived rows shouldn't
+        // inflate freqs the user can no longer see on the dashboard.
+        supabase
+            .from("notes")
+            .select("tags")
+            .eq("user_id", user.id)
+            .is("archived_at", null),
+    ]);
 
     const tagCounts: Record<string, number> = {};
     for (const row of tagRows ?? []) {
@@ -66,6 +82,7 @@ export default async function SettingsPage() {
             profile={profile}
             counts={{
                 notes: notesCount ?? 0,
+                archived: archivedCount ?? 0,
                 chats: chatsCount ?? 0,
             }}
             tagCounts={tagCounts}

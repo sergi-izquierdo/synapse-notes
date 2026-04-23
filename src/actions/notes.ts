@@ -81,6 +81,50 @@ export async function deleteNote(noteId: number) {
     : null;
 }
 
+export async function archiveNote(noteId: number) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("notes")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", noteId);
+
+  if (error) {
+    console.error("Supabase Error:", error);
+    return { error: "Error archiving note." };
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function unarchiveNote(noteId: number) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("notes")
+    .update({ archived_at: null })
+    .eq("id", noteId);
+
+  if (error) {
+    console.error("Supabase Error:", error);
+    return { error: "Error restoring note." };
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function toggleNoteStarred(noteId: number, starred: boolean) {
   const supabase = await createClient();
 

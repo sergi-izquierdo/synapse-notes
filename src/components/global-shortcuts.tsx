@@ -55,7 +55,10 @@ export function GlobalShortcuts() {
                 return;
             }
 
-            // n — focus the compose textarea
+            // n — focus the compose textarea. On mobile the textarea
+            // lives inside a bottom sheet that isn't mounted until the
+            // user opens it, so fall back to dispatching compose-open
+            // for ComposeZone to pick up.
             if (
                 e.key === "n" &&
                 !e.ctrlKey &&
@@ -66,9 +69,11 @@ export function GlobalShortcuts() {
                 const compose = document.querySelector<HTMLTextAreaElement>(
                     'textarea[name="content"]',
                 );
+                e.preventDefault();
                 if (compose) {
-                    e.preventDefault();
                     compose.focus();
+                } else {
+                    document.dispatchEvent(new CustomEvent("compose-open"));
                 }
                 return;
             }

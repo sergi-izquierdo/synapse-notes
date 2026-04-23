@@ -191,17 +191,33 @@ Requisits per funcionar:
 - Nova columna `messages.trigger` **no** cal — el flag viatja dins
   el body del request i el server el consumeix.
 
-### Fase QoL-7 — Mobile + misc visuals
+### Fase QoL-7 — Mobile + misc visuals ✅ (parcial)
 
-- [ ] **Archive notes** (`archived_at timestamp` a DB, hide en lloc de
-      delete)
-- [ ] **Skeleton loading** al note grid inicial (en lloc de spinner)
-- [ ] **Empty state il·lustrat** (SVG simple) quan 0 notes
-- [ ] **Integrar #6 Animated AI Input** al chat (si QoL-1 auto-resize
-      no és suficient)
-- [ ] **Swipe actions** a note cards mobile (swipe → delete)
-- [ ] **Bottom sheet compose** mobile (drawer des de FAB)
-- [ ] **Tactile haptics** mobile al toggle checkbox
+- [x] **Archive notes** — migration `20260424200000_notes_archived.sql`
+      (`archived_at timestamptz` + partial index
+      `notes_user_live_created_idx` on `archived_at IS NULL`).
+      `archiveNote` / `unarchiveNote` accions. Dashboard query filtra
+      `.is('archived_at', null)`. Settings mostra
+      "X notes · Y archived · Z chats" i calcula counts per estat.
+- [x] **Skeleton loading** — `loading.tsx` ara reflecteix el layout
+      real (chat rail + main + grid) amb `animate-pulse` i stagger
+      via `animation-delay`.
+- [x] **Empty state il·lustrat** — SVG inline (stack de cards amb
+      línies opacity-decreasing) + hint al shortcut `N`. Només es
+      mostra quan `notes.length === 0`, no amb filtres actius.
+- [~] **Integrar 21st.dev Animated AI Input** — descartat. L'auto-
+      resize de QoL-1 cobreix el cas; afegir una dependència
+      external per un micro-affordance no val el cost.
+- [~] **Swipe actions mobile** — descartat. El hover cluster ja és
+      always-visible a mobile (`opacity-100 md:opacity-0
+      md:group-hover:opacity-100`), cosa que és més descoberta que
+      swipe i no conflicta amb el tap-to-edit.
+- [x] **Bottom sheet compose** — `<ComposeZone>` wrapper: inline form
+      a `md+`, FAB + `Sheet side="bottom"` a mobile. `n` shortcut
+      cau al dispatch de `compose-open` si no troba la textarea
+      desktop (mobile no la mounta fins obrir el sheet).
+- [x] **Tactile haptics** — `navigator.vibrate(10)` al toggle de
+      checkbox dins `NoteMarkdown`. Feature-detected.
 
 ### Merge strategy
 

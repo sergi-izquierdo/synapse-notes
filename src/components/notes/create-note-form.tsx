@@ -10,7 +10,13 @@ import { toast } from "sonner";
 import { TagInput } from "@/components/ui/tag-input";
 import { TagSelector } from "../ui/tag-selector";
 
-export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
+export function CreateNoteForm({
+  availableTags,
+  onSaved,
+}: {
+  availableTags: string[];
+  onSaved?: () => void;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null); // Referència per manipular el text
   const { t } = useLanguage();
@@ -64,6 +70,7 @@ export function CreateNoteForm({ availableTags }: { availableTags: string[] }) {
           });
           setContent(""); // Netejem l'estat
           setTags([]); // Netejem tags
+          onSaved?.();
         }
       }}
       className="group relative mb-8 overflow-hidden rounded-2xl border bg-background shadow-lg transition-all focus-within:ring-2 focus-within:ring-primary/20"

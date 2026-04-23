@@ -64,6 +64,7 @@ export interface SettingsViewProps {
     };
     counts: {
         notes: number;
+        archived: number;
         chats: number;
     };
     tagCounts: Record<string, number>;
@@ -220,7 +221,12 @@ export function SettingsView({
                                             {profile.email}
                                         </p>
                                         <p className="text-[10px] text-muted-foreground/70 font-mono uppercase tracking-wider mt-1 tabular-nums">
-                                            {counts.notes} notes · {counts.chats} chats
+                                            {counts.notes} notes
+                                            {counts.archived > 0
+                                                ? ` · ${counts.archived} archived`
+                                                : ""}
+                                            {" · "}
+                                            {counts.chats} chats
                                         </p>
                                     </div>
                                 </div>
