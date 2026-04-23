@@ -469,7 +469,11 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             : "hidden md:flex",
                     )}
                 >
-                    <ScrollArea className="flex-1 p-4">
+                    {/* min-h-0 lets the flex child shrink below its
+                        intrinsic content size — without it the
+                        messages overflow the pane instead of
+                        scrolling inside it. */}
+                    <ScrollArea className="flex-1 min-h-0 p-4">
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-2">
                                 <Bot className="h-10 w-10 text-muted-foreground/40" aria-hidden />

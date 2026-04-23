@@ -227,39 +227,17 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               tabIndex={0}
               aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
             >
-              {/* ACTION CLUSTER — top-right. On desktop the cluster is
-                  hover-revealed so the card stays quiet at rest; on
-                  mobile hover doesn't exist, so the icons are always
-                  visible. Star stays visible-when-starred regardless
-                  of breakpoint so pinned state reads at a glance. */}
+              {/* ACTION CLUSTER — top-right. On desktop hover reveals
+                  the cluster; on mobile (no hover) the icons stay
+                  visible so every action is reachable via tap. Star
+                  sits LAST in the row so when the others are hidden
+                  on desktop its own visible icon still anchors to
+                  the card's top-right corner instead of floating in
+                  the middle over three invisible slots. */}
               <div
                 className="absolute top-2 right-2 flex gap-0.5 z-10"
                 onClick={(e) => e.stopPropagation()}
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-7 w-7 transition-opacity",
-                    note.starred
-                      ? "opacity-100 text-amber-500 hover:text-amber-500"
-                      : "opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
-                  )}
-                  onClick={() =>
-                    handleToggleStar(note.id, Boolean(note.starred))
-                  }
-                  aria-label={note.starred ? "Unstar note" : "Star note"}
-                  aria-pressed={Boolean(note.starred)}
-                  title={note.starred ? "Unstar" : "Star"}
-                >
-                  <Star
-                    className={cn(
-                      "h-3.5 w-3.5",
-                      note.starred && "fill-amber-500",
-                    )}
-                  />
-                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -292,6 +270,30 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   title="Delete"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7 transition-opacity",
+                    note.starred
+                      ? "opacity-100 text-amber-500 hover:text-amber-500"
+                      : "opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
+                  )}
+                  onClick={() =>
+                    handleToggleStar(note.id, Boolean(note.starred))
+                  }
+                  aria-label={note.starred ? "Unstar note" : "Star note"}
+                  aria-pressed={Boolean(note.starred)}
+                  title={note.starred ? "Unstar" : "Star"}
+                >
+                  <Star
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      note.starred && "fill-amber-500",
+                    )}
+                  />
                 </Button>
               </div>
 

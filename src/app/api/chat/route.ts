@@ -40,46 +40,92 @@ export async function POST(req: Request) {
     const lastMessage = coreMessages[coreMessages.length - 1];
     const userQuestion = lastMessage.content;
 
-    // 2. Obtenir tags existents
-    const { data: allNotesTags } = await supabase.from('notes').select('tags');
-    const uniqueTags = Array.from(new Set(allNotesTags?.flatMap(n => n.tags) || [])).join(', ');
+    // Full inventory of the user's live notes. Two reasons to pull
+    // tags + content preview here rather than relying on RAG alone:
+    //   1. The semantic search runs on match_count and can drop notes
+    //      that don't make the top-N even when the exact phrase is
+    //      in the content. A title-level index guarantees the model
+    //      "knows" every note exists.
+    //   2. It gives us the unique-tag set for free.
+    const { data: allNotes } = await supabase
+        .from('notes')
+        .select('id, content, tags')
+        .is('archived_at', null)
+        .order('created_at', { ascending: false });
 
-    // RAG Context (Vector Search)
+    const uniqueTags = Array.from(
+        new Set((allNotes ?? []).flatMap((n) => n.tags ?? [])),
+    ).join(', ');
+
+    // 1-line excerpt (first non-blank line, capped) — enough for the
+    // model to decide whether to pull the full body via RAG or the tag
+    // tool, without flooding the context with full markdown.
+    const inventoryLines = (allNotes ?? []).map((n) => {
+        const firstLine =
+            String(n.content ?? '')
+                .split('\n')
+                .map((s) => s.trim())
+                .find(Boolean) ?? '';
+        const excerpt =
+            firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
+        const tagList =
+            n.tags && n.tags.length > 0
+                ? ` · [${(n.tags as string[]).map((t) => `#${t}`).join(', ')}]`
+                : '';
+        return `- ${excerpt}${tagList}`;
+    });
+    const notesInventory =
+        inventoryLines.length > 0
+            ? inventoryLines.join('\n')
+            : 'No notes yet.';
+
+    // RAG Context (Vector Search). Threshold lowered to 0.05 and
+    // match_count bumped to 20 so the common case — a user with ~15-30
+    // notes — still gets a full pass of what could be relevant.
     const queryEmbedding = await generateEmbedding(userQuestion);
 
     const { data: similarNotes } = await supabase.rpc("match_notes", {
         query_embedding: queryEmbedding,
-        match_threshold: 0.1,
-        match_count: 10,
+        match_threshold: 0.05,
+        match_count: 20,
     });
 
     const ragContext =
         similarNotes?.map((note: MatchedNote) => `NOTE CONTENT: ${note.content}`).join("\n\n") || "No relevant notes found via search.";
 
-    // 4. Prompt d'Enginyeria (Híbrid)
     const systemPrompt = `
      You are a helpful assistant for a "Second Brain" app.
-     
+
      ==============
-     🧠 MEMORY (CONTEXT FROM NOTES):
+     📚 EVERY NOTE (title-level inventory — one line per note):
+     ${notesInventory}
+     ==============
+
+     ==============
+     🧠 MEMORY (full content of the most semantically relevant notes):
      ${ragContext}
      ==============
 
      🏷️ AVAILABLE TAGS:
      [${uniqueTags}]
-     
-     INSTRUCTIONS:
-     1. **PRIORITY 1: CHECK MEMORY.** 
-        - Look at the "MEMORY" section above FIRST. 
-        - If the answer to the user's question is there, answer directly using that information.
-        - Example: If user asks "dog names" and you see "Kuro" in memory, answer "Your dogs are Kuro...".
 
-     2. **PRIORITY 2: USE TOOLS (Only if needed).**
-        - ONLY use the 'getNotesByTag' tool if the user explicitly asks for a *list*, *category*, or *tag* that you don't fully see in memory.
-        - If user asks for "ideas" and the memory is empty, try the tool with tag "Ideas" or "Idees".
-    
-     3. **Language:**
-        - Answer in the user's language.
+     INSTRUCTIONS:
+     1. **PRIORITY 1: CHECK MEMORY.**
+        - Look at the "MEMORY" section above FIRST.
+        - If the answer is in the full content, answer directly using it.
+
+     2. **PRIORITY 2: RECOGNISE FROM INVENTORY.**
+        - If the MEMORY doesn't fully answer but a matching note appears
+          in the INVENTORY, say so and call 'getNotesByTag' with the
+          tag that note carries to pull the full body.
+        - Never tell the user a note doesn't exist if it is listed in
+          the INVENTORY.
+
+     3. **PRIORITY 3: USE TOOLS.**
+        - Call 'getNotesByTag' when the user asks for a list/category
+          that maps to a tag in AVAILABLE TAGS.
+
+     4. **Language:** answer in the user's language.
    `;
 
     // Define Tool Schema
