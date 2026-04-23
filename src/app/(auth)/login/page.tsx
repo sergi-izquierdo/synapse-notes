@@ -25,9 +25,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="px-6 py-5 flex items-center justify-between max-w-6xl mx-auto w-full">
-        <div className="flex items-center gap-2">
-          <BrainCircuit className="h-5 w-5 text-primary" aria-hidden />
-          <span className="text-sm font-semibold tracking-tight">
+        <div className="flex items-center gap-2.5">
+          <BrainCircuit className="h-7 w-7 text-primary" aria-hidden />
+          <span className="text-lg font-semibold tracking-tight">
             Synapse Notes
           </span>
         </div>
@@ -35,9 +35,9 @@ export default function LoginPage() {
           href="https://github.com/sergi-izquierdo/synapse-notes"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Github className="h-4 w-4" aria-hidden />
+          <Github className="h-5 w-5" aria-hidden />
           GitHub
         </a>
       </header>
@@ -46,7 +46,7 @@ export default function LoginPage() {
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 max-w-5xl w-full items-center">
           {/* Hero pitch */}
           <div className="space-y-6 text-center lg:text-left">
-            <h1 className="text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1]">
+            <h1 className="font-sans text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1]">
               Un segon cervell
               <br />
               <span className="text-primary">amb agents</span>
