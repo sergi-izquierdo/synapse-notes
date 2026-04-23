@@ -141,11 +141,17 @@
         @apply bg-background text-foreground font-sans;
     }
 
-    /* Editorial surfaces read with Literata; display headings with
-     * Young Serif; UI chrome inherits Inter Tight (font-sans). */
+    /* All headings inherit the sans UI stack (Inter Tight) by default
+     * so the landing hero and the dashboard title stay in sync. To
+     * opt into the Young Serif display face on a specific heading,
+     * add the `.font-display` class. Literata (font-body) remains the
+     * reading surface for rendered Markdown (prose) and note editor. */
     h1,
     h2,
-    h3,
+    h3 {
+        letter-spacing: -0.01em;
+    }
+
     .font-display {
         font-family: var(--font-display), var(--font-body), serif;
         letter-spacing: -0.01em;

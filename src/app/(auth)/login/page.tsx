@@ -46,7 +46,7 @@ export default function LoginPage() {
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 max-w-5xl w-full items-center">
           {/* Hero pitch */}
           <div className="space-y-6 text-center lg:text-left">
-            <h1 className="font-sans text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1]">
+            <h1 className="text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1]">
               Un segon cervell
               <br />
               <span className="text-primary">amb agents</span>
