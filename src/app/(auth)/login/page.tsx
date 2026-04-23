@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { signInWith } from "@/actions/auth";
 import { BrainCircuit, Github } from "lucide-react";
 import { BackgroundPaths } from "@/components/backgrounds/background-paths";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function GoogleIcon() {
   return (
@@ -34,15 +35,18 @@ export default function LoginPage() {
             Synapse Notes
           </span>
         </div>
-        <a
-          href="https://github.com/sergi-izquierdo/synapse-notes"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Github className="h-5 w-5" aria-hidden />
-          GitHub
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href="https://github.com/sergi-izquierdo/synapse-notes"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-base text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Github className="h-5 w-5" aria-hidden />
+            GitHub
+          </a>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-12">

@@ -7,6 +7,7 @@ import { NoteGrid } from "@/components/notes/note-grid";
 import { LogOut } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { BackgroundPaths } from "@/components/backgrounds/background-paths";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -32,8 +33,9 @@ export default async function DashboardPage() {
 
       {/* CONTINGUT PRINCIPAL (NOTES) */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+        <BackgroundPaths />
         {/* Scroll només a la zona de contingut */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="relative z-10 flex-1 overflow-y-auto">
           <div className="container mx-auto max-w-5xl p-6 space-y-8">
             {/* Header + Logout */}
             <div className="flex items-start justify-between">
