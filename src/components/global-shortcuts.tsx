@@ -6,7 +6,7 @@ import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 // Global keyboard shortcuts router. Mounted once at the dashboard
 // layout level. Listens to document keydown and dispatches to:
 //
-//   - ?       → show the shortcuts help overlay
+//   - F1      → show the shortcuts help overlay
 //   - /       → focus the notes search input
 //   - n       → focus the compose textarea
 //   - j / k   → navigate chat list (via custom events)
@@ -15,9 +15,9 @@ import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 // avoid wiring refs across the entire tree. Custom events decouple
 // the chat navigation from ChatSidebar's internal state.
 //
-// The "typing" guard prevents N / J / K from firing while the user
-// is composing text. '?' (Shift+/) fires everywhere since modal
-// dialogs never need a literal '?' character typed inline.
+// F1 is the only shortcut that fires everywhere (even while typing)
+// so users can summon the help overlay from any input. Every other
+// shortcut is guarded so ?, /, n, j, k stay typable.
 export function GlobalShortcuts() {
     const [helpOpen, setHelpOpen] = useState(false);
 
@@ -29,8 +29,11 @@ export function GlobalShortcuts() {
                 target instanceof HTMLTextAreaElement ||
                 (target !== null && target.isContentEditable);
 
-            // ? — show shortcuts help (Shift+/ on US layout)
-            if (e.key === "?") {
+            // F1 — show shortcuts help. Fires even while typing so
+            // the user doesn't have to click out of an input to ask
+            // "what can I press?". Browsers rarely bind F1 these
+            // days; the preventDefault kills Firefox's own help tab.
+            if (e.key === "F1") {
                 e.preventDefault();
                 setHelpOpen((v) => !v);
                 return;

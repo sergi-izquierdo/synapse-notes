@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -14,6 +14,11 @@ interface KeyboardShortcutsDialogProps {
     onOpenChange: (open: boolean) => void;
 }
 
+// Sentinel used in the source-of-truth table. Swapped at render time
+// for the platform-specific label (⌘ on macOS, Ctrl everywhere else).
+// Keeps the table editable by hand without branching on the OS.
+const MOD = "__MOD__";
+
 // Source of truth for every keyboard shortcut the app reacts to. Keep
 // it in sync with the actual handlers in GlobalShortcuts, ChatSidebar,
 // CreateNoteForm, ChatInput, and the CommandPalette.
@@ -22,12 +27,12 @@ const SHORTCUTS: Array<{
     desc: string;
     scope: "Global" | "Notes" | "Chat";
 }> = [
-    { keys: ["⌘", "K"], desc: "Open command palette", scope: "Global" },
-    { keys: ["?"], desc: "Show this help overlay", scope: "Global" },
+    { keys: [MOD, "K"], desc: "Open command palette", scope: "Global" },
+    { keys: ["F1"], desc: "Show this help overlay", scope: "Global" },
     { keys: ["Esc"], desc: "Close any modal or palette", scope: "Global" },
     { keys: ["/"], desc: "Focus search input", scope: "Notes" },
     { keys: ["N"], desc: "Focus the compose textarea", scope: "Notes" },
-    { keys: ["⌘", "Enter"], desc: "Save note (inside compose)", scope: "Notes" },
+    { keys: [MOD, "Enter"], desc: "Save note (inside compose)", scope: "Notes" },
     { keys: ["1"], desc: "Toggle filter by top-1 tag", scope: "Notes" },
     { keys: ["2"], desc: "Toggle filter by top-2 tag", scope: "Notes" },
     { keys: ["3"], desc: "Toggle filter by top-3 tag", scope: "Notes" },
@@ -38,10 +43,34 @@ const SHORTCUTS: Array<{
     { keys: ["↑"], desc: "Recall last prompt (empty chat input)", scope: "Chat" },
 ];
 
+// Detect macOS so we can show ⌘ there and Ctrl on Windows / Linux.
+// The handlers in GlobalShortcuts and elsewhere already accept both
+// metaKey and ctrlKey, so this is purely a display concern. Runs in
+// an effect so SSR stays deterministic.
+function usePlatformModKey() {
+    const [label, setLabel] = useState("Ctrl");
+    useEffect(() => {
+        if (typeof navigator === "undefined") return;
+        const ua =
+            (
+                navigator as Navigator & {
+                    userAgentData?: { platform?: string };
+                }
+            ).userAgentData?.platform ??
+            navigator.platform ??
+            navigator.userAgent;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe platform detection
+        setLabel(/Mac|iPhone|iPad|iPod/i.test(ua) ? "⌘" : "Ctrl");
+    }, []);
+    return label;
+}
+
 export function KeyboardShortcutsDialog({
     open,
     onOpenChange,
 }: KeyboardShortcutsDialogProps) {
+    const modKey = usePlatformModKey();
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[520px]">
@@ -50,7 +79,7 @@ export function KeyboardShortcutsDialog({
                     <DialogDescription>
                         Press{" "}
                         <kbd className="inline-block rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px]">
-                            ?
+                            F1
                         </kbd>{" "}
                         anywhere to toggle this overlay.
                     </DialogDescription>
@@ -79,7 +108,7 @@ export function KeyboardShortcutsDialog({
                                                         </span>
                                                     )}
                                                     <kbd className="rounded border border-border bg-muted px-1.5 py-0.5">
-                                                        {k}
+                                                        {k === MOD ? modKey : k}
                                                     </kbd>
                                                 </Fragment>
                                             ))}
