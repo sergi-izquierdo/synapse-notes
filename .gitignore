@@ -40,8 +40,21 @@ yarn-error.log*
 # Claude Code local settings
 .claude/settings.local.json
 
+# Python bytecode from Claude skills
+.claude/skills/**/__pycache__/
+.claude/skills/**/*.pyc
+
+# Playwright MCP runtime artifacts (yml snapshots, console logs)
+.playwright-mcp/
+
+# Claude Code scheduled task lockfile
+.claude/scheduled_tasks.lock
+
 # vercel
 .vercel
+
+# Supabase CLI local cache (created by `npx supabase --version` etc.)
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo

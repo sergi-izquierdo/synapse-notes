@@ -128,14 +128,23 @@ export function EditNoteDialog({
           </Button>
         </div>
 
-        <div className="p-6 pt-4">
+        <div className="px-6 pt-4 pb-2">
           <Textarea
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="min-h-[300px] resize-none text-base border-none focus-visible:ring-0 p-0 shadow-none font-sans"
+            className="min-h-[300px] resize-none text-base border border-border/60 focus-visible:ring-1 focus-visible:ring-primary p-4 shadow-none font-sans rounded-md"
             placeholder="Type here..."
           />
+          {/* Word/char counter — editorial mono row, lives just below
+              the textarea and updates as the user types. */}
+          <div className="flex items-center justify-end gap-3 pt-1.5 font-mono text-[10px] text-muted-foreground/70 tabular-nums">
+            <span>
+              {content.trim() ? content.trim().split(/\s+/).length : 0} words
+            </span>
+            <span className="opacity-40">·</span>
+            <span>{content.length} chars</span>
+          </div>
         </div>
 
         <div className="px-6 pb-4">

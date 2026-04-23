@@ -8,7 +8,19 @@ import type { ChatRequestMessage, MatchedNote } from "@/types/database";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-    const { messages, chatId }: { messages: ChatRequestMessage[]; chatId: string | null } = await req.json();
+    const {
+        messages,
+        chatId,
+        trigger,
+    }: {
+        messages: ChatRequestMessage[];
+        chatId: string | null;
+        // The AI SDK client sets this. 'regenerate-message' means the
+        // user message is already in the DB from its first send and we
+        // should only persist the new assistant reply.
+        trigger?: "submit-message" | "regenerate-message";
+    } = await req.json();
+    const isRegenerate = trigger === "regenerate-message";
     const supabase = await createClient();
 
     // Extract text content from each message
@@ -103,11 +115,15 @@ export async function POST(req: Request) {
 
         onFinish: async ({ text }) => {
             if (!chatId) return;
-            await supabase.from("messages").insert({
-                chat_id: chatId,
-                role: "user",
-                content: userQuestion,
-            });
+            // On regenerate the user message is already persisted from
+            // its first send; only the assistant reply is new.
+            if (!isRegenerate) {
+                await supabase.from("messages").insert({
+                    chat_id: chatId,
+                    role: "user",
+                    content: userQuestion,
+                });
+            }
             await supabase.from("messages").insert({
                 chat_id: chatId,
                 role: "assistant",

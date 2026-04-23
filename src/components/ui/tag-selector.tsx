@@ -24,12 +24,24 @@ interface TagSelectorProps {
   selectedTags: string[];
   setSelectedTags: (tags: string[]) => void;
   availableTags: string[];
+  /** Frequency map tag → count. When present, the list is sorted by
+   *  count desc (then alpha) and each row renders the count badge. */
+  tagCounts?: Record<string, number>;
+  /** When false, hides the "Create ..." row — useful in a filter
+   *  context where you can only select existing tags. */
+  allowCreate?: boolean;
+  placeholder?: string;
+  triggerClassName?: string;
 }
 
 export function TagSelector({
   selectedTags,
   setSelectedTags,
   availableTags,
+  tagCounts,
+  allowCreate = true,
+  placeholder,
+  triggerClassName,
 }: TagSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState("");
@@ -50,8 +62,15 @@ export function TagSelector({
     }
   };
 
-  // Manual filtering logic to have full control
-  const filteredTags = availableTags.filter((tag) =>
+  const sortedTags = React.useMemo(() => {
+    if (!tagCounts) return availableTags;
+    return [...availableTags].sort((a, b) => {
+      const diff = (tagCounts[b] ?? 0) - (tagCounts[a] ?? 0);
+      return diff !== 0 ? diff : a.localeCompare(b);
+    });
+  }, [availableTags, tagCounts]);
+
+  const filteredTags = sortedTags.filter((tag) =>
     tag.toLowerCase().includes(inputValue.toLowerCase())
   );
 
@@ -63,7 +82,10 @@ export function TagSelector({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between text-muted-foreground bg-transparent border-input/50 h-auto min-h-[2.5rem] py-2"
+            className={cn(
+              "w-full justify-between text-muted-foreground bg-transparent border-input/50 h-auto min-h-[2.5rem] py-2",
+              triggerClassName,
+            )}
           >
             {selectedTags.length > 0 ? (
               <div className="flex flex-wrap gap-1">
@@ -74,7 +96,7 @@ export function TagSelector({
                 ))}
               </div>
             ) : (
-              t.common.add_tag || "Add tag..."
+              placeholder || t.common.add_tag || "Add tag..."
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -92,7 +114,8 @@ export function TagSelector({
             />
             <CommandList>
               {/* Option to create new tag if it doesn't exist */}
-              {inputValue &&
+              {allowCreate &&
+                inputValue &&
                 !availableTags.some(
                   (t) => t.toLowerCase() === inputValue.toLowerCase()
                 ) && (
@@ -113,22 +136,32 @@ export function TagSelector({
               )}
 
               <CommandGroup heading="Existing Tags">
-                {filteredTags.map((tag) => (
-                  <CommandItem
-                    key={tag}
-                    value={tag}
-                    onSelect={() => handleSelect(tag)}
-                    className="cursor-pointer"
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedTags.includes(tag) ? "opacity-100" : "opacity-0"
+                {filteredTags.map((tag) => {
+                  const count = tagCounts?.[tag];
+                  return (
+                    <CommandItem
+                      key={tag}
+                      value={tag}
+                      onSelect={() => handleSelect(tag)}
+                      className="cursor-pointer"
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedTags.includes(tag)
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      <span className="flex-1">{tag}</span>
+                      {count !== undefined && (
+                        <span className="ml-2 font-mono text-[10px] text-muted-foreground tabular-nums">
+                          {count}
+                        </span>
                       )}
-                    />
-                    {tag}
-                  </CommandItem>
-                ))}
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

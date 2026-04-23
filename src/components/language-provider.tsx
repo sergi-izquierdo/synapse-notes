@@ -31,6 +31,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (saved) setLanguageState(saved);
   }, []);
 
+  // Keep <html lang> in sync with the active language for screen readers
+  // and Google's hreflang signals. The root lang attribute is set to "ca"
+  // server-side and updated here whenever the user picks a different one.
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem("synapse-lang", lang);

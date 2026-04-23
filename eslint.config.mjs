@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reference snippets (e.g. 21st.dev inspiration library) — docs, not build.
+    "docs/**",
   ]),
 ]);
 

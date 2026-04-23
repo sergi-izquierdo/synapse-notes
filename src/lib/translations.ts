@@ -3,10 +3,10 @@ export type Language = "en" | "es" | "ca";
 export const translations = {
   en: {
     dashboard: {
-      title: "Synapse Notes 🧠",
+      title: "Synapse Notes",
       logout: "Log out",
       welcome: "Welcome to your private space.",
-      empty: "No notes yet. Start writing! 🚀",
+      empty: "No notes yet. Start writing!",
       placeholder: "What's on your mind?",
       save: "Save Note",
       saving: "Saving...",
@@ -21,7 +21,7 @@ export const translations = {
     },
     chat: {
       title: "Synapse AI",
-      welcome: "Hi! I'm your assistant. Ask me anything about your notes. 🧠",
+      welcome: "Hi! I'm your assistant. Ask me anything about your notes.",
       placeholder: "Ask something...",
       thinking: "Thinking...",
     },
@@ -50,10 +50,10 @@ export const translations = {
   },
   es: {
     dashboard: {
-      title: "Synapse Notes 🧠",
+      title: "Synapse Notes",
       logout: "Cerrar sesión",
       welcome: "Bienvenido a tu espacio privado.",
-      empty: "Aún no hay notas. ¡Empieza a escribir! 🚀",
+      empty: "Aún no hay notas. ¡Empieza a escribir!",
       placeholder: "¿Qué tienes en mente?",
       save: "Guardar Nota",
       saving: "Guardando...",
@@ -69,7 +69,7 @@ export const translations = {
     chat: {
       title: "Synapse AI",
       welcome:
-        "¡Hola! Soy tu asistente. Pregúntame lo que quieras sobre tus notas. 🧠",
+        "¡Hola! Soy tu asistente. Pregúntame lo que quieras sobre tus notas.",
       placeholder: "Pregunta algo...",
       thinking: "Pensando...",
     },
@@ -98,10 +98,10 @@ export const translations = {
   },
   ca: {
     dashboard: {
-      title: "Synapse Notes 🧠",
+      title: "Synapse Notes",
       logout: "Tancar sessió",
       welcome: "Benvingut al teu espai privat.",
-      empty: "Encara no tens cap nota. Comença a escriure! 🚀",
+      empty: "Encara no tens cap nota. Comença a escriure!",
       placeholder: "En què estàs pensant?",
       save: "Guardar Nota",
       saving: "Guardant...",
@@ -117,7 +117,7 @@ export const translations = {
     chat: {
       title: "Synapse AI",
       welcome:
-        "Hola! Sóc el teu assistent. Pregunta'm qualsevol cosa sobre les teves notes. 🧠",
+        "Hola! Sóc el teu assistent. Pregunta'm qualsevol cosa sobre les teves notes.",
       placeholder: "Demana alguna cosa...",
       thinking: "Pensant...",
     },
