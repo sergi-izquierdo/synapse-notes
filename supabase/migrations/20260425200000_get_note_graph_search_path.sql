@@ -1,30 +1,27 @@
--- RPC that builds the per-user note graph in a single round trip.
--- Returns { nodes, links, meta } as jsonb:
---   * nodes: every live (non-archived) note the caller owns, with a
---     short title (first line, capped 80 chars), tags, starred flag
---   * links: two kinds of edges
---     - tag-Jaccard: notes that share tags, weighted by
---       |A∩B|/|A∪B|, only kept when ≥ 0.2
---     - embed: each note's top-k nearest pgvector neighbours
---       (k = 5, similarity ≥ 0.75), de-duplicated per unordered pair
---     each link is { source, target, weight, kind: 'tag'|'embed' }
+-- Hotfix: the initial get_note_graph() migration set
+-- `search_path = ''` which made the function safer against path
+-- hijacking, but also made pgvector's `<=>` cosine-distance
+-- operator unresolvable (pgvector lives in the `public` schema on
+-- Supabase, and operator lookups can't be schema-qualified inline
+-- the way `public.notes` can).
 --
--- security invoker + search_path = '' so RLS on public.notes applies
--- at every touch and the function can't be hijacked by schema
--- shadowing. Called as supabase.rpc('get_note_graph') from the
--- authenticated user's session.
+-- Symptom in production: GET /api/graph returned 500 with
+--   "operator does not exist: vector <=> vector"
+-- whenever the embedding-similarity branch of the CTE ran.
+--
+-- Fix: set search_path to 'public, pg_catalog' so the operator
+-- resolves. Every table reference in the body stays fully
+-- qualified as `public.notes`, so the narrower security guarantee
+-- we wanted (no path hijacking via random schemas) is still in
+-- force. Function stays SECURITY INVOKER, so RLS applies the same
+-- way.
+--
+-- Re-applies the exact same body with the updated setting.
 
 create or replace function public.get_note_graph()
 returns jsonb
 language plpgsql
 security invoker
--- search_path includes `public` so pgvector's `<=>` cosine-distance
--- operator is resolvable — pgvector is installed into `public` on
--- Supabase projects and operator lookups can't be schema-qualified
--- inline. Every TABLE reference is still fully qualified as
--- `public.notes`, and the function stays SECURITY INVOKER so the
--- row-level-security policies on notes apply to the caller's
--- session.
 set search_path = 'public, pg_catalog'
 as $$
 declare
@@ -40,7 +37,6 @@ begin
         );
     end if;
 
-    -- NODES
     select coalesce(jsonb_agg(
         jsonb_build_object(
             'id', n.id,
@@ -60,26 +56,13 @@ begin
     where n.user_id = v_user_id
       and n.archived_at is null;
 
-    -- EDGES
     with
-    -- Tag-Jaccard pairs: notes sharing at least one tag
     tag_pairs as (
         select
             a.id as a_id,
             b.id as b_id,
-            (
-                select count(*)::float
-                from unnest(a.tags) t
-                where t = any(b.tags)
-            ) as intersect_count,
-            (
-                select count(distinct t)::float
-                from (
-                    select unnest(a.tags) as t
-                    union
-                    select unnest(b.tags) as t
-                ) u
-            ) as union_count
+            (select count(*)::float from unnest(a.tags) t where t = any(b.tags)) as intersect_count,
+            (select count(distinct t)::float from (select unnest(a.tags) as t union select unnest(b.tags) as t) u) as union_count
         from public.notes a
         join public.notes b on a.id < b.id
         where a.user_id = v_user_id
@@ -89,22 +72,12 @@ begin
           and a.tags && b.tags
     ),
     tag_edges as (
-        select
-            a_id as source,
-            b_id as target,
-            (intersect_count / nullif(union_count, 0)) as weight
+        select a_id as source, b_id as target, (intersect_count / nullif(union_count, 0)) as weight
         from tag_pairs
-        where union_count > 0
-          and (intersect_count / union_count) >= 0.2
+        where union_count > 0 and (intersect_count / union_count) >= 0.2
     ),
-    -- Embedding top-5 neighbours, similarity ≥ 0.75. LATERAL for
-    -- efficient per-row k-NN; the HNSW index on notes.embedding
-    -- covers it.
     embed_raw as (
-        select
-            src.id as src_id,
-            tgt.id as tgt_id,
-            1 - (src.embedding <=> tgt.embedding) as similarity
+        select src.id as src_id, tgt.id as tgt_id, 1 - (src.embedding <=> tgt.embedding) as similarity
         from public.notes src
         cross join lateral (
             select n2.id, n2.embedding
@@ -158,6 +131,5 @@ begin
 end;
 $$;
 
--- Tighten privileges — only authenticated users can call this.
 revoke all on function public.get_note_graph() from public;
 grant execute on function public.get_note_graph() to authenticated;
