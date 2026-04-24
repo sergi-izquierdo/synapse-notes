@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,16 +22,26 @@ import { cn } from "@/lib/utils";
 import { EditNoteDialog } from "./edit-note-dialog";
 import { FilterBar } from "./filter-bar";
 
+interface GridNote {
+  id: number;
+  content: string;
+  created_at: string;
+  tags: string[] | null;
+  starred?: boolean;
+}
+
 interface NoteGridProps {
-  notes: Array<{
-    id: number;
-    content: string;
-    created_at: string;
-    tags: string[] | null;
-    starred?: boolean;
-  }>;
+  notes: GridNote[];
   availableTags: string[];
 }
+
+// Optimistic mutation payload. `patch` merges fields into the matching
+// note; `remove` filters the note out so archive/delete hide it at
+// once. The real server state replaces the optimistic one as soon as
+// revalidatePath re-renders the page.
+type OptimisticAction =
+  | { type: "patch"; id: number; patch: Partial<GridNote> }
+  | { type: "remove"; id: number };
 
 export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   const { t, language } = useLanguage();
@@ -44,17 +54,39 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     tags: string[];
   } | null>(null);
 
+  // Optimistic layer on top of the server-sourced `notes` prop. Each
+  // card action (star / archive / delete) paints its intended next
+  // state right away instead of waiting for the supabase round-trip +
+  // revalidatePath. React 19 discards the optimistic state when the
+  // wrapping transition resolves and the server-rendered props flow
+  // back in.
+  const [optimisticNotes, applyOptimistic] = useOptimistic<
+    GridNote[],
+    OptimisticAction
+  >(notes, (state, action) => {
+    switch (action.type) {
+      case "patch":
+        return state.map((n) =>
+          n.id === action.id ? { ...n, ...action.patch } : n,
+        );
+      case "remove":
+        return state.filter((n) => n.id !== action.id);
+    }
+  });
+
+  const [, startMutation] = useTransition();
+
   // Frequency map used by the filter selector, the top-3 keyboard
   // shortcuts, and (when we want to surface popular tags) any UI.
   const tagCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const note of notes) {
+    for (const note of optimisticNotes) {
       for (const tag of note.tags ?? []) {
         counts[tag] = (counts[tag] ?? 0) + 1;
       }
     }
     return counts;
-  }, [notes]);
+  }, [optimisticNotes]);
 
   // Top 3 tags by usage, alpha-sorted as a tie-break. Consumed by the
   // 1/2/3 quick-filter shortcut below.
@@ -93,8 +125,10 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       document.removeEventListener("notes-filter-top-tag", handler);
   }, [topTags]);
 
-  // AND filter: a note must carry every selected tag to match.
-  const filteredNotes = notes.filter((note) => {
+  // AND filter: a note must carry every selected tag to match. Uses
+  // optimisticNotes so toggles feel instant; archive/delete
+  // effectively filter themselves out via the optimistic remove.
+  const filteredNotes = optimisticNotes.filter((note) => {
     const matchesSearch = note.content
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -105,34 +139,48 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     return matchesSearch && matchesTags;
   });
 
-  // Delete with a 5-second undo toast. We hard-delete on the server and
-  // recreate from the returned snapshot if the user clicks "Undo" —
-  // simpler than a soft-delete schema and avoids orphaned rows. Cost:
-  // one fresh embedding on restore.
-  const handleDelete = async (id: number) => {
-    try {
-      const snapshot = await deleteNote(id);
-      toast.success("Note deleted", {
-        duration: 5000,
-        action: snapshot
-          ? {
-              label: "Undo",
-              onClick: async () => {
-                const result = await restoreNote(snapshot.content, snapshot.tags);
-                if (result?.error) {
-                  toast.error("Restore failed", { description: result.error });
-                } else {
-                  toast.success("Note restored");
-                }
-              },
-            }
-          : undefined,
-      });
-    } catch {
-      toast.error("Error deleting note");
-    }
+  // Each handler paints its optimistic state first (inside a
+  // transition, which is a requirement of useOptimistic) and then
+  // awaits the server action. On error we show a toast; the
+  // optimistic state is discarded automatically once the transition
+  // finishes and the real props flow back in.
+
+  const handleDelete = (id: number) => {
+    startMutation(async () => {
+      applyOptimistic({ type: "remove", id });
+      try {
+        const snapshot = await deleteNote(id);
+        toast.success("Note deleted", {
+          duration: 5000,
+          action: snapshot
+            ? {
+                label: "Undo",
+                onClick: async () => {
+                  const result = await restoreNote(
+                    snapshot.content,
+                    snapshot.tags,
+                  );
+                  if (result?.error) {
+                    toast.error("Restore failed", {
+                      description: result.error,
+                    });
+                  } else {
+                    toast.success("Note restored");
+                  }
+                },
+              }
+            : undefined,
+        });
+      } catch {
+        toast.error("Error deleting note");
+      }
+    });
   };
 
+  // Duplicate doesn't get an optimistic slot because the new note's
+  // id is assigned server-side and we'd have to fake one. Embedding
+  // generation is the slow step anyway, so the toast loading state
+  // is the right feedback here.
   const handleDuplicate = async (id: number) => {
     const result = await duplicateNote(id);
     if (result?.error) {
@@ -142,36 +190,46 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     }
   };
 
-  const handleToggleStar = async (id: number, current: boolean) => {
-    const result = await toggleNoteStarred(id, !current);
-    if (result?.error) {
-      toast.error(result.error);
-    }
+  const handleToggleStar = (id: number, current: boolean) => {
+    startMutation(async () => {
+      applyOptimistic({
+        type: "patch",
+        id,
+        patch: { starred: !current },
+      });
+      const result = await toggleNoteStarred(id, !current);
+      if (result?.error) {
+        toast.error(result.error);
+      }
+    });
   };
 
   // Archive is a soft-delete: the row stays in the DB (with its
   // embedding intact), the dashboard query just hides it. Undo is a
   // single unarchive call — cheaper than the hard-delete restore
   // path because the embedding doesn't need regenerating.
-  const handleArchive = async (id: number) => {
-    const result = await archiveNote(id);
-    if (result?.error) {
-      toast.error("Archive failed", { description: result.error });
-      return;
-    }
-    toast.success("Note archived", {
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          const restore = await unarchiveNote(id);
-          if (restore?.error) {
-            toast.error("Restore failed", { description: restore.error });
-          } else {
-            toast.success("Note restored");
-          }
+  const handleArchive = (id: number) => {
+    startMutation(async () => {
+      applyOptimistic({ type: "remove", id });
+      const result = await archiveNote(id);
+      if (result?.error) {
+        toast.error("Archive failed", { description: result.error });
+        return;
+      }
+      toast.success("Note archived", {
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const restore = await unarchiveNote(id);
+            if (restore?.error) {
+              toast.error("Restore failed", { description: restore.error });
+            } else {
+              toast.success("Note restored");
+            }
+          },
         },
-      },
+      });
     });
   };
 
@@ -187,8 +245,10 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       />
 
       {/* GRID — three states: zero notes (illustrated), zero matches
-          (concise filter hint), or the real grid. */}
-      {notes.length === 0 ? (
+          (concise filter hint), or the real grid. Uses the optimistic
+          view so archiving/deleting the last note shows the empty
+          state straight away. */}
+      {optimisticNotes.length === 0 ? (
         <EmptyNotesState />
       ) : filteredNotes.length === 0 ? (
         <div className="text-center text-muted-foreground py-10 opacity-50">
@@ -206,6 +266,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
           {filteredNotes.map((note) => (
             <motion.div
               key={note.id}
+              layout
               variants={{
                 hidden: { opacity: 0, y: 8 },
                 show: { opacity: 1, y: 0 },
