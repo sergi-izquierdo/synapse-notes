@@ -268,12 +268,12 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      // Require a small drag distance before activation so clicks
-      // on action buttons inside the card don't accidentally start
-      // a drag.
-      activationConstraint: { distance: 6 },
-    }),
+    // Listeners live on a dedicated GripVertical button (see
+    // SortableNoteCard below), so there's no click-vs-drag ambiguity
+    // to disambiguate — dropping the activationConstraint lets drag
+    // start on the first pointer movement, which kills the "micro
+    // pause" feel users see with a distance threshold.
+    useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -548,7 +548,12 @@ function SortableNoteCard({
         transition,
         zIndex: isDragging ? 10 : 0,
       }}
-      className={cn(isDragging && "opacity-30")}
+      // Fully hide the in-place node while its clone is flying in
+      // the DragOverlay — otherwise it reads as a duplicate. The
+      // grid slot stays reserved (visibility: hidden, not display:
+      // none) so the surrounding cards don't collapse around the
+      // hole.
+      className={cn(isDragging && "invisible")}
     >
             <Card
               className={cn(
