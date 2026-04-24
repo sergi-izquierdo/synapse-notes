@@ -306,7 +306,13 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     //     hair-trigger cancels.
     useSensor(MouseSensor),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
+      // 5 px tolerance was cancelling on natural finger wobble —
+      // most fingers drift 5-10 px during a press even when the
+      // user thinks they're holding still, especially on high-DPI
+      // screens. 15 px absorbs that without letting a deliberate
+      // swipe (which moves 50+ px almost instantly) sneak in as a
+      // drag.
+      activationConstraint: { delay: 200, tolerance: 15 },
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
