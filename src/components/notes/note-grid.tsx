@@ -635,7 +635,7 @@ function SortableNoteCard({
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Drag to reorder"
                 title="Drag to reorder"
-                className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary touch-none"
+                className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
