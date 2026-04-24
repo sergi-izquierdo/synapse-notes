@@ -6,7 +6,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -293,12 +294,20 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   };
 
   const sensors = useSensors(
-    // Listeners live on a dedicated GripVertical button (see
-    // SortableNoteCard below), so there's no click-vs-drag ambiguity
-    // to disambiguate — dropping the activationConstraint lets drag
-    // start on the first pointer movement, which kills the "micro
-    // pause" feel users see with a distance threshold.
-    useSensor(PointerSensor),
+    // Split desktop and touch sensors so each can have the right
+    // activation behaviour:
+    //   - MouseSensor: no constraint → drag fires on the first pixel
+    //     of movement (listeners already live on a dedicated grip,
+    //     so there's no click-vs-drag ambiguity).
+    //   - TouchSensor: delay + tolerance → requires a ~250 ms
+    //     press-and-hold before activating, so plain swipes across
+    //     a note still scroll the page natively. Tolerance lets the
+    //     finger drift ~5 px while waiting out the delay, avoiding
+    //     hair-trigger cancels.
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -626,7 +635,7 @@ function SortableNoteCard({
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Drag to reorder"
                 title="Drag to reorder"
-                className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary touch-none"
               >
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
