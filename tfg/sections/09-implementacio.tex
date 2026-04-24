@@ -117,6 +117,139 @@
 % produir-ne un amb errors *detectables* que una inspecció manual
 % pot filtrar.
 
+\section{UI optimista amb React 19 (useOptimistic + useTransition)}
+\label{sec:optimistic-ui}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Commit \texttt{e94aea5}. Les accions d'estrella, arxiu i
+% eliminació d'una nota havien de passar per una server action
+% + \texttt{revalidatePath} + RSC re-fetch. En producció això
+% generava 1-2~s de latència percebuda: l'usuari clicava un
+% botó, el botó feia feedback visual (\texttt{disabled},
+% spinner), la xarxa anava al backend, el backend actualitzava
+% la BD, retornava OK, i només aleshores la UI es re-renderitzava
+% amb el nou estat. En dispositius mòbils o connexions lentes,
+% la UI es notava ``lenta'' tot i que la lògica era correcta.
+%
+% \subsection{Patró aplicat}
+%
+% React 19 exposa dos hooks nous que resolen el problema sense
+% trencar el flux server-first:
+%
+% \begin{itemize}
+%   \item \texttt{useOptimistic(state, reducer)} --- defineix un
+%     estat derivat que pot ser actualitzat instantàniament
+%     abans del round-trip al servidor, i que es reverteix
+%     automàticament quan el servidor retorna el ``veritable''
+%     estat via \texttt{revalidatePath}.
+%   \item \texttt{useTransition()} --- marca la mutation com a
+%     ``low-priority'' perquè React la pugui interrompre si
+%     l'usuari fa una altra acció abans del round-trip.
+% \end{itemize}
+%
+% La implementació a \texttt{NoteGrid} defineix dues accions
+% optimistes:
+%
+% \begin{itemize}
+%   \item \texttt{\{ type: 'patch', id, patch \}} --- merge de
+%     camps a la nota corresponent (p.ex. toggle de
+%     \texttt{starred}).
+%   \item \texttt{\{ type: 'remove', id \}} --- filtra la nota
+%     fora del llistat visible (archive/delete).
+% \end{itemize}
+%
+% Cada handler encaixa:
+%
+% \begin{verbatim}
+% const [optimisticNotes, applyOptimistic] = useOptimistic(
+%   notes,
+%   (state, action) => { ... }
+% );
+% const [, startMutation] = useTransition();
+%
+% const handleStar = (id) => {
+%   startMutation(async () => {
+%     applyOptimistic({ type: 'patch', id,
+%       patch: { starred: !current.starred } });
+%     await toggleNoteStarred(id);
+%     // revalidatePath inside the action refreshes
+%     // the RSC props; React discards our optimistic
+%     // state automatically.
+%   });
+% };
+% \end{verbatim}
+%
+% \subsection{Què NO va a l'estat optimista}
+%
+% \texttt{createNote} i \texttt{duplicateNote} queden fora del
+% patró, i és una decisió deliberada:
+%
+% \begin{itemize}
+%   \item L'\textbf{id} d'una nota és server-assigned
+%     (\texttt{bigserial}). Qualsevol estat optimista que
+%     renderitzi la nova nota necessitaria inventar un id
+%     temporal, que col·lisionaria amb la realitat quan la
+%     \texttt{revalidatePath} retorni.
+%   \item Generar l'\textbf{embedding} (768-dim, ~200~ms a
+%     Gemini) és el coll d'ampolla real. Pintar la nota abans
+%     que l'embedding estigui a la BD crearia un state on la
+%     nota existeix al UI però no és buscable per RAG --- i
+%     això sí que és visible per l'usuari (el xat no la
+%     troba). Pintar l'spinner de ``creant...'' és la resposta
+%     correcta.
+% \end{itemize}
+%
+% La lliçó defensable per al tribunal: el patró optimista és
+% \textbf{per defecte per a mutations ràpides amb
+% revalidatePath}, però cal una excepció explícita quan el
+% servidor assigna identificadors o el bottleneck real és la
+% generació de dades derivades. Aquesta decisió quedà anotada
+% a memòria persistent del workflow
+% (\texttt{feedback\_optimistic\_ui\_default.md}).
+
+\section{Gestió de xats amb mode bulk-select}
+\label{sec:bulk-delete-chats}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Commit \texttt{77c15e5}. La UI del sidebar de xats permet ara
+% (a) esborrar un xat individual (hover-revelat a l'escriptori,
+% visible permanent a mòbil), i (b) un mode de selecció múltiple
+% per esborrar diversos xats alhora amb confirmació via
+% \texttt{AlertDialog}.
+%
+% \subsection{Doble-capa de defensa RLS}
+%
+% La server action \texttt{deleteChatsAction(chatIds[])} fa:
+%
+% \begin{verbatim}
+% await supabase
+%   .from('chats')
+%   .delete()
+%   .in('id', ids)
+%   .eq('user_id', user.id)  // belt-and-braces
+%   .select('id');           // count
+% \end{verbatim}
+%
+% El predicat \texttt{.eq('user\_id', user.id)} és
+% tècnicament redundant perquè les polítiques RLS ja
+% prohibeixen esborrar files d'altres usuaris, però queda per
+% una raó de disseny: si mai una futura refactor tregués la
+% política RLS per error (regression), la server action encara
+% no permetria cross-tenant deletes. És el mateix patró que la
+% consolidació d'auth-gates que l'auditoria de graphify va
+% validar (\S\ref{sec:graphify-audit}). La clàusula
+% \texttt{.select('id')} és l'indicador de count: si l'array
+% retornat té menys ids que els demanats, és que RLS ha
+% filtrat-ne alguns, i el toast reflecteix el count real.
+%
+% \subsection{Cascade automàtica al nivell de BD}
+%
+% La taula \texttt{public.messages} té una clau forana
+% \texttt{chat\_id REFERENCES chats(id) ON DELETE CASCADE}, de
+% manera que esborrar un xat esborra automàticament el seu
+% historial. Es confirma a nivell aplicatiu: la UI no intenta
+% esborrar els missatges explícitament, delega a Postgres.
+
 \section{Reordenació manual amb fractional indexing}
 \label{sec:drag-fractional}
 % Subsecció per al redactat final. Afegit 2026-04-25.
@@ -216,4 +349,709 @@
 % en un factor equivalent a la reducció de tokens que vam mesurar
 % al \S\ref{sec:graphify-audit} (480×). És la mateixa propietat
 % aplicada al domini d'usuari en lloc del domini de codi.
+
+\section{Física del graph: tethering estil Obsidian}
+\label{sec:graph-physics}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% El visualitzador base (\S\ref{sec:neural-graph}) usa
+% `react-force-graph-2d` amb els defaults de d3-force, que són
+% calibrats per a grafs densos de 100+ nodes. Sobre la corpus
+% típica d'un usuari de Synapse Notes (12-50 notes, sparse), el
+% comportament era patològic:
+%
+% 1. Arrossegar un node pertorbava lleugerament la resta i la
+%    repulsió propagava la pertorbació a tota la tela
+%    (efecte "blast").
+% 2. Nodes sense arestes (orphans — p.ex. una nota única amb tag
+%    únic) derivaven cap al centre i s'apilaven visualment a
+%    sobre dels nodes d'un clúster.
+% 3. La càmera auto-fit feia zoom-out al perímetre expandit
+%    temporalment i no tornava.
+%
+% El target de disseny és el graph view d'Obsidian: una massa
+% central amb un perímetre virtual dins del qual les notes es
+% mouen lliurement, i que retornen naturalment quan es
+% desplacen fora. No un perímetre rígid (boundary check), sinó
+% un equilibri físic entre tres forces:
+%
+% \begin{enumerate}
+%   \item \textbf{charge (repulsió)}: strength $-55$ amb
+%     \texttt{distanceMax = 500~px}. Multi-body Barnes-Hut
+%     inverse-square, però acotada al rang visible per evitar que
+%     un drag ondulés a través de tot el graf.
+%   \item \textbf{gravetat (forceX/forceY)}: strength $0.07$ per
+%     eix. Pull lineal per-node cap a l'origen; la força creix amb
+%     la distància, de manera que un node proper sent poc però un
+%     node al corner de la tela sent prou per tornar.
+%   \item \textbf{collision (forceCollide)}: radi $38~\text{px}$,
+%     strength $0.95$. Resolució geomètrica hard — tracta cada
+%     node com un disc i impedeix el solapament directe (que
+%     charge, a curt rang, no aconsegueix eficientment).
+% \end{enumerate}
+%
+% L'equilibri entre charge i gravetat té forma $d^3 \propto
+% |Q|/k_g$ amb $Q$ la càrrega i $k_g$ la strength de gravetat.
+% Amb $|Q|=55$ i $k_g=0.07$: $d \approx 9.3$ en unitats de d3
+% (≈~80-100~px a zoom 1×), que és el radi del clúster estable.
+% El collision radius ($38~\text{px}$) és inferior al radi
+% d'equilibri però superior a les dimensions del node dibuixat
+% (4-6~px) + label renderitzat (~35~px vertical), impedint
+% colisions visuals sense dominar la física.
+%
+% \textbf{Bug operacional trobat}: el ref imperativa a
+% ForceGraph2D (\texttt{useRef}) no es capturava perquè el
+% component estava dinàmicament importat amb
+% \texttt{next/dynamic} (\texttt{ssr: false}). L'efecte
+% \texttt{useEffect} disparava quan arribaven les dades, veia
+% \texttt{ref.current === null} perquè el mòdul encara no
+% s'havia carregat, i feia no-op silenciós. Cap tuning
+% s'aplicava mai. Solució: ref basada en \texttt{useState}
+% passada com a callback-ref. Aquest patró queda documentat
+% com a lliçó per a qualsevol integració futura amb
+% \texttt{next/dynamic}.
+
+\section{Suggeriment automàtic d'etiquetes amb LLM estructurat}
+\label{sec:tag-suggestion}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Feature que combina dues peces ja presents al sistema: el model
+% Claude Haiku 4.5 (usat al xat principal) i el patró de
+% structured output del Vercel AI SDK. Donada la composició d'una
+% nota (contingut + llista d'etiquetes existents del propi
+% usuari), l'API retorna fins a 3 etiquetes existents aplicables
+% i, opcionalment, una proposta d'etiqueta nova normalitzada.
+%
+% \subsection{Arquitectura}
+%
+% - \textbf{Ruta}: \texttt{POST /api/suggest-tags} --- auth-gated
+%   via \texttt{supabase.auth.getUser()}, Zod schema al request
+%   (\texttt{content}, \texttt{availableTags}), límit de
+%   20.000~chars al contingut, 500 etiquetes.
+% - \textbf{Model}: \texttt{anthropic("claude-haiku-4-5")} amb
+%   \texttt{generateObject()} del SDK. El schema de resposta és
+%   \texttt{z.object(\{existing: z.array(z.string()), newTag:
+%   z.string().nullable()\})}. La crítica de disseny inicial fou
+%   afegir \texttt{.max(3)} al array, però Anthropic rebutja
+%   \texttt{maxItems} al JSON Schema de structured output; el cap
+%   de 3 es mou al post-processat (\texttt{.slice(0, 3)}) i es
+%   reforça al prompt.
+% - \textbf{Normalització}: l'etiqueta nova és coaccionada a
+%   lowercase + kebab-case via regex
+%   (\texttt{replace(/[\^{}a-z0-9-]/g, "-")} + colapsar guions) i
+%   és refusada si col·lideix amb una etiqueta ja existent.
+%
+% \subsection{Client: hook debounced}
+%
+% \texttt{useTagSuggestions(content, availableTags, opts)} al
+% fitxer \texttt{src/hooks/use-tag-suggestions.ts}. Característiques:
+%
+% - Debounce configurable (default 700~ms).
+% - Minimum de caràcters (default 15) abans que un fetch
+%   dispari.
+% - \texttt{AbortController} per cancel·lar fetches obsolets quan
+%   l'usuari segueix teclejant.
+% - Mode \texttt{auto: false} per saltar-se el trigger automàtic
+%   quan la nota ja té etiquetes (no té sentit re-thinking en
+%   obrir una nota existent ja categoritzada).
+% - Funció imperativa \texttt{trigger()} exposada per casos que
+%   sí que volen una petició explícita (p.ex. l'usuari clica al
+%   desplegable d'etiquetes en mode edit).
+%
+% \subsection{Lliçó defensable}
+%
+% El cost per suggeriment és mesurable ($\approx$ 1~k tokens
+% d'input amb el prompt actual, al voltant de
+% \$0.00025 per sol·licitud amb Haiku 4.5). L'intel·ligent
+% gating (minChars, debounce, auto=false quan la nota ja té
+% tags) redueix el volum de peticions en 2-3 ordres de
+% magnitud respecte a una solució naive ``un fetch per
+% keystroke''. Aquest és el mateix patró de cost-gating que
+% la tesi defensa per a eines MCP: la intel·ligència ha
+% d'estar al wrapper, no només al model.
+
+\section{Gestió d'etiquetes atòmica amb RLS}
+\label{sec:tag-management}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Funcionalitat simple però defensable: permetre que l'usuari
+% canviï el nom d'una etiqueta (o l'elimini) i la mutació es
+% propagui a totes les notes que l'usin. La implementació
+% il·lustra una decisió arquitectònica no-òbvia: \textbf{per què
+% una RPC Postgres en comptes d'un loop de \texttt{UPDATE}s a la
+% capa d'aplicació}.
+%
+% \subsection{Alternativa descartada: loop client-side}
+%
+% Podríem fer \texttt{client.from('notes').select().contains(
+% 'tags', [from])}, després iterar cada nota i fer un
+% \texttt{UPDATE} amb l'array modificat. Problemes:
+% 1. No és atòmic --- una finestra entre SELECT i UPDATE permet
+%    noves notes amb l'etiqueta antiga.
+% 2. Requereix N round-trips xarxa (1 per cada nota amb
+%    l'etiqueta).
+% 3. La lògica de dedup (quan una nota té tant \texttt{from\_tag}
+%    com \texttt{to\_tag} el merge ha de retornar un sol
+%    element) s'implementa a JavaScript, duplicant el codi que
+%    ja existeix a Postgres com a operació de set.
+%
+% \subsection{Solució: RPC \texttt{rename\_tag(from, to)}}
+%
+% Migració \texttt{20260426120000\_rename\_and\_delete\_tag\_rpcs.sql}.
+% La funció és:
+%
+% \begin{itemize}
+%   \item \texttt{SECURITY INVOKER} --- respecta les polítiques
+%     RLS de \texttt{public.notes}, que ja filtren per
+%     \texttt{user\_id = auth.uid()}. No cal auth check manual.
+%   \item \texttt{search\_path = public, pg\_catalog} (sense
+%     cometes al voltant de la llista! --- vegeu la nota final).
+%   \item Update atòmic: una sola \texttt{UPDATE} amb CTE que
+%     transforma l'array de tags amb \texttt{unnest} +
+%     \texttt{CASE WHEN} + \texttt{DISTINCT} + \texttt{array\_agg}.
+%     Preserva ordre d'aparició i dedupa merges.
+%   \item Retorna el count de notes tocades per mostrar un toast
+%     ``Renamed X → Y · N notes updated''.
+% \end{itemize}
+%
+% \texttt{delete\_tag(target)} segueix el mateix patró, amb un
+% \texttt{array(select t from unnest(n.tags) t where t <> target)}.
+%
+% \subsection{Seguretat}
+%
+% Les dues funcions \texttt{revoke all from public} + \texttt{grant
+% execute to authenticated}. Cap risc d'escalada perquè
+% \texttt{SECURITY INVOKER} fa que la sessió del caller decideixi
+% les files visibles --- un usuari anònim o un usuari diferent
+% veu zero files i per tant la \texttt{UPDATE} afecta zero files.
+
+\section{Eines MCP per exploració del graph (exposició externa)}
+\label{sec:mcp-graph-tools}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Les dues tools \texttt{graph\_neighbors} i
+% \texttt{graph\_shortest\_path} originàriament afegides al route
+% handler de xat intern (\S\ref{sec:neural-graph}) s'han portat al
+% servidor MCP (\texttt{src/lib/mcp/server.ts}) perquè agents
+% externs (Claude Desktop, Cursor, o qualsevol client MCP) puguin
+% raonar sobre el graph amb la mateixa API que el xat intern.
+%
+% \subsection{Refactor: servei compartit}
+%
+% La lògica de BFS/shortest-path es va extreure a
+% \texttt{src/services/graph.service.ts} seguint el patró factory
+% + classe privada (vegeu \texttt{NotesService} al mateix
+% directori). El servei exposa:
+%
+% \begin{itemize}
+%   \item \texttt{loadGraph()} --- crida la RPC una vegada i
+%     cache-a el resultat per la vida útil de la instància
+%     (normalment una request-scoped).
+%   \item \texttt{neighbours(noteId, depth, limit)} --- BFS fins
+%     \texttt{depth} hops, ordenat per edge weight.
+%   \item \texttt{shortestPath(fromId, toId, maxHops)} --- BFS
+%     amb predecessor map, retorna un status union
+%     (\texttt{"ok" | "missing" | "no\_path" | "same"}) + la
+%     cadena quan \texttt{"ok"}.
+% \end{itemize}
+%
+% Tant \texttt{/api/chat/route.ts} com les tools MCP
+% (\texttt{src/lib/mcp/tools/graph-neighbors.ts} i
+% \texttt{graph-shortest-path.ts}) consumeixen el mateix servei.
+% Qualsevol bug al BFS es corregeix en un únic lloc i
+% s'automàticament veu reflectit a les dues interfícies.
+%
+% \subsection{Valor per a la tesi Part~B}
+%
+% Aquest refactor no-trivial il·lustra el principi central de la
+% tesi \textbf{"same service, many interfaces"}:
+%
+% \begin{itemize}
+%   \item L'autorització és sempre a \texttt{auth.uid()} via RLS
+%     --- el servei no fa cap \texttt{if~(user)} explícit; delega
+%     a Postgres.
+%   \item La superfície d'agent (MCP) i la superfície humana
+%     (xat intern) veuen exactament la mateixa informació, amb
+%     la mateixa escala de reducció de tokens.
+%   \item Una tool MCP rep textos curts (JSON estructurat) en
+%     lloc de dumps de contingut. Un atacant que aconsegueixi
+%     cridar \texttt{graph\_neighbors(42)} no obté el
+%     \textit{contingut} de les notes veïnes, només les seves
+%     ids, títols-preview i weights. La tool \texttt{get\_note}
+%     separada manté la separació de privilegis.
+% \end{itemize}
+
+\section{Backlinks \texttt{[[N]]}: l'aresta EXTRACTED al graph de notes}
+\label{sec:backlinks}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% La v1 del graph de notes (\S\ref{sec:neural-graph}) té dos
+% tipus d'aresta: \textbf{tag} (Jaccard $\geq 0.2$, INFERRED
+% per similitud d'etiquetes) i \textbf{embed} (cosine $\geq 0.75$,
+% INFERRED per similitud semàntica). Ambdós són \textbf{derivats}
+% — el sistema els calcula, l'usuari no els declara.
+%
+% Aquesta subsecció afegeix un tercer tipus, \textbf{link}, que és
+% \textbf{EXTRACTED}: l'usuari escriu literalment \texttt{[[N]]}
+% dins del contingut d'una nota i això crea una aresta directional
+% amb pes 1.0 de la nota on s'escriu cap a la nota $N$. El paral·lel
+% metodològic amb l'auditoria \texttt{graphify} del codi
+% (\S\ref{sec:graphify-audit}) és directe: allà les arestes
+% EXTRACTED són \texttt{import} / \texttt{call} via AST, aquí són
+% \texttt{[[N]]} via parsing de markdown. Tots dos domini guanyen
+% arestes d'alta confiança a costa d'una petita anotació per part
+% de l'autor, i el graph resultant pot distingir "l'autor ho ha dit
+% explícitament" de "el sistema ho ha inferit".
+%
+% \subsection{Arquitectura}
+%
+% \begin{itemize}
+%   \item Taula \texttt{public.note\_links(source\_id, target\_id,
+%     user\_id, created\_at)} amb PK composta
+%     \texttt{(source\_id, target\_id)}, foreign keys
+%     \texttt{ON DELETE CASCADE} a \texttt{public.notes.id},
+%     constraint \texttt{CHECK (source\_id <> target\_id)} per
+%     evitar self-loops, i 3 índexs per cobrir les direccions
+%     rellevants (outgoing, incoming, per-usuari).
+%   \item RLS: polítiques per-usuari (SELECT/INSERT/UPDATE/DELETE)
+%     usant \texttt{user\_id = auth.uid()} directament sobre la
+%     taula (denormalitzat) per evitar joins que desaprofitarien
+%     els índexos.
+%   \item RPC \texttt{sync\_note\_links(p\_source\_id,
+%     p\_target\_ids[])}: SECURITY INVOKER. Patró "replace entire
+%     outgoing set": DELETE dels enllaços existents del source +
+%     INSERT nomes de targets vàlids (ownership + not archived +
+%     not self). Tornarà el count insertat. Errors de
+%     referències a notes d'altres usuaris es filtren
+%     silenciosament en lloc de tombar la creació de la nota —
+%     una decisió de disseny que separa "syntax valid backlink"
+%     de "semantically valid backlink".
+%   \item Parsing: regex \texttt{/\textbackslash[\textbackslash[
+%     \textbackslash s*(\textbackslash d+)
+%     \textbackslash s*\textbackslash]\textbackslash]/g} a
+%     \texttt{src/lib/note-links.ts} — dedup amb \texttt{Set},
+%     filter de self-refs. Cridat des de \texttt{createNote} i
+%     \texttt{updateNote} després de la persistència principal.
+%   \item Graph RPC: afegit un tercer CTE \texttt{link\_edges}
+%     al \texttt{public.get\_note\_graph()} que, crucialment,
+%     NO dedupa per parell no-ordenat (a diferència dels edges
+%     tag/embed). La direccionalitat es preserva per arribar al
+%     client, que renderitza una arrowhead només per
+%     \texttt{kind === 'link'}.
+% \end{itemize}
+%
+% \subsection{Renderitzat i UX}
+%
+% \texttt{NoteMarkdown} fa un passe de pre-processing que
+% converteix \texttt{[[42]]} a \texttt{[{}[[42]]{}](/?note=42\#backlink)}
+% per alimentar \texttt{react-markdown} via el pipeline normal
+% de GFM. L'override del component \texttt{a} del renderitzador
+% detecta el sentinel \texttt{\#backlink} i substitueix
+% l'enllaç per un \texttt{<Link>} de Next.js que deep-linka a
+% \texttt{/?note=N}; el handler de \texttt{NoteGrid} ja creat
+% a \S\ref{sec:drag-fractional} obre automàticament el diàleg
+% d'edició. El visible al preview queda com una pill de color
+% violeta \texttt{[{}[42]{}]} que encaixa amb la mateixa paleta
+% que les arestes \texttt{link} al graph viewer — la correlació
+% visual ajuda al reconeixement.
+%
+% \subsection{Valor per al TFG}
+%
+% \begin{itemize}
+%   \item \textbf{EXTRACTED vs INFERRED com a propietat del graph}.
+%     El graph és el mateix artefacte (el mateix JSON, el mateix
+%     canvas), però ara conté dos tipus epistemològicament
+%     diferents d'aresta. Si un estudi volgués mesurar
+%     "precisió percebuda per l'usuari" o "utilitat per a
+%     descobriment", podria tractar les dues classes com
+%     braços separats d'un A/B i tenir una base de comparació
+%     natural.
+%   \item \textbf{Paral·lel directe amb el pipeline
+%     graphify}. La mateixa axis epistemolìogica (AST vs LLM
+%     per-chunk) que s'aplica al codi s'aplica aquí al domini
+%     d'usuari. El memoir pot citar \S\ref{sec:graphify-audit}
+%     i \S\ref{sec:backlinks} com a aplicació del mateix patró a
+%     dos domini diferents: \textit{estructura explícita + senyal
+%     inferit = descobriment auditable}.
+%   \item \textbf{Reducció del recall error del xat RAG}. Un
+%     usuari que hagi escrit \texttt{[[42]]} a una nota pot
+%     preguntar al xat "quines notes apunten a la 42?" i la tool
+%     \texttt{graph\_neighbors(42)} ara retorna resultats amb
+%     \texttt{edge\_kind: 'link'}. Això és \textit{eina de
+%     recuperació amb precisió 1.0 per construcció} — cap llindar
+%     de similitud pot fallar-ne la recuperació.
+% \end{itemize}
+%
+% \subsection{Pendent (v2)}
+%
+% \begin{itemize}
+%   \item \textbf{Autocomplete a l'editor}: trigger en teclejar
+%     \texttt{[[}, mostrar popover amb les notes vives i
+%     inserir-ne l'id. V1 funciona amb \texttt{[[N]]} escrit a
+%     mà; v2 fa l'experiència comparable a Obsidian.
+%   \item \textbf{Panell "Backlinks d'aquesta nota"} al diàleg
+%     d'edició — llistar les notes que contenen
+%     \texttt{[[aquest\_id]]}, amb una query
+%     \texttt{WHERE target\_id = \$1} sobre \texttt{note\_links}.
+%   \item \textbf{Autocomplete per títol} (\texttt{[[Noms de gat]]}
+%     resolt a l'id 9 al save). Decisió actual: només per id
+%     perquè els "títols" no són estables (primera línia del
+%     contingut, pot canviar-se a qualsevol edit).
+% \end{itemize}
+
+\section{Polit del graph viewer: clusters, favourites i focus}
+\label{sec:graph-polish}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Pass de polish al viewer que toca tres decisions d'informació
+% visual independents però relacionades.
+%
+% \subsection{Louvain només sobre arestes no-direccionals}
+%
+% La versió inicial alimentava la \texttt{UndirectedGraph} de
+% graphology amb totes les arestes retornades per la RPC
+% (\texttt{tag}, \texttt{embed} \textit{i} \texttt{link}). Efecte
+% secundari: afegir un sol backlink \texttt{[[X]]} des d'una nota
+% a una altra feia que Louvain re-assignés les comunitats, i dues
+% notes semànticament no relacionades acabaven pintades del mateix
+% color perquè l'autor havia posat una fletxa entre elles. Això
+% trenca la propietat de disseny: \textit{color = grup conceptual},
+% \textit{aresta = connexió}. Fix trivial: el loop d'arestes
+% afegeix només les de tipus \texttt{tag} i \texttt{embed} a la
+% graphology. Les \texttt{link} segueixen existint al JSON, es
+% renderitzen amb fletxa violeta, i no mouen el clustering.
+% Conseqüència defensable: els clusters són estables sota edició
+% de backlinks --- l'usuari pot reorganitzar la seva xarxa de
+% citacions sense que el graph re-pinti tots els nodes.
+%
+% \subsection{Favorits: anell amber amb glow exterior}
+%
+% V1: radi més gran (6 vs 4.5~px) + halo ambre permanent. El
+% hover sobre un node normal afegia un halo idèntic i el feedback
+% d'interacció era invisible sobre un starred perquè l'halo ja
+% hi era.
+%
+% V2 (estrella dins el disc): glyph de 5 punts pintat al centre,
+% amb outline blanc. Problema detectat als colors de paleta sage,
+% warm-yellow i ochre, on l'estrella amber es fon amb el background
+% del node i no destaca.
+%
+% V3 (final): radi uniforme 5~px; el marcador ``starred'' és un
+% \textbf{anell ambre} pintat \textit{fora} del disc (radi $R+2.25$)
+% amb \texttt{shadowBlur 10} per a un glow suau que s'extén encara
+% més enllà. Backing dark-ring fi (0.6~px, opacitat 0.65 del
+% color de fons) per llegibilitat sobre colors clars. Avantatges:
+% no consumeix pixels dins del disc (community color intacte),
+% no competeix amb el halo de hover, i el glow exterior fa que
+% sigui detectable a qualsevol zoom. Preu de rendering: una sola
+% passada adicional de canvas \texttt{stroke} + \texttt{shadow}.
+%
+% \subsection{Palette doble: light / dark reactiu}
+%
+% Els colors del canvas (labels, edges, dimming, backing de la
+% ring amber) no es poden delegar a Tailwind perquè són
+% \texttt{ctx.fillStyle}/\texttt{strokeStyle} literals. V1 usava
+% valors codificats per a dark mode (\texttt{rgba(255,255,255,\ldots)}
+% per als labels, tons blavosos per les arestes tag) que en
+% light mode quedaven invisibles.
+%
+% V2 llegeix el tema via \texttt{useTheme} de next-themes
+% (\texttt{resolvedTheme} collapsa \texttt{system} a
+% \texttt{light}/\texttt{dark}) i construeix l'objecte
+% \texttt{palette} amb \texttt{useMemo} keyed a \texttt{isDark}.
+% Totes les crides a \texttt{paintStarredRing()},
+% \texttt{baseLinkColor()} i les fills dels labels reben colors
+% del palette. La palette light té variants amb contrast invertit
+% (text gris fosc en lloc de blanc, edges més saturats perquè el
+% background no ajuda, \texttt{inactiveAlpha: 0.25} en lloc de
+% \texttt{0.15} per no perdre els nodes dimmed en fons clar),
+% més un backing blanc per al ring starred (el backing fosc de
+% dark mode fondria amb els nodes sobre light palette).
+
+% \subsection{Hover focus estil Obsidian}
+%
+% El viewer ja tenia \texttt{searchIds} per fer dim d'allò
+% que no concorda amb la cerca a la sidebar. Generalitzat a
+% \texttt{focusIds}: el neighbourhood 1-hop al voltant del node
+% hovered o seleccionat. Amb adjacency precalculada \texttt{O(E)}
+% al mount del data, el lookup és \texttt{O(1)} per node/edge a
+% cada frame de render.
+%
+% L'operació \texttt{isActive(id)} combina tots dos filtres amb
+% AND (un node és ``on'' si passa tant \texttt{searchIds} com
+% \texttt{focusIds}). Els edges usen la mateixa funció: un edge
+% és ``on'' quan els dos extrems ho són. No-actives es renderitzen
+% amb \texttt{globalAlpha = 0.15} per nodes i
+% \texttt{rgba(180,200,230,0.04)} per edges --- encara visibles
+% com a context, però clarament secundaris.
+%
+% Un detall d'UX: quan \texttt{focusIds} està actiu, els labels
+% dels nodes del subgraph es mostren \textit{independentment del
+% zoom}. Normalment els labels només apareixen a
+% \texttt{globalScale > 1.6} perquè al zoom-out l'overview
+% s'ofegaria de text. Però un usuari que fa hover sobre un node
+% vol \textit{llegir-lo} i llegir els seus veïns, de manera que
+% el zoom-out no els pot amagar. El label del node hovered té
+% font una mica més gran (12 vs 11~px) i opacitat plena.
+
+\section{Autocomplete de backlinks i camp títol explícit}
+\label{sec:title-and-autocomplete}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Dues peces d'UX que completen el cicle de vida dels backlinks
+% (\S\ref{sec:backlinks}) i fan el producte utilitzable per a un
+% usuari que no sap els ids a memòria.
+%
+% \subsection{Migració: columna \texttt{title} amb índex trigram}
+%
+% Fins ara el ``títol'' mostrat al graph, a l'inventari del xat i a
+% les cards es derivava de la primera línia del contingut. Fràgil:
+% editar el cos canviava el títol percebut; notes de contingut llarg
+% sense encapçalament clar sortien com \texttt{(empty)}; era
+% impossible referenciar una nota per títol dins la RPC de cerca.
+%
+% Migració \texttt{20260426160000\_notes\_title\_column.sql} + patch
+% de la RPC \texttt{get\_note\_graph} (\texttt{20260426160100}):
+%
+% \begin{itemize}
+%   \item \texttt{notes.title text} nullable amb
+%     \texttt{CHECK (title is null or length between 1 and 200)}.
+%     Decisió deliberadament nullable: es respecta la dada existent
+%     sense forçar un backfill, i el display code segueix amb el
+%     fallback \texttt{split\_part(content, '\textbackslash n', 1)}.
+%   \item Índex \texttt{GIN} amb \texttt{pg\_trgm}
+%     (\texttt{extensions.gin\_trgm\_ops}) sobre
+%     \texttt{lower(title)}. Motivació: la popover d'autocomplete
+%     (vegeu sota) farà una cerca \texttt{ILIKE \%q\%} per
+%     keystroke, i sense el trigram això fa un seqscan damunt
+%     \texttt{notes}. NO es pot incloure \texttt{user\_id} al
+%     mateix índex perquè \texttt{uuid} no té opclass per defecte
+%     a \texttt{gin}; la RLS + els índexos user-scoped existents
+%     ja filtren les files abans de l'etapa de matching léxic.
+%   \item \texttt{get\_note\_graph()} reescrita amb
+%     \texttt{coalesce(nullif(trim(n.title), ''), <fallback>)}
+%     per mostrar el títol explícit quan existeix.
+% \end{itemize}
+%
+% L'embedding es genera sobre la concatenació
+% \texttt{\$\{title\}\textbackslash n\textbackslash n\$\{content\}}
+% quan hi ha títol --- permet que la RAG trobi notes pel
+% tòpic (``receptes de pasta'') encara que el cos sigui curt o
+% pobre en paraules clau.
+%
+% \subsection{Endpoint de cerca i popover \texttt{[[}}
+%
+% \texttt{GET /api/note-search?q=...\&limit=8} a
+% \texttt{src/app/api/note-search/route.ts} --- auth-gated, Zod
+% schema a la query string, cerca combinada
+% \texttt{title ILIKE \%q\% OR content ILIKE \%q\%} amb short-circuit
+% per input numèric (\texttt{[[12]]} sempre prioritza l'id 12
+% exacte sobre títols que continguin ``12''). Límit 25 per
+% robustesa, 8 per defecte per a UX.
+%
+% \texttt{src/components/notes/backlink-textarea.tsx} envolcalla el
+% \texttt{<Textarea>} shadcn amb un estat de sessió:
+%
+% \begin{itemize}
+%   \item \texttt{trigger: \{ idx, prefixLen, mode \} | null} ---
+%     on comença el trigger al textarea (prefixLen = 2 per
+%     \texttt{[[}, 1 per \texttt{@} / \texttt{\#}), més el mode
+%     \texttt{'note' | 'tag'} que determina d'on venen els hits
+%     (\texttt{/api/note-search} vs filtre local damunt
+%     \texttt{availableTags}) i què es commit (\texttt{[[<id>]]}
+%     per notes, \texttt{\#<TagName>} per tags).
+%   \item \texttt{query: string} --- text teclejat des del trigger
+%     fins al caret.
+% \end{itemize}
+%
+% \textbf{Portal per escapar \texttt{overflow: hidden}}. El popover
+% es renderitza via \texttt{ReactDOM.createPortal} al
+% \texttt{document.body} amb \texttt{position: fixed}. Sense el
+% portal, el diàleg d'edició (que té \texttt{overflow: hidden}
+% al contenidor del \texttt{DialogContent}) retallava la llista
+% de resultats i sortien només 4 entrades quan n'hi havia 8.
+%
+% \textbf{Posicionament caret-relatiu via mirror div}. La posició
+% del popover no pot ser el top-left del textarea --- seria
+% incoherent si el caret està 3 línies més avall. La tècnica
+% canònica: crear un \texttt{<div>} off-screen amb els mateixos
+% \texttt{font-family}, \texttt{padding}, \texttt{border},
+% \texttt{line-height}, \texttt{letter-spacing} i
+% \texttt{white-space} del textarea, inserir-hi el contingut fins
+% al \texttt{selectionStart} + un marker \texttt{<span>} buit, i
+% llegir el \texttt{getBoundingClientRect()} del marker. Traduïm
+% la coord al sistema de viewport restant \texttt{scrollTop} /
+% \texttt{scrollLeft} del textarea. El popover s'obre just sota
+% el caret amb \texttt{lineHeight + 4~px} de gap; flip automàtic
+% a dalt del caret si no hi cap sota la viewport.
+%
+% \textbf{Click cooperatiu amb Radix: tres iteracions fins al
+% root cause}. Radix Dialog té dos mecanismes contra clicks
+% fora del contingut, i els dos calen resoldre per aconseguir
+% que els nostres portals anidades rebin events:
+%
+% \begin{enumerate}
+%   \item \texttt{onInteractOutside} / \texttt{onPointerDownOutside}
+%     a \texttt{DialogContent}. Detecta el click ``fora'' i
+%     dispara un \texttt{CustomEvent}. Si no s'intercepta, fa
+%     \texttt{onOpenChange(false)} i tanca el diàleg. Calia
+%     veure que \texttt{event.target} del CustomEvent és
+%     \textit{la mateixa DialogContent}, no el veritable target
+%     DOM --- aquest viu dins
+%     \texttt{event.detail.originalEvent.target}. Debug fàcil de
+%     perdre, però la clau per distingir popover-click de
+%     outside-click genuí.
+%   \item \texttt{pointer-events: none} sobre \texttt{document.body}
+%     mentre el diàleg està obert. Radix ho fa per assegurar
+%     que \textbf{només} la DialogContent sigui interactiva; els
+%     descendents de body hereten el \texttt{none} per defecte.
+%     El nostre popover portat a body hereta aquesta regla i
+%     els clicks ``passen a través'' fins al textarea, que SÍ que
+%     re-habilita pointer events per estar dins del propi portal
+%     de Radix. Fix: \texttt{pointer-events: auto} explícit al
+%     contenidor del popover. Aquest va ser el bug que ens va
+%     costar tres iteracions localitzar: visualment el popover
+%     estava a dalt (z-index 100), però DevTools revelava que
+%     l'Element Inspector marcava el \textit{textarea} com a
+%     target de hover, no el botó del popover.
+% \end{enumerate}
+%
+% El patró final (un data-attribute sobre el popover, un
+% handler a \texttt{onInteractOutside} de Radix que mira
+% \texttt{event.detail.originalEvent.target}, i un override
+% explícit de \texttt{pointer-events: auto}) és un patró que hem
+% anotat al registre auto-memòria
+% (\texttt{feedback\_radix\_nested\_portal\_clicks.md}) perquè és
+% aplicable a qualsevol popover custom anidat dins un diàleg
+% Radix/shadcn.
+%
+% \textbf{Scroll del llistat: gotcha de flexbox}. El popover té
+% \texttt{maxHeight: 260~px} i internament un \texttt{<ul>} amb
+% \texttt{flex-1 overflow-y-auto}. Amb 8 hits (40~px cadascun
+% $\approx$ 320~px), la llista s'haurien de retallar i mostrar
+% scrollbar. V1 no ho feia: la ul creixia a la seva altura
+% intrínseca i els rows 7-8 es renderitzaven fora del container
+% visible sense cap forma d'arribar-hi. Root cause clàssic: a
+% flexbox, el \texttt{min-height} per defecte d'un flex-child és
+% la seva altura de contingut, cosa que fa que \texttt{flex-1}
+% amb \texttt{overflow-y-auto} no activi l'scrollbar dins un
+% parent amb \texttt{max-height}. Fix: afegir \texttt{min-h-0}
+% a la ul perquè pugui shrink per sota la seva altura de
+% contingut. Un \texttt{scrollIntoView(\{block: 'nearest'\})}
+% keyed a \texttt{highlightedIndex} assegura que la navegació
+% per teclet manté el row seleccionat visible sense saltar si
+% ja és a pantalla.
+%
+% \textbf{Dos triggers per a notes, una sortida}. El component
+% reconeix \texttt{[[query} (wiki-style, accepta espais, acaba a
+% \texttt{]]} o newline) i \texttt{@query} (mention-style, acaba
+% a qualsevol whitespace, requereix word-boundary per no
+% disparar-se en emails, JSDoc \texttt{@deprecated}, etc.).
+% L'escaneig cap enrere es fa en dos passos: primer cerca una
+% sessió \texttt{[[} activa (si existeix, té prioritat absoluta
+% encara que hi hagi un \texttt{@} més recent al seu interior);
+% només si no hi ha \texttt{[[} obert es busca el \texttt{@}.
+% Escollir un candidat substitueix el fragment \textit{sempre}
+% per \texttt{[[<id>]]} --- una forma persistida, dues
+% ergonomies. El pill final es renderitza amb el \textbf{títol
+% del target} (no l'id cru) gràcies a un \texttt{noteIndex}
+% \texttt{Map<id, \{ title, excerpt \}>} propagat des de
+% \texttt{NoteGrid}, de manera que un self-link o una referència
+% a una nota coneguda és immediatament llegible sense endevinar
+% què és el número.
+%
+% \textbf{Per què \texttt{\#} és per etiquetes, no per notes}.
+% Una primera iteració va afegir \texttt{\#} com a tercer
+% trigger de menció de notes, però la semàntica més útil (i més
+% coherent amb la resta de l'app) és la contrària: \texttt{\#Idees}
+% escrit al cos d'una nota renderitza un pill de tag clicable
+% que filtra el dashboard per aquesta etiqueta (\texttt{/?tag=<name>}
+% consumit pel mateix \texttt{useEffect} que gestiona
+% \texttt{/?note=<id>}). La normalització al render és regex amb
+% classe Unicode \texttt{\textbackslash p\{L\}\textbackslash p\{N\}\_-},
+% word-boundary requerit, i descart automàtic de casos que
+% l'autor no esperava que fossin tags (markdown headings
+% \texttt{\# Heading} --- espai després --- URLs amb fragment
+% \texttt{/path\#section}, codis hex \texttt{\#ffcc00} perquè
+% exigim almenys una lletra). La regla final és: \texttt{[[} /
+% \texttt{@} $\to$ nota, \texttt{\#} $\to$ etiqueta; un sigil, una
+% semàntica.
+%
+% Els controls de teclat segueixen convencions de combobox (↑/↓
+% per navegar, Enter/Tab per acceptar, Escape per cancel·lar).
+% \textbf{Decisió d'UX defensable}: la referència persistida a
+% BD és \textit{sempre} per id numèric, no per títol. Raó: els
+% títols poden canviar lliurement sense trencar el link de la
+% nota font. Mateix patró que els webmentions / URL-persistent
+% identifiers de Zotero. L'autocompleta busca per títol perquè
+% els humans recordem noms; la persistència és per id perquè les
+% màquines requereixen estabilitat.
+%
+% \subsection{Polishing del render i del graph arrow}
+%
+% Pass de millora \texttt{src/components/notes/note-markdown.tsx}:
+% el pill generat per \texttt{[[N]]} guanya un \texttt{Link2} icon
+% de lucide, un border més definit i \texttt{scroll={false}} al
+% \texttt{<Link>} de Next.js --- clicar-lo ja no fa jump al top
+% de la pàgina.
+%
+% Graph viewer: \texttt{linkDirectionalArrowLength: 7} (era 5) i
+% \texttt{linkDirectionalArrowColor: rgba(185, 154, 224, 1)}
+% (opacitat plena) per fer l'arrowhead llegible a zoom default.
+% \texttt{linkDirectionalArrowRelPos: 0.78} posa la fletxa a 78\%
+% del camí source→target --- prou lluny del node destí perquè no
+% es solapi amb el seu disc, prou a prop perquè la direcció sigui
+% inequívoca.
+%
+% Prose styling a les cards (\texttt{note-grid.tsx}): modificadors
+% Tailwind \texttt{prose-*} customitzats per a ritme tipogràfic
+% més ajustat a les mides de card (\texttt{prose-p:my-1.5},
+% \texttt{prose-ul:my-1.5 pl-5}, \texttt{prose-code:bg-muted/60},
+% \texttt{prose-pre:bg-muted/80 border}, etc.). Motivació: el
+% \texttt{prose-sm} default està calibrat per a columnes
+% d'article, no per a cards de $\sim 300\text{px}$ d'alçada.
+
+\section{Bug defensable: \texttt{search\_path} a funcions Postgres}
+\label{sec:search-path-bug}
+% Subsecció per al redactat final. Afegida 2026-04-24.
+%
+% Episodi d'enginyeria que il·lustra un patró de seguretat-vs-
+% funcionalitat que apareix repetidament a la Part~B. La funció
+% \texttt{public.get\_note\_graph()} va ser inicialment escrita
+% amb \texttt{SET search\_path = ''} com a mesura de hardening
+% contra schema hijacking (cap schema a la cerca $\Rightarrow$ cap
+% possibilitat que un schema malicios del caller interfereixi).
+%
+% Efecte secundari: l'operador \texttt{<=>} de pgvector no es
+% resolia, perquè pgvector viu al schema \texttt{public} i les
+% cerques d'operador (a diferència de funcions i taules) no poden
+% ser schema-qualificades inline. Producció retornava 500 amb:
+%
+% \begin{verbatim}
+% operator does not exist: vector <=> vector
+% \end{verbatim}
+%
+% \textbf{Primer intent de fix}:
+% \texttt{SET search\_path = 'public, pg\_catalog'} (amb cometes
+% al voltant de tota la llista). Error subtil: Postgres tracta
+% aquest string com UN sol nom de schema literal anomenat
+% \texttt{public, pg\_catalog}, que òbviament no existeix --- i
+% la reexecució torna a fallar amb el mateix error.
+%
+% \textbf{Fix correcte}: \texttt{SET search\_path = public,
+% pg\_catalog} (sense cometes, identifiers separats per coma).
+%
+% La lliçó aplicable a la Part~B: el hardening a nivell Postgres
+% (search\_path restringit) és una defensa real contra certs
+% vectors d'atac, però la sintaxi exacta importa i un error
+% silenciós pot fer que la funció funcioni només en condicions
+% específiques. El remei de disseny és verificar explícitament la
+% configuració post-migració:
+%
+% \begin{verbatim}
+% SELECT proconfig FROM pg_proc WHERE proname = 'get_note_graph';
+% \end{verbatim}
+%
+% que hauria de retornar \texttt{search\_path=public, pg\_catalog}
+% (sense cometes dobles al voltant de la llista).
 

@@ -14,18 +14,22 @@ This repository is also the codebase for the author's bachelor's thesis (TFG) at
 
 **Part A — Platform (Oct 2025 → Apr 2026).** A production-ready SaaS:
 
-- Multi-tenant notes with rich editor, tags, star/pin, archive (soft-delete), duplicate and undo-delete toast
+- Multi-tenant notes with rich editor, explicit titles, tags, star/pin, archive (soft-delete), duplicate, undo-delete, and manual drag-reorder backed by fractional-index keys
+- `[[note]]` backlinks with an inline autocomplete popover — type `[[` or `@` to link another note by title, `#` to insert an existing tag. Backlinks render as violet pills in the preview, become directional arrows in the graph, and deep-link through the URL into the target's edit dialog
 - RAG chat over your own notes via pgvector similarity + Vercel AI SDK streaming with tool calling, plus editor-style actions on every turn (copy, regenerate, edit & re-run, branch, export as Markdown)
+- Interactive knowledge graph at `/graph` — force-directed canvas (react-force-graph-2d) with Obsidian-style tethering physics, hover-focus on a node's neighbourhood, Louvain community colouring stable under edits, and three edge kinds: shared tag (Jaccard), embedding similarity (cosine), and user-authored `[[N]]` backlinks (directional)
+- AI tag suggestions while typing: a Claude-Haiku-backed classifier proposes existing tags or a normalised new tag name, with auto-trigger gated by content length and debounce so cost stays O(1) per note drafted
+- Atomic tag management (rename, merge via deduplication, delete) implemented as `SECURITY INVOKER` Postgres RPCs that propagate across every affected note in one transaction
 - Internationalised UI (Catalan, Spanish, English) with light / dark / system theme
-- Full keyboard control: command palette, global shortcuts (`F1` help, `/` search, `N` compose, `J/K` chat nav, `1/2/3` top-tag filter, `↑` prompt recall)
+- Full keyboard control: command palette, global shortcuts (`F1` help, `/` search, `N` compose, `G` toggle graph, `J/K` chat nav, `1/2/3` top-tag filter, `↑` prompt recall)
 - Responsive: editorial desktop layout, bottom-sheet compose and single-pane chat on mobile, with haptic feedback on checkbox toggles
-- Settings panel: profile, theme picker, data export (JSON + Markdown), tags manager (rename / merge / delete), keyboard shortcuts reference, revoke-all-sessions, danger zone
+- Settings panel: profile, theme picker, data export (JSON + Markdown), keyboard shortcuts reference, revoke-all-sessions, danger zone
 - Row-Level Security on every user-facing table — including DELETE/UPDATE policies on `chats` and `messages` so client mutations can't be silently dropped
 - Continuous deployment to Vercel
 
 **Part B — MCP extension & security research (Apr → Jun 2026).** Active work:
 
-- An MCP (Model Context Protocol) server exposing 6 tools over Streamable HTTP: `search_notes`, `get_note`, `create_note`, `update_note`, `tag_notes`, `summarise_notes`
+- An MCP (Model Context Protocol) server exposing 6 tools over Streamable HTTP: `search_notes`, `get_note`, `create_note`, `update_note`, `tag_notes`, `summarise_notes` — plus two graph-aware read tools (`graph_neighbors`, `graph_shortest_path`) that share their backend service with the internal RAG chat so external agents receive exactly the same bounded-retrieval responses
 - Multi-tenant OAuth 2.1 flow grafted onto Supabase Auth, with per-tenant JWTs and RLS passthrough
 - Three background agents on Supabase Edge Functions + `pg_cron`: embedding backfill, auto-tagging, weekly digest
 - Formal threat model built on the "Lethal Trifecta" framework (Willison, 2025), applied tool by tool

@@ -617,9 +617,316 @@ al primer audit de graphify (§10 Avaluació).
 - [ ] Settings popover amb els 5 sliders d'Obsidian
       (centerForce, repelForce, linkForce, linkDistance,
       labelFadeThreshold) amb persistència a localStorage.
-- [ ] Parser de `[[backlink]]` en markdown — un tipus d'aresta
-      més ric (EXTRACTED en comptes d'INFERRED).
+- [x] **Parser de `[[N]]` en markdown** — un tipus d'aresta
+      més ric (EXTRACTED, directional, pes 1.0). _2026-04-24,
+      migració `20260426140000_note_links.sql` + RPC
+      `sync_note_links` + arrow rendering al viewer._
+      Documentat a `§sec:backlinks`.
 - [ ] Chat co-occurrence edges (signal passiu a partir dels
       `agent_events` / chat messages).
 - [ ] Export `graph.svg` per incloure com a figura a §9 Disseny.
+
+---
+
+## 7. Graph hardening + tag ecosystem + graph-MCP (2026-04-24)
+
+Sessió de polishing post-llançament del graph viewer. Quatre
+features no-trivials, totes amb entrada a `§9 Implementació`:
+
+### Física estil Obsidian ✓
+
+Els defaults de `react-force-graph-2d` (charge -30 unbounded, cap
+gravetat per-node, cap collision) donaven una experiència de drag
+"blast": arrossegar un node propagava la pertorbació a tota la
+tela i els orphans s'apilaven sobre clústers densos. Reescrit
+el setup de forces (`src/components/graph/graph-viewer.tsx`):
+
+- `charge.strength(-55).distanceMax(500)` — repulsió multi-body
+  acotada.
+- `forceX(0).strength(0.07)` + `forceY(0).strength(0.07)` —
+  gravetat lineal per-node que crea el "perímetre virtual".
+- `forceCollide(38).strength(0.95)` — resolució geomètrica
+  hard que impedeix solapament visual quan la charge falla a
+  curt rang.
+- `d3AlphaDecay: 0.02`, `d3VelocityDecay: 0.5`, `cooldownTicks:
+  200` — sim queda calenta prou perquè un node arrossegat fora
+  tingui temps de retornar.
+- `onNodeDragEnd` explicita `d3ReheatSimulation()` per garantir
+  alpha positiu post-drop.
+
+**Bug operacional detectable**: el ref imperativa a ForceGraph2D
+no es capturava mai amb `useRef` perquè el component era
+carregat via `next/dynamic`; l'efecte de tuning disparava amb
+`ref.current === null` i el tuning no s'aplicava mai. Fix: ref
+backed per `useState` + callback-ref. Documentat a
+`§sec:graph-physics` com a lliçó.
+
+Equilibri matemàtic (balança charge vs gravetat):
+$d^3 \propto |Q| / k_g$. Amb $|Q| = 55$ i $k_g = 0.07$, $d ≈ 9.3$
+unitats de d3 (~80–100 px a zoom 1×).
+
+### Suggeriment d'etiquetes amb structured output LLM ✓
+
+`POST /api/suggest-tags` — auth-gated, content + availableTags,
+torna fins a 3 etiquetes existents + (opcional) una nova tag
+normalitzada. Model: Claude Haiku 4.5 via
+`generateObject()` amb schema Zod.
+
+Hook client `useTagSuggestions`: debounce 700 ms, minChars 15,
+AbortController per cancel·lar fetches stale, mode `auto: false`
+per no re-thinking quan l'edit dialog obre una nota ja
+categoritzada (trigger imperatiu des de `onOpenChange` del
+`TagSelector`). Dos punts d'integració: `CreateNoteForm` i
+`EditNoteDialog`.
+
+**Gotcha trobada**: Anthropic rebutja `maxItems` al JSON Schema
+generat per structured output
+(`"For 'array' type, property 'maxItems' is not supported"`).
+Solució: treure `.max(3)` del Zod schema, aplicar `.slice(0, 3)`
+post-response, reforçar el cap al prompt.
+
+Documentat a `§sec:tag-suggestion`.
+
+### Gestió d'etiquetes (rename + delete atòmics) ✓
+
+Migració `20260426120000_rename_and_delete_tag_rpcs.sql` amb
+dues funcions `SECURITY INVOKER`:
+
+- `public.rename_tag(from_tag, to_tag)` — substitueix cada
+  ocurrència, dedupa merges (`DISTINCT` dins `array_agg`),
+  retorna el count de files tocades.
+- `public.delete_tag(target_tag)` — filtra amb `array(SELECT t
+  ... WHERE t <> target_tag)`.
+
+UI: `TagManagerDialog` darrere un botó gear al `FilterBar`.
+Inline rename (Enter commits, Escape cancel·la), delete amb
+`AlertDialog` de confirmació, usage count per tag. Server
+actions a `src/actions/tags.ts` amb validació Zod (sense comes,
+max 40 chars).
+
+Documentat a `§sec:tag-management`.
+
+### Tools de graph exposades a MCP ✓
+
+Refactor del BFS/shortest-path del route handler del xat a un
+servei compartit `src/services/graph.service.ts` (patró factory
++ classe privada, mateix layout que `NotesService`). Tant
+`/api/chat/route.ts` com dues tools MCP noves
+(`src/lib/mcp/tools/graph-neighbors.ts`,
+`src/lib/mcp/tools/graph-shortest-path.ts`) consumeixen el
+mateix servei.
+
+L'increment de versió de `synapse-notes-mcp` passa a
+`0.2.0`. Qualsevol agent extern (Claude Desktop, Cursor, client
+MCP genèric) pot ara fer les mateixes consultes de graph que el
+xat intern, amb la mateixa RLS (l'RPC és `SECURITY INVOKER`).
+
+Documentat a `§sec:mcp-graph-tools` (amb la tesi "same service,
+many interfaces"). Valor defensable davant el tribunal: aquesta
+és l'aplicació del principi central de la Part~B (bounded
+retrieval) al domini del graph — agents externs reben estructura
+(ids + weights + kinds), no el contingut text, per defecte.
+
+### Micro-fixes del mateix commit
+
+- Deep-link `/ ?note=<id>` → obre l'edit dialog (reaprofita
+  `NoteGrid` com a host de la dialog modal, evita una ruta
+  separada).
+- `formatDateTime()` a `src/lib/format-relative.ts` —
+  `DD/MM/YYYY HH:MM` locale-independent, afegit al card footer
+  al costat del relatiu.
+- `formatRelative()` clampa `diffMs > 0` a zero (evita
+  "d'aquí a 2 minuts" per clock-skew de pocs segons).
+- System prompt del xat: 3 noves prioritats (estratègia d'eines,
+  estil de resposta, gramàtica catalana) per reduir la
+  verbositat i millorar el raonament en correlacions.
+- Bug de `search_path` documentat a `§sec:search-path-bug` com a
+  lliçó d'enginyeria transferible.
+
+### Pendent (v2)
+
+- [ ] Batch reconciliation: opció "aplica a totes les notes
+      seleccionades" quan renomena una tag per sobre-escriure
+      existents en conflicte en lloc del dedup silenciós.
+- [ ] `suggest-tags` tool al servidor MCP (l'agent extern pot
+      suggerir tags per a notes que no són seves via l'auth del
+      seu propi usuari).
+- [ ] Métrica: mesurar cost real del endpoint de suggerències
+      contra el volum de notes creades per usuari/mes per
+      justificar el debounce actual a la memòria.
+
+---
+
+## 8. Backlinks + títols + mentions + graph polish (2026-04-24)
+
+Sessió continuada després de §7 amb una pila de features i polishing
+que toquen mig stack de la Part~A. Cinc blocs, tots documentats a
+`§9 Implementació` amb labels nous:
+
+### Backlinks `[[N]]` (EXTRACTED edges) ✓
+
+- Migració `20260426140000_note_links.sql` — taula
+  `public.note_links(source_id, target_id, user_id, created_at)`,
+  PK composta, `ON DELETE CASCADE`, `CHECK (source_id <> target_id)`,
+  4 polítiques RLS (SELECT/INSERT/UPDATE/DELETE) denormalitzades
+  sobre `user_id` per evitar joins a `notes` al caller-path.
+- RPC `sync_note_links(source_id, target_ids[])` — `SECURITY
+  INVOKER`, patró "replace entire outgoing set" (DELETE + filtered
+  INSERT), valida ownership del source i filter silenciós de
+  targets no pertanyents al caller / self-refs / archived.
+- RPC `public.get_note_graph()` reescrita amb un tercer CTE
+  `link_edges` que NO dedupa per parell no-ordenat (preserva la
+  direcció), emet `kind: 'link'` al JSON.
+- Parser a `src/lib/note-links.ts` amb regex `/\[\[\s*(\d+)\s*\]\]/g`
+  + dedup via `Set`. Cridat des de `createNote`/`updateNote`
+  (amb `.select('id').single()` al create per obtenir l'id abans
+  de sincronitzar).
+- Graph viewer: `linkDirectionalArrowLength: 7` només per
+  `kind === 'link'`, color ambre/violeta segons palette.
+- `NoteMarkdown` fa un pass `renderBacklinksAsMarkdown` que
+  converteix `[[42]]` a `[<label>](/?note=42#backlink)`. El
+  `<label>` es resol via un `noteIndex` Map passat des de
+  `NoteGrid` — mostra el TÍTOL del target, no l'id cru (clau
+  per entendre auto-refs i links trencats).
+- Click del pill navega via `<Link scroll={false}>`, el hook
+  `?note=<id>` de NoteGrid obre el diàleg d'edició.
+
+Documentat a `§sec:backlinks`.
+
+### Camp `title` explícit ✓
+
+- Migració `20260426160000_notes_title_column.sql` — columna
+  `notes.title text` nullable amb CHECK length 1..200, índex GIN
+  `pg_trgm` sobre `lower(title)` per al typeahead del popover.
+  No uuid al mateix índex (no hi ha opclass per defecte de
+  GIN + uuid; la RLS + els índexs user-scoped filtren primer).
+- Migració `20260426160100` reescriu `get_note_graph()` per
+  preferir `n.title` sobre el split_part(content, '\n', 1)
+  quan existeix.
+- `createNote`/`updateNote` accepten `title` opcional; es
+  normalitza a null quan és buit. L'embedding es genera sobre
+  `${title}\n\n${content}` per permetre RAG pel nom del tòpic
+  encara que el cos sigui sparse.
+- Chat inventory line del route handler prefereix title quan
+  existeix.
+- UI: input gran al capçal del `CreateNoteForm` i del
+  `EditNoteDialog`; el card renderitza un `<h3>` `line-clamp-2`
+  sobre el body.
+
+Documentat a `§sec:title-and-autocomplete`.
+
+### Autocompletes `[[` / `@` / `#` ✓
+
+`BacklinkTextarea` a `src/components/notes/backlink-textarea.tsx`:
+
+- Tres triggers, UN commit. `[[` i `@` obren el popover de notes
+  (fetch `/api/note-search?q=<q>&limit=8`, trigram-powered);
+  `#` obre el popover de tags (filtrat localment des de
+  `availableTags` — sense round-trip). Pick sempre escriu
+  `[[<id>]]` per notes o `#<TagName>` per tags.
+- Guarda contra markdown `# Heading`: si `#` és a l'inici de
+  línia i el caret és immediatament darrera, NO s'obre el
+  popover; la popover només fires a partir del segon keystroke.
+- Posicionament caret-relatiu via mirror-div (tècnica estàndard:
+  `<div>` off-screen amb typography copiada + marker `<span>` al
+  `selectionStart`, `getBoundingClientRect()` del marker traduït
+  via `scrollTop/Left` del textarea). Popover s'obre just sota
+  la línia del caret; flip a dalt si no cap sota viewport.
+- Renderitzat via `ReactDOM.createPortal(..., document.body)`
+  per escapar `overflow: hidden` del diàleg d'edició.
+- Navegació: ↑/↓ Enter Tab acceptar, Escape cancel·lar; mouse
+  hover + click; `scrollIntoView({block:'nearest'})` segueix el
+  cursor de teclat quan la llista passa de l'altura visible.
+- Fix flex gotcha: `min-h-0` a la `<ul>` perquè
+  `overflow-y-auto` activés dins un parent amb `max-height`
+  (sense min-h-0 la ul creix a l'altura de contingut i no es
+  retalla, tot i que el parent té max-height).
+
+Documentat a `§sec:title-and-autocomplete`.
+
+### Tag pill renderitzat a `NoteMarkdown` + deep-link `?tag=X` ✓
+
+- `renderTagChipsAsMarkdown` a `NoteMarkdown` amb regex
+  `/(^|[\s.,;:!?()[\]{}"'«»¿¡])#([\p{L}\p{N}][\p{L}\p{N}_-]*)/gu`
+  (Unicode-aware, word-boundary, suprimeix headings i URLs
+  amb fragment). Substitueix `#Idees` per un `<Link>` amb
+  sentinel `#tag-ref` que el renderer detecta i pinta com a
+  pill primary-color amb icona `Hash`.
+- URL deep-link `/?tag=<name>` consumit pel mateix
+  `useEffect` del `NoteGrid` que ja gestiona `?note=<id>`,
+  additiu a `selectedTags` (no sobreescriu filtres
+  pre-existents), `router.replace("/")` neteja la URL.
+
+Documentat a `§sec:title-and-autocomplete`.
+
+### Graph viewer polish ✓
+
+Quatre canvis independents al `GraphViewer`:
+
+1. **Louvain només sobre tag+embed edges** (ignorant `kind === 'link'`)
+   perquè un backlink user-authored no hauria de re-pintar
+   clusters de notes semànticament no-relacionades. Els clusters
+   queden estables sota edició de backlinks.
+2. **Favorits amb ring ambre + glow exterior** en lloc de disc
+   més gran + halo permanent. V1: disc més gran (halo
+   competia amb hover). V2: glyph d'estrella dins el disc (fon
+   amb paletes sage/warm-yellow). V3 (final): anell ambre
+   outside del disc + `shadowBlur 10` + backing ring de
+   contrast fi (fosc sobre dark, clar sobre light). Canvia
+   amb theme; el hover aura només s'activa per a nodes
+   hovered/selected, no per starred.
+3. **Hover focus estil Obsidian**: `focusIds = 1-hop neighbourhood`
+   del hovered/selected. `isActive(id)` combina searchIds +
+   focusIds amb AND. Nodes no-active a `globalAlpha`
+   configurable per theme (dark 0.15, light 0.25). Edges
+   non-focus a `palette.edgeDim`. Labels del sub-graph focused
+   forçats a qualsevol zoom (no requereixen `globalScale > 1.6`).
+4. **Palette light/dark reactiu via `next-themes`**. V1 usava
+   colors codificats dark (text blanc, edges blavosos) que en
+   light mode quedaven invisibles. V2 construeix `palette` amb
+   `useMemo(isDark)`; totes les crides canvas consumeixen del
+   palette. `canvasBg`, `labelFill`, `edgeTagIdle/Active`,
+   `edgeEmbedIdle/Active`, `edgeLinkIdle/Active`, `edgeDim`,
+   `starRingBacking`, `inactiveAlpha` — tot reactiu.
+
+Documentat a `§sec:graph-polish`.
+
+### Debug lessons: Radix nested popover + pointer-events
+
+Dos bugs de cooperació Radix que van costar tres iteracions
+resoldre i que generen un feedback memory
+(`feedback_radix_nested_portal_clicks.md`):
+
+1. **`onInteractOutside`'s CustomEvent target**: `e.target` de
+   l'event és la DialogContent, no el click real. El target
+   veritable viu a `e.detail.originalEvent.target`. Sense
+   llegir el camp nested el check `.closest()` sempre falla i
+   Radix tanca el diàleg a cada click del popover.
+2. **`pointer-events: none` a `document.body`**: Radix Dialog
+   (i Sheet, Popover, Drawer) aplica aquesta regla mentre
+   obert per garantir que DialogContent sigui l'única surface
+   interactiva. Els portals-sibling al body hereten el `none`
+   i els clicks "cauen a través" cap al textarea. Fix: `pointer-
+   events: auto` explícit al contenidor del popover.
+
+Tots dos calen: el primer sense el segon vol dir que els events
+arriben però Radix tanca el diàleg; el segon sense el primer vol
+dir que els events no arriben enlloc. Patró documentat a
+`§sec:title-and-autocomplete` i al feedback memory.
+
+### Pendent (v2)
+
+- [ ] Autocomplete per títol al `[[` (ara només funciona per id
+      literal; el popover mostra els títols però la commit
+      passa per id). Millor UX seria que `[[Noms de ga` obri
+      el popover i el pick inserti `[[9]]` i el pill mostri
+      "Noms de gat:".
+- [ ] Panell "Backlinks a aquesta nota" al diàleg d'edició —
+      llistar les notes amb `target_id = editing.id`.
+- [ ] Markdown preview en viu al `EditNoteDialog` (ara és
+      només textarea; el preview només es veu un cop desat).
+- [ ] Editor field amb toolbar d'inserció de backlink
+      (botó "🔗 Link" que obre el popover forçat sense haver
+      de teclejar `[[`).
+
 
