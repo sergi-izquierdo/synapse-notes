@@ -549,3 +549,77 @@ Exclosos del repo via `.gitignore`: `graphify-out/cache/` i
       relacionats amb `Select()` per netejar el graph per a la
       defensa.
 
+---
+
+## 6. Reordenació manual + visualitzador de graph neural (2026-04-25)
+
+Dues features grans afegides avui, documentades com a tracks
+estructurats a `extend.md` abans d'implementar (patró memòria
+aprovada el 2026-04-24).
+
+### Drag-and-drop de notes ✓
+
+Enviat a production en 9 commits successius de
+refinement/bugfix. Última iteració: `922b018` (swap semantics).
+Arquitectura:
+
+- `@dnd-kit` (core + sortable + utilities) + `fractional-indexing`.
+- Schema: columna `notes.position text` + índex compost
+  `notes_user_section_position_idx`. Backfill inicial corregit
+  per migració `20260425150000_notes_position_canonical.sql`
+  (keys library-canonical `a0`..`az`).
+- Dues `SortableContext` (starred vs rest) perquè no es pugui
+  creuar la frontera. Swap semantics: només el hover target es
+  mou, la resta queda fixa.
+- Mobile: `TouchSensor` amb `delay: 200, tolerance: 15` per
+  diferenciar swipe (scroll) vs long-press (drag).
+- `swapSortingStrategy` custom per a dnd-kit (en comptes de
+  `rectSortingStrategy` que fa insert-shift).
+- `DragOverlay` portal per al card en moviment.
+- Outlined placeholder al slot d'origen durant el drag.
+- Server action `swapNotePositions(idA, idB)` amb two sequential
+  UPDATEs + `.select('id')` per detectar el patró RLS silent-fail.
+
+Lliçó tècnica per al memoir: Framer Motion `layout` + `variants`
+amb `y` bindings són incompatibles amb dnd-kit's transform.
+Reduir variants a opacity-only i treure `layout` de les
+targetes ordenables.
+
+### Graph neural visualizer ✓
+
+Enviat en 2 commits: `b89e013` (viewer + RPC) i `684ef04` (chat
+tools). Arquitectura:
+
+- RPC `public.get_note_graph()` retorna `{ nodes, links, meta }`
+  en un jsonb: tag-Jaccard $\geq 0.2$ + embedding top-5
+  $\geq 0.75$. `SECURITY INVOKER` + `search_path=''`, grant
+  només a `authenticated`.
+- Route handler GET `/api/graph` (auth-gated).
+- `/graph` page (RSC + client GraphViewer amb `react-force-
+  graph-2d` dinàmic, Louvain seeded per colors deterministes).
+- Side panel: search, stats, legend, hover preview, click
+  inspector (top-12 veïns).
+- Dashboard header gains Network icon + `G` global shortcut
+  (toggle `/` ↔ `/graph`).
+- Dos tools nous al `/api/chat`: `graph_neighbors` i
+  `graph_shortest_path`. Adjacency precomputada per-request,
+  BFS amb early exit. Inventari del system prompt prefixa
+  notes amb `[id=N]` perquè el model tingui el handle.
+
+Relació amb tesi Part~B: el graph és un **exemple pràctic de la
+propietat de retrieval acotada** que defensa la tesi — exposa
+estructura (ids, kinds, weights) en lloc de text complet, amb
+la mateixa reducció de superfície d'exposició que vam mesurar
+al primer audit de graphify (§10 Avaluació).
+
+### Pendent (v2 / pre-defensa)
+
+- [ ] Settings popover amb els 5 sliders d'Obsidian
+      (centerForce, repelForce, linkForce, linkDistance,
+      labelFadeThreshold) amb persistència a localStorage.
+- [ ] Parser de `[[backlink]]` en markdown — un tipus d'aresta
+      més ric (EXTRACTED en comptes d'INFERRED).
+- [ ] Chat co-occurrence edges (signal passiu a partir dels
+      `agent_events` / chat messages).
+- [ ] Export `graph.svg` per incloure com a figura a §9 Disseny.
+

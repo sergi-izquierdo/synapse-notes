@@ -117,3 +117,103 @@
 % produir-ne un amb errors *detectables* que una inspecció manual
 % pot filtrar.
 
+\section{Reordenació manual amb fractional indexing}
+\label{sec:drag-fractional}
+% Subsecció per al redactat final. Afegit 2026-04-25.
+%
+% Abans de començar la Part~B (MCP), es va afegir una funcionalitat
+% d'UX que té una decisió tècnica defensable davant el tribunal:
+% reordenació manual de notes via drag-and-drop, amb ordre persistit
+% a Postgres.
+%
+% Decisions tècniques destacables:
+% 1. **Llibreria de drag:** `@dnd-kit` en comptes de
+%    `react-beautiful-dnd` (deprecated) o Framer Motion `Reorder`
+%    (només single-axis, no suporta grids). `@dnd-kit` és l'única
+%    opció 2026-compatible amb React 19 i suport grid.
+% 2. **Persistència:** fractional indexing (paquet
+%    `fractional-indexing` de Rocicorp) en lloc de `position int`.
+%    Raonament: `position int` requereix N+1 UPDATEs per cada
+%    reordenació (el pattern anti-exemple de Figma, Notion, Linear),
+%    mentre fractional indexing només requereix una UPDATE. Trade-off:
+%    keys lexicogràfiques de llargada variable vs. precisió il·limitada
+%    (floats s'esgoten després de ~52 midpoint-splits).
+% 3. **Swap vs insert:** després de feedback d'acceptació, canviada
+%    la semàntica de "insert with shift-left cascade" a "swap with
+%    hover target". El hover target es mou a la posició d'origen,
+%    la resta queda fixa. Més comprensible visualment.
+% 4. **Mobile:** `TouchSensor` amb `delay: 200ms, tolerance: 15px`
+%    perquè long-press activi el drag sense conflictar amb scroll.
+%    `touch-action: none` descartat (bloqueja scroll fins i tot
+%    durant la delay window).
+%
+% Bugs trobats i corregits (defensables com a "lessons learned"):
+% - Fractional-indexing rebutja keys amb part fraccional acabada en
+%   `'0'` (p.ex. `a000010`). El backfill inicial produïa keys
+%   invàlides; corregit amb migració `20260425150000_notes_position_
+%   canonical.sql` que reescriu totes les posicions a format
+%   library-canonical `a0`..`a9`,`aA`..`aZ`,`aa`..`az`.
+% - Framer Motion `layout` + variants amb `y:0` sobreescriuen el
+%   transform de dnd-kit. Variants reduïts a opacity-only; layout
+%   eliminat del SortableNoteCard.
+% - Original note "clone" visible durant drag — resolt amb
+%   `DragOverlay` portal + `invisible` / outlined placeholder al
+%   slot d'origen.
+
+\section{Visualitzador de graph neural}
+\label{sec:neural-graph}
+% Subsecció per al redactat final. Afegit 2026-04-25.
+%
+% La Part~A guanya una vista força-dirigida de les notes del
+% propi usuari, accessible a `/graph`. Mirall conceptual al
+% `Graph view` d'Obsidian: cada nota és un node, les arestes són
+% connexions semàntiques (tag compartit + similitud d'embedding).
+% També exposat a l'agent LLM de la Part~B via tools del
+% Vercel AI SDK (`graph_neighbors`, `graph_shortest_path`) per
+% permetre consultes del tipus "què es connecta amb X?" o "com
+% es relaciona X amb Y?" amb una ruta explícita.
+%
+% Decisions tècniques:
+% 1. **Llibreria:** `react-force-graph-2d` (canvas + D3-force).
+%    Substituts considerats i descartats:
+%    - `sigma.js` (WebGL, escala 100k+ nodes) — overkill
+%      per a ~500-5000 notes objectiu.
+%    - `cytoscape.js` — força biològica/ontologica, no "notes-like".
+%    - `@xyflow/react` — node editor, no graph explorer.
+%    - `cosmograph` — considerat com a upgrade futur si passen
+%      de 2-3k nodes.
+% 2. **Edge semantics (v1):** dues classes alhora, dins una única
+%    RPC `public.get_note_graph()`:
+%    - Tag-Jaccard $\geq 0.2$: notes compartint $\geq 1$ tag, weight
+%      = $|A \cap B| / |A \cup B|$.
+%    - Embedding top-5 cosine $\geq 0.75$: via LATERAL JOIN amb
+%      l'índex HNSW sobre `notes.embedding`.
+%    Dedupe per parell no-ordenat. Rationale: tag-Jaccard captura
+%    vincles explícits de l'usuari; embedding captura vincles
+%    latents que l'usuari encara no ha categoritzat.
+% 3. **Community detection:** Louvain modular no-supervisat amb
+%    `graphology-communities-louvain`. Executat client-side (el
+%    payload és prou petit, ~300KB gzipped a 500 notes) amb
+%    `seedrandom("synapse-notes-graph")` per determinisme entre
+%    recàrregues. Colors assignats a comunitats via una paleta
+%    fixa que no depèn del rainbow (10 colors distintius).
+% 4. **RLS:** La RPC és `SECURITY INVOKER` amb
+%    `search_path = ''`, de manera que el filtre
+%    `notes.user_id = auth.uid()` aplica automàticament. El
+%    `GRANT EXECUTE only to authenticated`.
+% 5. **LLM tools:** `graph_neighbors(noteId, depth, limit)` i
+%    `graph_shortest_path(fromId, toId, maxHops)` afegides al
+%    route handler `/api/chat/route.ts`. Lazy loader per-request
+%    que crida la RPC una vegada, construeix un `Map` d'adjacency,
+%    i comparteix entre tools. El system prompt llista les notes
+%    amb `[id=N]` prefix perquè el model tingui un handle per
+%    passar a les tools.
+%
+% Relació amb Part~B (tesi): el graph és una superfície d'agent
+% acotada (bounded retrieval) — respon amb estructura
+% (identificadors, kinds d'aresta, pesos) en lloc de dumps de text.
+% Redueix la superficie d'exposició a injecció indirecta de prompt
+% en un factor equivalent a la reducció de tokens que vam mesurar
+% al \S\ref{sec:graphify-audit} (480×). És la mateixa propietat
+% aplicada al domini d'usuari en lloc del domini de codi.
+

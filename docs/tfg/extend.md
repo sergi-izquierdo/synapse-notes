@@ -6,7 +6,7 @@
 > 3. Si una casella queda pendent o bloquejada, deixar-la `[ ]` amb una nota breu al costat.
 >
 > Document viu. Marca cada casella a mesura que la tasca es completa.
-> Última actualització: 2026-04-24 (tarda-nit, feature track drag afegit).
+> Última actualització: 2026-04-25 (drag tancat, graph viewer enviat a production).
 > Finestra total: 47 dies (avui fins al 2026-06-05).
 > Format: una checklist per setmana amb "Codi", "Memòria" i "Administració".
 > Criteri de "fet": la casella només es marca quan la tasca és verificable (test verd, PR fusionat, secció escrita).
@@ -171,14 +171,121 @@
 
 **Criteris de fet:**
 
-- [ ] Es pot reordenar notes dins la secció *Resta* i dins la
-      secció *Starred* independentment.
-- [ ] L'ordre persisteix entre recàrregues.
-- [ ] El rebound feel és visible (spring transition sobre
-      neighbour displacement).
-- [ ] El lint segueix net (0 errors), tests verds (16/16), build ✓.
-- [ ] El drag via teclat funciona (Space + fletxes).
-- [ ] El drag entre seccions està bloquejat.
+- [x] Es pot reordenar notes dins la secció *Resta* i dins la
+      secció *Starred* independentment. _2026-04-25, swap
+      semantics en lloc d'insert per recomanació del Sergi
+      (hover target es mou a la posició d'origen, la resta
+      queda fixa)._
+- [x] L'ordre persisteix entre recàrregues. _Via fractional-
+      indexing canonical keys, migració
+      20260425150000_notes_position_canonical.sql._
+- [x] Rebound feel visible (spring). _Motion `variants` passats
+      a opacity-only perquè no sobreescrivissin el transform de
+      dnd-kit — neighbours ara sí que es desplacen amb spring._
+- [x] Lint 0 errors, tests 16/16, build ✓.
+- [x] Drag per teclat (Space + fletxes) — via KeyboardSensor
+      + sortableKeyboardCoordinates.
+- [x] Drag entre Starred i Resta bloquejat — dos SortableContext
+      independents.
+- [x] Drag a mòbil — TouchSensor amb `delay: 200, tolerance: 15`
+      perquè swipes continuïn fent scroll i long-press
+      activi el drag sense cancel·lacions falses.
+
+---
+
+## Feature track: Neural node graph visualizer
+
+> **Objectiu.** Donar a l'usuari una vista força-dirigida del seu
+> propi corpus de notes (estil Obsidian/Graphify) i exposar les
+> mateixes dades al RAG chat via tools perquè l'LLM pugui raonar
+> sobre connexions ("què es connecta amb X?", "com es relacionen
+> X i Y?").
+>
+> **Decisions arquitectòniques (investigació 2026-04-25):**
+> - **Llibreria:** `react-force-graph-2d@^1.29.1` (Canvas + D3-force).
+>   Cobertura 2D suficient fins a ~2-3k nodes abans de necessitar
+>   swap a Cosmograph/sigma. `next/dynamic` amb `ssr: false` perquè
+>   el paquet toca `window` a l'import.
+> - **Edges v1:** dos tipus dins la mateixa RPC:
+>   (1) Tag-Jaccard ≥ 0.2 (intersection/union sobre `notes.tags`);
+>   (2) Embedding top-5 cosine ≥ 0.75 via `match_notes`-like
+>       LATERAL amb l'índex HNSW existent.
+>   `[[backlink]]` i chat-cooccurrence deferits a v2.
+> - **Communities:** Louvain client-side via
+>   `graphology-communities-louvain` + `seedrandom` amb seed fix
+>   `"synapse-notes-graph"` perquè els colors siguin deterministes
+>   entre recàrregues.
+> - **API:** `GET /api/graph` Route Handler (lectura, cacheable per
+>   usuari), crida una única RPC `get_note_graph()` que retorna
+>   `{ nodes, links, meta }` en un jsonb.
+> - **RPC:** `security invoker + search_path=''` per a que l'RLS
+>   de `public.notes` apliqui a cada touch; `grant execute only
+>   to authenticated`.
+> - **LLM integration:** afegides dues tools al `/api/chat`:
+>   `graph_neighbors` i `graph_shortest_path` — adjacency
+>   precalculada per-request, BFS amb early exit.
+
+### Sub-tasques
+
+**Schema + backend:**
+
+- [x] Migració `supabase/migrations/20260425180000_get_note_graph.sql`
+      amb la funció `public.get_note_graph()`. Aplicada via MCP.
+- [x] Nou `src/app/api/graph/route.ts` — Route Handler GET
+      amb auth guard.
+
+**Dependencies:**
+
+- [x] `npm install react-force-graph-2d graphology graphology-
+      communities-louvain seedrandom`.
+- [x] `npm install -D graphology-types @types/seedrandom`.
+
+**UI:**
+
+- [x] `src/components/graph/graph-viewer.tsx` amb ForceGraph2D,
+      canvas painting per nodes (colors per comunitat, labels
+      desprès de zoom > 1.6), hover preview + click inspector
+      amb top-12 veïns ordenats per pes.
+- [x] `src/app/(dashboard)/graph/page.tsx` RSC amb auth
+      redirect.
+- [x] `src/app/(dashboard)/graph/loading.tsx` spinner.
+- [x] Link a `/graph` a `DashboardHeader` (icon Network).
+- [x] Shortcut global `G` (toggle `/` ↔ `/graph`) via
+      `next/navigation` router.push.
+- [x] Nova entrada a `KeyboardShortcutsDialog` sota Global.
+
+**LLM tools:**
+
+- [x] `graph_neighbors(noteId, depth, limit)` a `/api/chat/route.ts`.
+      BFS fins a `depth`, retorna veïns ordenats per pes amb
+      edge_kind (tag/embed).
+- [x] `graph_shortest_path(fromId, toId, maxHops)` a
+      `/api/chat/route.ts`. BFS amb predecessor map per
+      reconstruir la cadena node-a-node.
+- [x] Lazy loader per-request (`loadGraph()`) que calla la RPC
+      una sola vegada i cachea l'adjacency Map.
+- [x] Inventari del system prompt prefixa cada nota amb
+      `[id=N]` perquè el model tingui un handle per les tools.
+- [x] `stepCountIs` 3 → 5 perquè l'LLM pugui encadenar tools
+      (p.ex. `graph_neighbors` → `getNotesByTag`).
+
+**Docs + deploy:**
+
+- [x] Actualitzar aquest `extend.md` + mirall SecondBrain.
+- [ ] `tfg/sections/09-implementacio.tex` — subsecció dedicada al
+      graph (decisions tècniques, integració amb MCP/chat).
+- [x] Commit + push a `main` + `vercel --prod --yes`.
+
+**Criteris de fet:**
+
+- [x] `/graph` renderitza una gràfica força-dirigida amb les notes
+      vives de l'usuari, colorades per comunitat.
+- [x] Hover mostra preview, click mostra inspector amb veïns top-12.
+- [x] Search filtra nodes per títol / tag (dim la resta).
+- [x] Shortcut `G` funciona (toggle).
+- [x] Les dues tools són callables des del xat i retornen
+      dades consistents amb la vista visual.
+- [x] Lint 0 errors, tests 16/16, build ✓.
 
 ---
 
