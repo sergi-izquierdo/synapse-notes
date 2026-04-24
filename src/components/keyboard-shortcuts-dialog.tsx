@@ -29,6 +29,7 @@ const SHORTCUTS: Array<{
 }> = [
     { keys: [MOD, "K"], desc: "Open command palette", scope: "Global" },
     { keys: ["F1"], desc: "Show this help overlay", scope: "Global" },
+    { keys: ["G"], desc: "Toggle note graph view", scope: "Global" },
     { keys: ["Esc"], desc: "Close any modal or palette", scope: "Global" },
     { keys: ["/"], desc: "Focus search input", scope: "Notes" },
     { keys: ["N"], desc: "Focus the compose textarea", scope: "Notes" },

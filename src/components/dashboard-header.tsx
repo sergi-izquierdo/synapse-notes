@@ -2,7 +2,7 @@
 
 import { useLanguage } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { BrainCircuit, Sun, Moon, Settings } from "lucide-react";
+import { BrainCircuit, Sun, Moon, Settings, Network } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 
@@ -34,6 +34,14 @@ export function DashboardHeader({ userEmail }: { userEmail: string }) {
           <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
         </button>
         <LanguageSwitcher />
+        <Link
+          href="/graph"
+          className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          aria-label="Open note graph"
+          title="Note graph (G)"
+        >
+          <Network className="h-5 w-5" />
+        </Link>
         <Link
           href="/settings"
           className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"

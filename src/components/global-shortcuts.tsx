@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 
 // Global keyboard shortcuts router. Mounted once at the dashboard
@@ -20,6 +21,8 @@ import { KeyboardShortcutsDialog } from "./keyboard-shortcuts-dialog";
 // shortcut is guarded so ?, /, n, j, k stay typable.
 export function GlobalShortcuts() {
     const [helpOpen, setHelpOpen] = useState(false);
+    const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -96,6 +99,21 @@ export function GlobalShortcuts() {
                 return;
             }
 
+            // g — open the note graph (or toggle back to the
+            // dashboard if we're already on it). Client-side
+            // navigation via the router, no full reload.
+            if (
+                e.key === "g" &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.altKey &&
+                !e.shiftKey
+            ) {
+                e.preventDefault();
+                router.push(pathname === "/graph" ? "/" : "/graph");
+                return;
+            }
+
             // 1 / 2 / 3 — toggle filter by top-N tag. NoteGrid owns the
             // freq map and resolves the index → tag so this handler
             // stays unaware of the current tag roster.
@@ -118,7 +136,9 @@ export function GlobalShortcuts() {
 
         document.addEventListener("keydown", handler);
         return () => document.removeEventListener("keydown", handler);
-    }, []);
+        // router + pathname are stable enough that re-subscribing on
+        // route changes keeps the handler fresh without churn.
+    }, [router, pathname]);
 
     return (
         <KeyboardShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
