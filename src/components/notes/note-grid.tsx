@@ -2,13 +2,32 @@
 
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
 import { motion } from "framer-motion";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { generateKeyBetween } from "fractional-indexing";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Copy, Star, Archive } from "lucide-react";
+import { Trash2, Copy, Star, Archive, GripVertical } from "lucide-react";
 import {
   archiveNote,
   deleteNote,
   duplicateNote,
+  reorderNote,
   restoreNote,
   toggleNoteStarred,
   unarchiveNote,
@@ -28,6 +47,27 @@ interface GridNote {
   created_at: string;
   tags: string[] | null;
   starred?: boolean;
+  position?: string | null;
+}
+
+// Sort rule that mirrors the server ORDER BY so the optimistic view
+// can re-shuffle locally the moment a drag lands — otherwise the
+// reordered card snaps back to its original slot until the server
+// revalidates. Starred first, then fractional position ASC (NULLs
+// last), with created_at DESC as a tiebreak for any legacy NULLs.
+function sortNotes(notes: GridNote[]): GridNote[] {
+  return [...notes].sort((a, b) => {
+    const sa = a.starred ? 1 : 0;
+    const sb = b.starred ? 1 : 0;
+    if (sa !== sb) return sb - sa;
+    const pa = a.position ?? null;
+    const pb = b.position ?? null;
+    if (pa !== null && pb !== null)
+      return pa < pb ? -1 : pa > pb ? 1 : 0;
+    if (pa === null && pb !== null) return 1;
+    if (pa !== null && pb === null) return -1;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 }
 
 interface NoteGridProps {
@@ -125,10 +165,19 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       document.removeEventListener("notes-filter-top-tag", handler);
   }, [topTags]);
 
+  // Sort the optimistic view with the same rule as the server so
+  // drag-reorder lands visually the moment the optimistic patch
+  // fires. Sort BEFORE filtering so the section order stays
+  // consistent regardless of which tag is active.
+  const sortedOptimistic = useMemo(
+    () => sortNotes(optimisticNotes),
+    [optimisticNotes],
+  );
+
   // AND filter: a note must carry every selected tag to match. Uses
   // optimisticNotes so toggles feel instant; archive/delete
   // effectively filter themselves out via the optimistic remove.
-  const filteredNotes = optimisticNotes.filter((note) => {
+  const filteredNotes = sortedOptimistic.filter((note) => {
     const matchesSearch = note.content
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -138,6 +187,14 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       selectedTags.every((t) => noteTags.includes(t));
     return matchesSearch && matchesTags;
   });
+
+  // Split into independent drag sections. dnd-kit's SortableContext
+  // is scoped to its own item list — rendering two separate contexts
+  // is what prevents a starred card from being dropped into the
+  // un-starred grid (and vice versa). Cross-section state changes
+  // still happen via the Star button, not the drag.
+  const starredNotes = filteredNotes.filter((n) => n.starred);
+  const restNotes = filteredNotes.filter((n) => !n.starred);
 
   // Each handler paints its optimistic state first (inside a
   // transition, which is a requirement of useOptimistic) and then
@@ -204,6 +261,67 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     });
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Require a small drag distance before activation so clicks
+      // on action buttons inside the card don't accidentally start
+      // a drag.
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // onDragEnd: compute the fractional key for the new slot using the
+  // section neighbours of the *post-drop* order, patch optimistically,
+  // then hit the server. If the drop landed in the exact same slot we
+  // bail without a round-trip.
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeId = Number(active.id);
+    const overId = Number(over.id);
+
+    // Figure out which section the drop happened in. Both ids must
+    // live in the same section — dnd-kit's two-context setup makes
+    // this true by construction, but we still guard.
+    const section = starredNotes.some((n) => n.id === activeId)
+      ? starredNotes
+      : restNotes.some((n) => n.id === activeId)
+        ? restNotes
+        : null;
+    if (!section) return;
+
+    const oldIndex = section.findIndex((n) => n.id === activeId);
+    const newIndex = section.findIndex((n) => n.id === overId);
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+
+    const reordered = arrayMove(section, oldIndex, newIndex);
+    const prev = reordered[newIndex - 1]?.position ?? null;
+    const next = reordered[newIndex + 1]?.position ?? null;
+
+    let newPos: string;
+    try {
+      newPos = generateKeyBetween(prev, next);
+    } catch (err) {
+      console.error("Reorder: fractional key generation failed", err);
+      toast.error("Reorder failed");
+      return;
+    }
+
+    startMutation(async () => {
+      applyOptimistic({
+        type: "patch",
+        id: activeId,
+        patch: { position: newPos },
+      });
+      const result = await reorderNote(activeId, newPos);
+      if (result?.error) {
+        toast.error("Reorder failed", { description: result.error });
+      }
+    });
+  };
+
   // Archive is a soft-delete: the row stays in the DB (with its
   // embedding intact), the dashboard query just hides it. Undo is a
   // single unarchive call — cheaper than the hard-delete restore
@@ -245,9 +363,9 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       />
 
       {/* GRID — three states: zero notes (illustrated), zero matches
-          (concise filter hint), or the real grid. Uses the optimistic
-          view so archiving/deleting the last note shows the empty
-          state straight away. */}
+          (concise filter hint), or the two sortable sections. Uses
+          the optimistic view so archiving/deleting the last note
+          shows the empty state straight away. */}
       {optimisticNotes.length === 0 ? (
         <EmptyNotesState />
       ) : filteredNotes.length === 0 ? (
@@ -255,24 +373,146 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
           {t.common.no_results}
         </div>
       ) : (
-        <motion.div
-          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-          initial="hidden"
-          animate="show"
-          variants={{
-            show: { transition: { staggerChildren: 0.04 } },
-          }}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          {filteredNotes.map((note) => (
-            <motion.div
-              key={note.id}
-              layout
-              variants={{
-                hidden: { opacity: 0, y: 8 },
-                show: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
+          {/* STARRED SECTION — independent SortableContext so
+              starred cards can't be dropped into the unstarred grid.
+              Only rendered when there's at least one starred note so
+              we don't leave an empty band above. */}
+          {starredNotes.length > 0 && (
+            <SortableContext
+              items={starredNotes.map((n) => n.id)}
+              strategy={rectSortingStrategy}
             >
+              <motion.div
+                className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8"
+                initial="hidden"
+                animate="show"
+                variants={{
+                  show: { transition: { staggerChildren: 0.04 } },
+                }}
+              >
+                {starredNotes.map((note) => (
+                  <SortableNoteCard
+                    key={note.id}
+                    note={note}
+                    language={language}
+                    selectedTags={selectedTags}
+                    onOpenEdit={() =>
+                      setEditingNote({ ...note, tags: note.tags || [] })
+                    }
+                    onToggleStar={() =>
+                      handleToggleStar(note.id, Boolean(note.starred))
+                    }
+                    onToggleTagFilter={toggleTagFilter}
+                    onDuplicate={() => handleDuplicate(note.id)}
+                    onArchive={() => handleArchive(note.id)}
+                    onDelete={() => handleDelete(note.id)}
+                  />
+                ))}
+              </motion.div>
+            </SortableContext>
+          )}
+
+          {/* REST SECTION — always rendered (even when only starred
+              notes exist it's harmlessly empty). */}
+          <SortableContext
+            items={restNotes.map((n) => n.id)}
+            strategy={rectSortingStrategy}
+          >
+            <motion.div
+              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+              initial="hidden"
+              animate="show"
+              variants={{
+                show: { transition: { staggerChildren: 0.04 } },
+              }}
+            >
+              {restNotes.map((note) => (
+                <SortableNoteCard
+                  key={note.id}
+                  note={note}
+                  language={language}
+                  selectedTags={selectedTags}
+                  onOpenEdit={() =>
+                    setEditingNote({ ...note, tags: note.tags || [] })
+                  }
+                  onToggleStar={() =>
+                    handleToggleStar(note.id, Boolean(note.starred))
+                  }
+                  onToggleTagFilter={toggleTagFilter}
+                  onDuplicate={() => handleDuplicate(note.id)}
+                  onArchive={() => handleArchive(note.id)}
+                  onDelete={() => handleDelete(note.id)}
+                />
+              ))}
+            </motion.div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* EDIT DIALOG */}
+      {editingNote && (
+        <EditNoteDialog
+          open={!!editingNote}
+          onOpenChange={(open) => !open && setEditingNote(null)}
+          note={editingNote}
+          availableTags={availableTags}
+        />
+      )}
+    </>
+  );
+}
+
+// Per-card component extracted so it can consume dnd-kit's
+// `useSortable` hook. Wraps the existing editorial card with the
+// drag transform + a `GripVertical` handle at top-left (hover-reveal
+// on desktop, always-visible on mobile to match the action cluster).
+// Every behaviour except the drag handle is copied verbatim from the
+// previous inline render.
+function SortableNoteCard({
+  note,
+  language,
+  selectedTags,
+  onOpenEdit,
+  onToggleStar,
+  onToggleTagFilter,
+  onDuplicate,
+  onArchive,
+  onDelete,
+}: {
+  note: GridNote;
+  language: "en" | "es" | "ca";
+  selectedTags: string[];
+  onOpenEdit: () => void;
+  onToggleStar: () => void;
+  onToggleTagFilter: (tag: string) => void;
+  onDuplicate: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: note.id });
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      layout
+      variants={{
+        hidden: { opacity: 0, y: 8 },
+        show: { opacity: 1, y: 0 },
+      }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : 0,
+      }}
+      className={cn(isDragging && "opacity-70")}
+    >
             <Card
               className={cn(
                 // Fixed height so every card is the same size across
@@ -287,18 +527,36 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 note.starred &&
                   "border-primary/40 bg-[color-mix(in_oklch,var(--primary)_7%,var(--card))]",
               )}
-              onClick={() => setEditingNote({ ...note, tags: note.tags || [] })}
+              onClick={onOpenEdit}
               role="button"
               tabIndex={0}
               aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
             >
+              {/* DRAG HANDLE — top-left. Only this element receives
+                  dnd-kit's listeners so the card body stays freely
+                  clickable. activationConstraint: distance 6 on the
+                  pointer sensor means a normal click never starts a
+                  drag. Keyboard users focus the handle and press
+                  Space to pick up, arrows to move, Space to drop,
+                  Escape to cancel. */}
+              <button
+                type="button"
+                {...attributes}
+                {...listeners}
+                onClick={(e) => e.stopPropagation()}
+                aria-label="Drag to reorder"
+                title="Drag to reorder"
+                className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </button>
+
               {/* ACTION CLUSTER — top-right. On desktop hover reveals
                   the cluster; on mobile (no hover) the icons stay
                   visible so every action is reachable via tap. Star
                   sits LAST in the row so when the others are hidden
                   on desktop its own visible icon still anchors to
-                  the card's top-right corner instead of floating in
-                  the middle over three invisible slots. */}
+                  the card's top-right corner. */}
               <div
                 className="absolute top-2 right-2 flex gap-0.5 z-10"
                 onClick={(e) => e.stopPropagation()}
@@ -308,7 +566,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                  onClick={() => handleDuplicate(note.id)}
+                  onClick={onDuplicate}
                   aria-label="Duplicate note"
                   title="Duplicate"
                 >
@@ -319,7 +577,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                  onClick={() => handleArchive(note.id)}
+                  onClick={onArchive}
                   aria-label="Archive note"
                   title="Archive"
                 >
@@ -330,7 +588,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                  onClick={() => handleDelete(note.id)}
+                  onClick={onDelete}
                   aria-label="Delete note"
                   title="Delete"
                 >
@@ -346,9 +604,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                       ? "opacity-100 text-amber-500 hover:text-amber-500"
                       : "opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
                   )}
-                  onClick={() =>
-                    handleToggleStar(note.id, Boolean(note.starred))
-                  }
+                  onClick={onToggleStar}
                   aria-label={note.starred ? "Unstar note" : "Star note"}
                   aria-pressed={Boolean(note.starred)}
                   title={note.starred ? "Unstar" : "Star"}
@@ -362,12 +618,10 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </Button>
               </div>
 
-              {/* Card Content — editorial body. Task-list checkboxes are
-                  the only interactive target here (see NoteMarkdown);
-                  clicks on plain text propagate up to the card and open
-                  the edit modal. `flex-1` + the fixed card height above
-                  mean long content gets softly masked out while short
-                  content pads down to the tags/footer row. */}
+              {/* Card Content — editorial body. Task-list checkboxes
+                  are the only interactive target here (see
+                  NoteMarkdown); clicks on plain text propagate up to
+                  the card and open the edit modal. */}
               <CardContent className="flex-1 min-h-0 p-5 pb-2 overflow-hidden mask-gradient-b">
                 <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
                   <NoteMarkdown
@@ -379,9 +633,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </div>
               </CardContent>
 
-              {/* TAGS — smallcaps style. Click toggles a filter on that
-                  tag; active tags get a primary-tinted chip so the
-                  filter state reads from the card too. */}
+              {/* TAGS — click toggles a filter on that tag. */}
               {note.tags && note.tags.length > 0 && (
                 <div
                   className="px-5 pb-2 flex flex-wrap gap-1"
@@ -403,7 +655,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                       >
                         <button
                           type="button"
-                          onClick={() => toggleTagFilter(tag)}
+                          onClick={() => onToggleTagFilter(tag)}
                           aria-pressed={active}
                           aria-label={
                             active
@@ -419,8 +671,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </div>
               )}
 
-              {/* FOOTER — proceedings-style timestamp, always visible
-                  so readers can scan card age without hovering. */}
+              {/* FOOTER — proceedings-style timestamp. */}
               <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2">
                 <span
                   className="text-[10px] text-muted-foreground font-mono"
@@ -430,21 +681,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                 </span>
               </CardFooter>
             </Card>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
-
-      {/* EDIT DIALOG */}
-      {editingNote && (
-        <EditNoteDialog
-          open={!!editingNote}
-          onOpenChange={(open) => !open && setEditingNote(null)}
-          note={editingNote}
-          availableTags={availableTags}
-        />
-      )}
-    </>
+    </motion.div>
   );
 }
 
