@@ -19,12 +19,15 @@ export default async function DashboardPage() {
   const { data: notes } = await supabase
     .from("notes")
     .select("*")
-    // Archived notes are hidden from the main grid. The partial
-    // index notes_user_live_created_idx covers this query.
+    // Archived notes hidden from the main grid. The partial index
+    // notes_user_live_created_idx covers the archived filter.
     .is("archived_at", null)
-    // Starred notes float to the top; everything else by recency.
-    // Matches the composite index notes_user_starred_created_idx.
+    // Starred first, then the user's manual drag order (fractional
+    // index in `position`). Legacy rows with NULL position fall
+    // through to created_at DESC. Covered by the composite index
+    // notes_user_section_position_idx.
     .order("starred", { ascending: false })
+    .order("position", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   // CALCULATION: Extract unique tags

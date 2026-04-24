@@ -3,11 +3,39 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { generateKeyBetween } from "fractional-indexing";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateEmbedding } from "@/lib/ai";
 
 const NoteSchema = z.object({
   content: z.string().min(1, "Content cannot be empty"),
 });
+
+// Compute a fractional-indexing key that places a new row at the TOP
+// of the user's (starred=false) live section — which matches the
+// legacy "newest note on top" UX. Fetches the current minimum
+// position in that section; `generateKeyBetween(null, min)` returns a
+// string lex-lower than `min` (so ASC sort puts the new row first).
+// Scoped narrow so a section with tens of thousands of rows still
+// hits the composite index notes_user_section_position_idx.
+async function nextTopPositionForSection(
+  supabase: SupabaseClient,
+  userId: string,
+  starred: boolean,
+): Promise<string> {
+  const { data } = await supabase
+    .from("notes")
+    .select("position")
+    .eq("user_id", userId)
+    .eq("starred", starred)
+    .is("archived_at", null)
+    .not("position", "is", null)
+    .order("position", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const top = (data?.position as string | null) ?? null;
+  return generateKeyBetween(null, top);
+}
 
 export async function createNote(formData: FormData) {
   const supabase = await createClient();
@@ -32,12 +60,22 @@ export async function createNote(formData: FormData) {
     // 1. Generem l'Embedding (La part IA)
     const embedding = await generateEmbedding(content);
 
-    // 2. Guardem Text + Vector a Supabase
+    // 2. Position at the top of the unstarred section so the new
+    //    note shows up first (preserves the legacy "newest on top"
+    //    feel after the fractional-indexing migration).
+    const position = await nextTopPositionForSection(
+      supabase,
+      user.id,
+      false,
+    );
+
+    // 3. Guardem Text + Vector a Supabase
     const { error } = await supabase.from("notes").insert({
       user_id: user.id,
       content,
       tags,
       embedding,
+      position,
     });
 
     if (error) {
@@ -173,12 +211,18 @@ export async function duplicateNote(noteId: number) {
     // immediately searchable — we don't trust the original's vector
     // will stay in sync with edits.
     const embedding = await generateEmbedding(content);
+    const position = await nextTopPositionForSection(
+      supabase,
+      user.id,
+      false,
+    );
 
     const { error: insertError } = await supabase.from("notes").insert({
       user_id: user.id,
       content,
       tags,
       embedding,
+      position,
     });
 
     if (insertError) {
@@ -208,12 +252,18 @@ export async function restoreNote(content: string, tags: string[]) {
 
   try {
     const embedding = await generateEmbedding(content);
+    const position = await nextTopPositionForSection(
+      supabase,
+      user.id,
+      false,
+    );
 
     const { error } = await supabase.from("notes").insert({
       user_id: user.id,
       content,
       tags,
       embedding,
+      position,
     });
 
     if (error) {
@@ -227,6 +277,50 @@ export async function restoreNote(content: string, tags: string[]) {
     console.error("AI/Server Error:", e);
     return { error: "Failed to restore note." };
   }
+}
+
+/**
+ * Assign a new fractional-indexing position to a note. Called by the
+ * grid's drag handler after a `generateKeyBetween(prev, next)` has
+ * been computed on the client. `.select('id, position')` catches the
+ * RLS-silent-fail pattern — if the UPDATE affected 0 rows we treat
+ * it as an error rather than reporting success.
+ *
+ * Starred <-> unstarred can never be crossed by drag because the UI
+ * renders two independent SortableContexts, so this action does not
+ * touch the `starred` flag.
+ */
+export async function reorderNote(noteId: number, newPosition: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  if (typeof newPosition !== "string" || newPosition.length === 0) {
+    return { error: "Invalid position key" };
+  }
+
+  const { data, error } = await supabase
+    .from("notes")
+    .update({ position: newPosition })
+    .eq("id", noteId)
+    .select("id, position");
+
+  if (error) {
+    console.error("Supabase Error:", error);
+    return { error: "Error reordering note." };
+  }
+  if (!data || data.length === 0) {
+    // RLS UPDATE would silently 0-rows-affect without an error; the
+    // feedback_rls_delete_update.md memory exists exactly because of
+    // this class of bug. Treat it as a failure the user can see.
+    return { error: "Reorder blocked by RLS or note not found." };
+  }
+
+  revalidatePath("/");
+  return { success: true, position: newPosition };
 }
 
 export async function updateNote(

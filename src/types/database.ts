@@ -8,6 +8,7 @@ export interface Note {
   embedding: number[] | null;
   starred: boolean;
   archived_at: string | null;
+  position: string | null;
 }
 
 export interface Chat {
