@@ -537,24 +537,39 @@ function SortableNoteCard({
   return (
     <motion.div
       ref={setNodeRef}
-      layout
+      // `layout` intentionally NOT applied here — Framer Motion's
+      // layout animator writes its own transform to keep the
+      // element at its measured position, which overrides the
+      // transform dnd-kit assigns to neighbours while an adjacent
+      // card is being dragged. Without this override, neighbours
+      // don't visibly shift and the drag reads as a straight "swap"
+      // with the drop target. The mount stagger still works
+      // because it's driven by variants, not `layout`.
       variants={{
         hidden: { opacity: 0, y: 8 },
         show: { opacity: 1, y: 0 },
       }}
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{
-        transform: CSS.Transform.toString(transform),
+        // When this specific card is the one being dragged, the
+        // DragOverlay portal handles its visual position; the
+        // in-place node just acts as a persistent drop-target
+        // placeholder in the grid. Skip dnd-kit's translate so the
+        // placeholder doesn't also float with the cursor.
+        transform: isDragging ? undefined : CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 10 : 0,
       }}
-      // Fully hide the in-place node while its clone is flying in
-      // the DragOverlay — otherwise it reads as a duplicate. The
-      // grid slot stays reserved (visibility: hidden, not display:
-      // none) so the surrounding cards don't collapse around the
-      // hole.
-      className={cn(isDragging && "invisible")}
     >
+            {isDragging ? (
+              // Drop-zone preview: primary-tinted dashed outline at
+              // the slot the dragged card will fall back into if the
+              // drag is cancelled, and the pivot around which
+              // dnd-kit's neighbour shifts are computed. Matches the
+              // Card's 340 px height so the grid layout doesn't
+              // shuffle as the card goes airborne.
+              <div className="h-[340px] rounded-lg border-2 border-dashed border-primary/60 bg-primary/5" />
+            ) : (
             <Card
               className={cn(
                 // Fixed height so every card is the same size across
@@ -723,6 +738,7 @@ function SortableNoteCard({
                 </span>
               </CardFooter>
             </Card>
+            )}
     </motion.div>
   );
 }
