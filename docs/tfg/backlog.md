@@ -463,3 +463,89 @@ auto-memòria.
   integration segueix sense autodeployar del main (bug obert del
   2026-04-23).
 
+---
+
+## 5. Auditoria estructural via graphify (2026-04-24)
+
+Execució de graphify (pipeline graph-RAG: AST + LLM-inference +
+Louvain clustering) sobre tot el repositori com a validació
+estructural pre-TFG. Corpus: 132 fitxers · ~90.365 mots → 380
+nodes · 427 arestes · 77 comunitats. Outputs conservats a
+`graphify-out/` (graph.html interactiu, graph.json, GRAPH_REPORT.md,
+cost.json, manifest.json).
+
+### Troballes documentades al memoir
+
+- [x] **Separació Part~A/Part~B verificable estructuralment** — el
+      node `GET()` de `src/app/api/mcp/route.ts` és l'únic pont
+      cross-community de pes (betweenness 0.022) entre el cluster
+      de notes/auth i el cluster MCP. Documentat a §9 Disseny i
+      §9 Implementació (subsecció *Auditoria estructural*).
+- [x] **Consolidació d'auth-gates verificada per degree centrality**
+      — `requireUser()` i `requireChatAccess()` amb 8 arestes c/u,
+      cobreixen totes les mutation actions. Patró belt-and-braces
+      sobre RLS documentat a §9 Implementació.
+- [x] **Re-descobriment automàtic de grups de disseny** —
+      l'extractor va generar 4 hyperedges sense supervisió:
+      (1) MCP security stack 0.90 EXTRACTED; (2) Six MCP tools
+      1.00 EXTRACTED; (3) QoL star/archive/delete theme 0.85
+      INFERRED; (4) Palette variants 1.00 EXTRACTED. Les dues
+      primeres són validació forta que docs i codi parlen del
+      mateix sistema.
+- [x] **Mapping 1:1 comunitats-mòduls** — 15 comunitats denses
+      mapegen directament als mòduls del disseny intencional;
+      62 comunitats single/double-node confirmen baix acoplament
+      al long tail. Documentat a §9 Disseny + §10 Avaluació.
+- [x] **Fals positiu `Select()` com a cas metodològic** — node
+      "més central" (21 edges) és error léxic:
+      `supabase.from(...).select(...)` confós amb `<Select>` de
+      shadcn. Auditable via tags INFERRED. Documentat a §10
+      Avaluació com a limitació honest-amente defensable.
+
+### Mètriques quantitatives per a §10 Avaluació
+
+| Mesura | Valor |
+|---|---|
+| Corpus total (estimat) | 120.486 tokens |
+| Query mitjana (BFS depth 3) | 251 tokens |
+| Factor de reducció | 480× |
+| Nodes | 380 |
+| Arestes | 427 |
+| Comunitats (total / denses) | 77 / 15 |
+| Falsos positius detectats | 1 (sistemàtic — `Select()`) |
+
+### Limitacions detectades
+
+- **Confusió léxica mètode encadenat ↔ símbol JSX.** L'extractor
+  LLM confon `.select()` i `<Select>`. Auditable via tags INFERRED.
+  Mitigable amb alias ergonòmic o tipat més agressiu al prompt.
+- **PDFs amb imatges >2000 px bloquegen l'extracció de visió.**
+  5 PDFs del corpus (guies URV + APA 7 + memoir compilat) no van
+  entrar al chunk-2. Cobertura mitigada pels `.tex` i `.md`
+  companys. Mitigació automatitzable: pre-downsampling amb
+  `pdfimages`/`pdf2image`.
+- **Graph és snapshot, no evolució temporal.** La narrativa Part~A
+  → Part~B és cronològica; el graph l'aixafa. Mitigació futura:
+  `graphify --update` a cada milestone + graph-diff.
+
+### Outputs conservats al repositori
+
+- `graphify-out/graph.html` — graph interactiu (265 KB)
+- `graphify-out/graph.json` — dades brutes (293 KB, GraphRAG-ready)
+- `graphify-out/GRAPH_REPORT.md` — audit report (27 KB, 554 línies)
+- `graphify-out/cost.json` + `manifest.json` — reproducibility
+
+Exclosos del repo via `.gitignore`: `graphify-out/cache/` i
+`graphify-out/node_modules/` (regenerables).
+
+### Follow-up per a setmana 3
+
+- [ ] Re-executar graphify després de tancar Fase 2 del MCP
+      (5 eines restants) per veure si el cluster C6 "MCP server
+      (JWT + NotesService)" creix o es manté consistent.
+- [ ] Exportar graph.svg per incloure a figures del memoir
+      (`\includegraphics` a §9 Disseny).
+- [ ] Passada manual de filtrat dels falsos positius INFERRED
+      relacionats amb `Select()` per netejar el graph per a la
+      defensa.
+

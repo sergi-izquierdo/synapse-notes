@@ -56,6 +56,15 @@ yarn-error.log*
 # Supabase CLI local cache (created by `npx supabase --version` etc.)
 supabase/.temp/
 
+# graphify regenerable caches — graph.html / graph.json / GRAPH_REPORT.md
+# ARE tracked (they're evidence for the TFG audit trail), these aren't.
+graphify-out/cache/
+graphify-out/node_modules/
+.graphify_*.py
+.graphify_*.json
+.graphify_*.txt
+.graphify_python
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

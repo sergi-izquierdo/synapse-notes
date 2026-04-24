@@ -25,3 +25,95 @@
 
 \section{Decisions destacades}
 % TODO: llista 5-10 decisions tècniques no òbvies amb raonament.
+
+\section{Auditoria estructural del codi via graphify (2026-04-24)}
+\label{sec:graphify-audit}
+
+% Durant la sessió de documentació post-merge es va executar graphify
+% (pipeline graph-RAG: AST + LLM-inference + Louvain clustering) sobre
+% la totalitat del repositori per validar estructuralment el disseny
+% descrit a \S\ref{ch:disseny}. El corpus: 132 fitxers, ~90.365 mots.
+% Resultat: 380 nodes, 427 arestes, 77 comunitats detectades sense
+% supervisió. Valor de la tècnica en el context del TFG: les troballes
+% següents són verificables pel tribunal amb el `graphify-out/graph.html`
+% interactiu inclòs al repositori, a diferència d'afirmacions
+% arquitectòniques purament narratives.
+
+\subsection{Separació Part~A / Part~B verificada estructuralment}
+% Hipòtesi del disseny: plataforma base (notes, xat, auth) i extensió
+% MCP són dos mòduls disjunts que comparteixen només el fet de viure
+% al mateix projecte Next.js. La graph ho confirma: el node `GET()`
+% de `src/app/api/mcp/route.ts` és l'única aresta cross-community de
+% pes significatiu (betweenness = 0.022) entre el cluster de server
+% actions de notes/chat i el cluster MCP. No hi ha altres edges
+% estructurals que creuin la frontera. En termes pràctics: si s'hagués
+% d'extreure el servidor MCP a un repositori separat, el tall seria
+% net (un sol fitxer com a superfície d'API + import del
+% `NotesService`).
+
+\subsection{Consolidació d'auth-gates confirmada per degree centrality}
+% `requireUser()` (src/actions/settings.ts, src/actions/notes.ts) i
+% `requireChatAccess()` (src/actions/chats.ts) surten amb 8 arestes
+% cadascuna. Totes les server actions que muten fan passada obligatòria
+% per una d'aquestes dues helpers abans de tocar la BD. És un patró
+% belt-and-braces sobre les polítiques RLS (ambdues capes han de
+% coincidir perquè la mutation surti): primer l'auth de Supabase
+% (cookies/JWT) via les helpers, després RLS al costat Postgres. El
+% graph verifica que cap ruta de mutation s'ha escapat del patró.
+
+\subsection{Re-descobriment automàtic dels grups arquitectònics}
+% Graphify va generar 4 hyperedges de grup sense que se li donés cap
+% instrucció sobre quins conceptes agrupar --- els va derivar per
+% co-ocurrència i similitud semàntica dins el corpus:
+%
+% 1. "MCP security stack" --- MCP + Lethal Trifecta + OAuth 2.1 + RLS +
+%    filtre de sortida (D3) + Promptfoo. Confidence EXTRACTED 0.90.
+%    Confirma que la narrativa de \S\ref{ch:disseny} sobre seguretat
+%    és coherent: els 6 conceptes apareixen encadenats a les mateixes
+%    fonts, no són afegits retroactivament.
+% 2. "Sis eines MCP" --- search\_notes, get\_note, create\_note,
+%    update\_note, tag\_notes, summarise\_notes. Confidence EXTRACTED
+%    1.00. Coincideix amb l'abast planificat al \S\ref{ch:requisits}.
+% 3. "Fases QoL amb tema star/archive/delete" --- QoL-3 + QoL-7 +
+%    commit e94aea5 + patró useOptimistic. Confidence INFERRED 0.85.
+%    Captura un arc de polishing que no estava nominalment agrupat
+%    però comparteix solució (soft-mutation + optimistic UI).
+% 4. "Variants de paleta explorades" --- A graphite-electric,
+%    B zinc-emerald, C navy-amber. Confidence EXTRACTED 1.00.
+%
+% El primer i el segon són la validació més forta que docs i codi
+% parlen del mateix sistema: un algoritme no-supervisat ha
+% reconstruït les estructures dissenyades.
+
+\subsection{Mapa de comunitats 1:1 amb els mòduls planificats}
+% De les 77 comunitats, 15 són "denses" (>4 nodes) i les 62 restants
+% són single/double-node (fitxers utility, configs, shadcn primitives
+% individuals). El long-tail no és soroll sinó evidència de
+% baix acoplament: els components primitius viuen aïllats perquè
+% realment no tenen dependències creuades.
+%
+% Les 15 comunitats grans mapegen directament als mòduls del disseny:
+% server actions de notes/auth, lògica del sidebar del xat, backend
+% MCP + agents, conceptes TFG Part~B + recerca, implementació del
+% servidor MCP (JWT + NotesService), screenshots de baseline, paletes,
+% settings view, NoteGrid handlers, tags manager, compose zone,
+% shortcuts globals, i les famílies de primitives shadcn (Sheet,
+% Select, Dialog). Cap comunitat creua dos mòduls del disseny.
+% El clustering Louvain (modular, no supervisat) ha re-derivat la
+% partició intencional.
+
+\subsection{Fals positiu detectat i la seva rellevància metodològica}
+% El node amb més centralitat bruta (degree 21) és `Select()`. És un
+% error sistemàtic d'extracció: l'LLM infereix arestes `calls` cap a
+% `Select()` des de qualsevol server action que conté la seqüència
+% `.select()` (mètode del client de Supabase). Confon el component
+% `<Select>` de shadcn/ui (src/components/ui/select.tsx) amb la
+% cadena `supabase.from(...).select(...)` per coincidència léxica.
+%
+% L'episodi és útil per al capítol d'avaluació (vegeu
+% \S\ref{sec:graphify-limitations}): totes aquestes arestes estan
+% taggejades com a INFERRED, cosa que les fa auditables. El valor
+% del pipeline híbrid AST+LLM no és produir un graph perfecte sinó
+% produir-ne un amb errors *detectables* que una inspecció manual
+% pot filtrar.
+

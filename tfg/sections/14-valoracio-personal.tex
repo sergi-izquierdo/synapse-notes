@@ -14,3 +14,34 @@
 
 \section{Treball futur}
 % TODO: OAuth 2.1 complet al MCP, Voyage AI embeddings, E2EE, SSO enterprise, audit trail immutable.
+
+\section{Meta-reflexió: graph-RAG sobre el propi TFG}
+% Una observació que apareix tard al procés però que val la pena
+% documentar per la seva coherència interna. La tesi de Part~B
+% proposa que un servidor MCP ha de retornar estructura navegable
+% (entitats, arestes, superfícies de navegació) en comptes de dumps
+% de text, tant per minimitzar la superfície d'injecció de prompt
+% com per permetre a agents autonoms operar de forma acotada.
+%
+% Durant la fase de documentació post-merge (2026-04-24) es va
+% aplicar exactament aquest patró --- un pipeline graph-RAG,
+% graphify, basat en AST + LLM inference + community detection ---
+% al repositori complet del TFG per auditar si el disseny descrit
+% al capítol \S\ref{ch:disseny} es manté a la implementació. Les
+% troballes, documentades a \S\ref{sec:graphify-audit} i
+% \S\ref{sec:graphify-limitations}, van informar el redactat final
+% i van afegir mètriques quantificables a la defensa.
+%
+% Hi ha una simetria que mereix explicitar-se: el problema que
+% estudia aquesta tesi (agents que han de operar sobre coneixement
+% estructurat de forma segura i auditable) és exactament el patró
+% que hem aplicat per navegar i auditar el propi repositori. Les
+% limitacions que detectem al mètode graph-RAG (fals positiu
+% `Select()`, extracció fallida de PDFs amb imatges grans) són les
+% mateixes classes d'error que un agent haurà de poder detectar
+% i auditar al seu propi treball.
+%
+% No és una conclusió que es pugui defensar com a "novel·la
+% científica" però sí com a aplicació conscient del propi objecte
+% d'estudi als seus propis artefactes, la qual cosa considero un
+% tret distintiu del treball.

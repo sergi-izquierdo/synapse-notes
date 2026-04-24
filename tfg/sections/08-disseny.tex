@@ -23,3 +23,36 @@
 
 \section{Disseny de la interfície}
 % TODO: mockups/screenshots. Drawer d'activitat d'agents amb botons accept/reject.
+
+\section{Validació estructural del disseny via graphify}
+% Referència creuada a l'auditoria estructural documentada al capítol
+% d'implementació (\S\ref{sec:graphify-audit}) i al capítol d'avaluació
+% (\S\ref{sec:graphify-limitations}). Resum d'interès per a aquest
+% capítol de disseny:
+%
+% El clustering Louvain (modular, no-supervisat) aplicat sobre el graph
+% de 380 nodes / 427 arestes va produir 15 comunitats denses que
+% mapegen 1:1 amb els mòduls intencionals d'aquest disseny:
+%   * Server actions notes/auth
+%   * Lògica del sidebar del xat
+%   * Backend MCP + agents + Supabase
+%   * Servidor MCP (JWT + NotesService)
+%   * Conceptes TFG Part~B + recerca
+%   * Settings view + tags manager
+%   * Compose zone + shortcuts globals
+%   * Famílies de primitives shadcn (Sheet, Select, Dialog, ...)
+%
+% Les 62 comunitats restants són single/double-node (utility files,
+% configs, primitives isolats) i confirmen baix acoplament: el long
+% tail no és spaghetti disfressat sinó peces independents que no
+% tenen dependències creuades.
+%
+% Evidència defensable davant el tribunal: les arestes cross-community
+% de pes son minimes; l'única aresta de bridge significativa entre
+% Part~A (notes/auth) i Part~B (MCP) és `GET()` a
+% `src/app/api/mcp/route.ts` amb betweenness 0.022. La partició
+% modular dissenyada sobreviu a la implementació.
+%
+% El graph interactiu està al repositori a `graphify-out/graph.html`
+% i pot ser inspeccionat per qui revisi el treball sense necessitat
+% d'executar cap pipeline.

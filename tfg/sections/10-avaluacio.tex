@@ -149,3 +149,81 @@
 
 \section{Resultats i discussió}
 % TODO: taula-resum de métriques aconseguides vs objectius O1-O9.
+
+\section{Auditoria estructural via graphify}
+\label{sec:graphify-limitations}
+
+% graphify (pipeline graph-RAG: AST + LLM-inference + Louvain clustering)
+% aplicat al repositori complet el 2026-04-24 va produir un índex
+% estructural que permet respostes amb context acotat. Els detalls
+% d'implementació i les troballes del disseny queden a
+% \S\ref{sec:graphify-audit}; aquest capítol documenta l'avaluació
+% quantitativa i les limitacions.
+
+\subsection{Reducció de context via retrieval sobre la graph}
+% Corpus: 90.365 mots -> ~120.486 tokens (estimació naïu a 0.75
+% tokens/paraula). Una query sobre la graph amb BFS fins a depth 3
+% retorna ~251 tokens mitjans. Reducció: 480x.
+%
+% Aquesta mètrica és rellevant per a la tesi de Part~B: un
+% hipotètic agent MCP que consulti l'índex estructural en comptes
+% de rebre dumps de text redueix la superfície d'exposició a
+% injecció indirecta de prompt (variable controlada pel tamany del
+% payload) en gairebé tres ordres de magnitud per a queries de
+% navegació. No és un substitut del RAG semàntic (els embeddings
+% continuen sent la via principal per a queries de contingut),
+% però sí una capa complementària que obre la porta a definir un
+% nivell addicional de privilegi "navegar l'estructura" versus
+% "llegir el contingut".
+%
+% Taula proposada per al redactat final:
+%   Mesura           | Valor
+%   -----------------|----------
+%   Corpus total     | 120.486 tokens
+%   Query mitjana    | 251 tokens
+%   Factor reducció  | 480x
+%   Nodes graph      | 380
+%   Arestes graph    | 427
+%   Comunitats       | 77 (15 denses, 62 single/double)
+
+\subsection{Correspondència disseny <-> implementació}
+% El clustering no-supervisat va re-derivar les 15 agrupacions
+% modulars intencionals del disseny (vegeu \S\ref{sec:graphify-audit}
+% per detall). Això és una evidència quantificable del principi
+% "els mòduls dissenyats sobreviuen a la implementació" sense
+% demanar al tribunal una inspecció manual del repositori. Entrada
+% candidata per a la taula d'avaluació Q\/A de la defensa.
+
+\subsection{Limitacions detectades de l'extractor AST+LLM}
+% El node amb més centralitat bruta (degree 21) és un fals positiu:
+% l'LLM confon la cadena `supabase.from(...).select(...)` amb
+% trucades a `<Select>` (shadcn/ui) per coincidència léxica.
+% L'error és auditable perquè totes les arestes inferides porten
+% la tag INFERRED; una passada manual les filtra en minuts.
+%
+% Taxonomia de limitacions identificades:
+%
+% 1. Confusió léxica entre mètodes encadenats i símbols JSX.
+%    Exemple: `Select()` ja descrit. Mitigació: tipar millor la
+%    prompt de l'extractor, o rodejar `.select()` amb un alias
+%    tipus `.fetchRows()` (cost: ergonomia de codi degradada).
+%
+% 2. PDFs amb imatges >2000px bloquegen l'extracció semàntica.
+%    5 PDFs del corpus (guies URV, APA 7, memoir compilat) van
+%    fallar al chunk-2 de l'extracció perquè la API de visió té
+%    límit dimensional en crides many-image. Cobertura mitigada:
+%    els \texttt{.tex} font i els \texttt{.md} companys aporten
+%    el mateix contingut per una altra ruta. Mitigació
+%    automatitzable: pre-downsampling de les pàgines amb
+%    \texttt{pdfimages} o \texttt{pdf2image} a <2000px.
+%
+% 3. Graph és snapshot, no evolució temporal. El Part~A/Part~B
+%    narrativament és cronològic però el graph l'aixafa.
+%    Mitigació futura: executar graphify a cada milestone i
+%    comparar diffs (graph diff a --update, ja suportat).
+%
+% Aquesta auditoria dels propis errors del mètode és, en si
+% mateixa, defensable davant el tribunal: demostra que la
+% metodologia empleada produeix artefactes auditables, no caixes
+% negres.
+
