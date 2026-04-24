@@ -376,3 +376,90 @@ corregits el mateix dia. Cada fix té el seu commit específic.
   main no dispara build automàtic. Hipòtesi: integration pausada o
   production branch mal configurada. Tornar-ho a mirar a Setmana 3.
 
+---
+
+## 4. Reactivity + chat management (2026-04-24)
+
+Segona ronda de polishing a `main`, tota directa al branch principal
+seguint la instrucció del Sergi *"qualsevol altre canvi d'interfaç el
+treballem allí directament"*.
+
+### Reactivitat a les cards de notes
+
+- [x] **Star/archive/delete amb `useOptimistic`** — el round-trip
+      (action → Supabase → `revalidatePath` → render) es notava com a
+      ~1-2 s entre el clic i el canvi d'estat visible. Solució: nova
+      capa optimista sobre la prop `notes` dins `NoteGrid` via
+      `useOptimistic` de React 19. Dues formes d'acció: `patch`
+      (merge de camps, p. ex. `{ starred: !current }`) i `remove`
+      (filtra la nota fora, per a archive/delete). Cada handler
+      s'embolcalla en `useTransition` i crida `applyOptimistic(...)`
+      abans d'awaitar la server action; React descarta la capa
+      optimista quan la transició resol i els props reals tornen.
+      Derivats (`tagCounts`, `filteredNotes`, empty-state) també
+      apunten a `optimisticNotes` perquè l'efecte és immediat en tot
+      el grid. `framer-motion` `layout` afegit a cada `motion.div` de
+      card perquè el reorder (nota que passa a estrellada → va dalt
+      del grid) s'animi en comptes de saltar. Commit `e94aea5`.
+- [x] **Duplicate NO optimista** — el nou id s'assigna al servidor i
+      la generació de l'embedding és el coll d'ampolla real; fer un
+      placeholder faria ombra del timing real. Queda amb el toast.
+- [x] **Create note** (ComposeZone / CreateNoteForm) tampoc és
+      optimista pel mateix motiu (call a Gemini embedding-001 ~1-2 s).
+      Si arriba a molestar, es pot afegir una card "pending" al grid,
+      però per ara el `toast.loading` cobreix el feedback.
+
+### Gestió de xats: delete + bulk
+
+- [x] **Delete per xat** — cada fila de l'historial ara té una icona
+      de paperera revelada en hover (sempre visible a mòbil).
+      `deleteChatAction(chatId)` + `messages.chat_id ON DELETE
+      CASCADE` netegen l'historial. Optimistic: la fila cau al moment,
+      si és el xat actiu es buida la vista; en cas d'error es reverteix
+      la llista. Commit `77c15e5`.
+- [x] **Bulk select mode** — botó `SquareCheckBig` nou al header que
+      entra en mode selecció. Files intercanvien la icona del xat per
+      una checkbox, el tap a la fila toggla selecció en comptes
+      d'obrir el xat, i el header mostra `N selected · Cancel ·
+      Delete` en lloc de Export/Nou. Delete demana confirmació via
+      `AlertDialog` i crida `deleteChatsAction(ids[])` en una sola
+      volta. L'action fa `.in('id', ids).eq('user_id', user.id)` com
+      a belt-and-braces sobre RLS, i retorna el count real. Commit
+      `77c15e5`.
+- [x] **Canvi de markup a les files** — de `<motion.button>` únic a
+      `<motion.div>` amb dos `<button>` fills (toggle/load vs delete)
+      perquè cada acció tingui focus i aria-label propi.
+  `motion.div` porta `layout` per animar la sortida suau.
+
+### Tidying visual
+
+- [x] **Uniforme 340 px d'alçada per a les cards** — discussió
+      prèvia sobre masonry (`grid-template-rows: masonry` encara
+      darrere flag a Chromium) descartada; fixat `h-[340px]` al
+      `<Card>`. `<CardContent>` substitueix `max-h-[260px]` per
+      `flex-1 min-h-0` perquè el body creixi a l'espai lliure sota
+      les tags i el footer. Contingut llarg seguit tallat amb
+      `mask-gradient-b`; contingut curt empeny el footer a baix.
+      Cost: espai buit a notes molt curtes; benefici: grid sense
+      jitter entre files. Commit `50e38f6`.
+
+### Lliçó de patró a deixar a la memòria
+
+Qualsevol mutation que faci un round-trip server-action →
+`revalidatePath` ha de considerar `useOptimistic` per defecte. El
+patró és prou barat (un reducer, un useTransition) i la percepció de
+latència cau a zero per a l'usuari. Excepcions legítimes: operacions
+que generen nous ids servidor-side (`createNote`, `duplicateNote`) o
+que depenen de treball lent real (generació d'embeddings, inferència
+LLM). Anotat al `feedback_optimistic_ui_default.md` del registre
+auto-memòria.
+
+### Deploy a production
+
+- **Commits:** `ae7a5c4..e94aea5` (optimistic) · `e94aea5..77c15e5`
+  (chat delete) · `77c15e5..50e38f6` (uniform cards).
+- **Vercel:** tres deploys successius via `vercel --prod --yes`,
+  tots aliased a `https://synapse-notes.vercel.app`. El GitHub
+  integration segueix sense autodeployar del main (bug obert del
+  2026-04-23).
+

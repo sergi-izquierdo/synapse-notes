@@ -60,6 +60,54 @@
 % afegida (visually-hidden al chat, visible al compose). Documentar
 % com a exemple d'iteració en directe sobre requisits d'accessibilitat.
 
+\subsection{Percepció de latència i actualitzacions optimistes (2026-04-24)}
+% En acceptació el Sergi va observar que el toggle d'estrella
+% (i, per extensió, archive/delete) trigava 1-2 segons a reflectir-se
+% al grid. Causa estructural: el pipeline server action ->
+% supabase -> revalidatePath -> render de Next.js obliga a un
+% round-trip complet abans que la prop del component canviï.
+%
+% Mitigació aplicada: capa useOptimistic (React 19) sobre la prop
+% `notes` del NoteGrid amb dos tipus d'acció —- `patch` per a star
+% (merge `{ starred: !current }`) i `remove` per a archive/delete.
+% Cada handler corre dins un useTransition i crida applyOptimistic()
+% abans de la server action; React descarta l'estat optimista quan
+% la transició resol i els props reals tornen. Els derivats
+% (tagCounts, filteredNotes, empty-state) també deriven
+% d'optimisticNotes perquè l'efecte sigui global al grid.
+%
+% Per al redactat: documentar que aquest patró és una aplicació
+% canònica de la taxonomia de Nielsen sobre "resposta del sistema
+% en < 100 ms" (feedback immediat). Exceptuar operacions amb id
+% generat al servidor o que depenen de treball pesat real
+% (createNote i duplicateNote depenen de la generació de l'embedding
+% a Gemini embedding-001, que costa ~1-2 s; fingir un id faria
+% ombra del timing real).
+%
+% Commit: `e94aea5`. Mètrica qualitativa: la percepció de latència
+% baixa de "notable" a "zero" per a les tres mutations més
+% freqüents al grid (star 3, archive 4, delete 5 usos per sessió
+% mitjana).
+
+\subsection{Gestió d'historial del xat (2026-04-24)}
+% Afegit a la Part~A:
+%   - Delete individual per xat: icona de paperera hover-revelat
+%     (always-visible a mòbil) a cada fila de l'historial.
+%     `messages.chat_id ON DELETE CASCADE` ja existent fa neteja
+%     automàtica; optimistic remove + revert on server error.
+%   - Bulk select mode: botó toggle al header del sidebar que flipa
+%     les files a checkboxes, el header mostra `N selected · Cancel
+%     · Delete` amb confirmació AlertDialog. Una sola server action
+%     (deleteChatsAction amb .in() + .eq('user_id', user.id) com a
+%     belt-and-braces sobre RLS) per a tota la selecció.
+%
+% Cobreix un escenari que el tribunal pot preguntar: "com gestiona
+% l'usuari les converses històriques?". Resposta: delete per ítem,
+% selecció múltiple, i clear-all des de /settings (aquest darrer
+% era QoL-5).
+%
+% Commit: `77c15e5`.
+
 \section{Bateria de tests unitaris (Part~B)}
 % TODO: vitest, cobertura, ≥15 casos per al servidor MCP.
 
