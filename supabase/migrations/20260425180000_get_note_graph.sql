@@ -9,23 +9,21 @@
 --       (k = 5, similarity ≥ 0.75), de-duplicated per unordered pair
 --     each link is { source, target, weight, kind: 'tag'|'embed' }
 --
--- security invoker + search_path = '' so RLS on public.notes applies
--- at every touch and the function can't be hijacked by schema
--- shadowing. Called as supabase.rpc('get_note_graph') from the
--- authenticated user's session.
+-- security invoker so RLS on public.notes applies at every touch.
+-- search_path pins `public, pg_catalog` (unquoted — commas separate
+-- identifiers; quoting the whole list stores it as ONE schema named
+-- "public, pg_catalog" and breaks pgvector operator resolution).
+-- `public` must be on the path because pgvector's `<=>` operator
+-- lives there and operator lookups can't be schema-qualified inline.
+-- Every TABLE reference is still fully qualified as `public.notes`.
+-- Called as supabase.rpc('get_note_graph') from the authenticated
+-- user's session.
 
 create or replace function public.get_note_graph()
 returns jsonb
 language plpgsql
 security invoker
--- search_path includes `public` so pgvector's `<=>` cosine-distance
--- operator is resolvable — pgvector is installed into `public` on
--- Supabase projects and operator lookups can't be schema-qualified
--- inline. Every TABLE reference is still fully qualified as
--- `public.notes`, and the function stays SECURITY INVOKER so the
--- row-level-security policies on notes apply to the caller's
--- session.
-set search_path = 'public, pg_catalog'
+set search_path = public, pg_catalog
 as $$
 declare
     v_user_id uuid := auth.uid();

@@ -1,28 +1,22 @@
--- Hotfix: the initial get_note_graph() migration set
--- `search_path = ''` which made the function safer against path
--- hijacking, but also made pgvector's `<=>` cosine-distance
--- operator unresolvable (pgvector lives in the `public` schema on
--- Supabase, and operator lookups can't be schema-qualified inline
--- the way `public.notes` can).
+-- Hotfix #2: the first hotfix used
+--   set search_path = 'public, pg_catalog'
+-- which Postgres stores as a SINGLE schema named
+-- "public, pg_catalog" (the surrounding quotes collapse the list
+-- into one identifier). At call time `public` is therefore NOT on
+-- the search_path, so pgvector's `<=>` cosine-distance operator
+-- still fails to resolve:
+--   operator does not exist: public.vector <=> public.vector
 --
--- Symptom in production: GET /api/graph returned 500 with
---   "operator does not exist: vector <=> vector"
--- whenever the embedding-similarity branch of the CTE ran.
---
--- Fix: set search_path to 'public, pg_catalog' so the operator
--- resolves. Every table reference in the body stays fully
--- qualified as `public.notes`, so the narrower security guarantee
--- we wanted (no path hijacking via random schemas) is still in
--- force. Function stays SECURITY INVOKER, so RLS applies the same
--- way.
---
--- Re-applies the exact same body with the updated setting.
+-- Correct syntax uses unquoted identifiers separated by commas,
+-- so both schemas end up on the runtime path. Every TABLE
+-- reference in the body stays fully qualified as `public.notes`,
+-- function stays SECURITY INVOKER, so RLS applies the same way.
 
 create or replace function public.get_note_graph()
 returns jsonb
 language plpgsql
 security invoker
-set search_path = 'public, pg_catalog'
+set search_path = public, pg_catalog
 as $$
 declare
     v_user_id uuid := auth.uid();
