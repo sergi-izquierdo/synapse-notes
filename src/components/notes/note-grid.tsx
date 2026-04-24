@@ -15,13 +15,11 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
-  arrayMove,
+  type SortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { generateKeyBetween } from "fractional-indexing";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Copy, Star, Archive, GripVertical } from "lucide-react";
@@ -29,8 +27,8 @@ import {
   archiveNote,
   deleteNote,
   duplicateNote,
-  reorderNote,
   restoreNote,
+  swapNotePositions,
   toggleNoteStarred,
   unarchiveNote,
 } from "@/actions/notes";
@@ -51,6 +49,33 @@ interface GridNote {
   starred?: boolean;
   position?: string | null;
 }
+
+// Custom dnd-kit sortable strategy that implements SWAP instead of
+// the default insert-shift of `rectSortingStrategy`. While a card is
+// being dragged, only the hover target moves — it slides into the
+// dragged card's origin slot. Every other card stays put. On drop
+// the two cards exchange positions outright (see swapNotePositions
+// in src/actions/notes.ts).
+const swapSortingStrategy: SortingStrategy = ({
+  activeIndex,
+  index,
+  overIndex,
+  rects,
+}) => {
+  if (activeIndex === -1 || overIndex === -1) return null;
+  if (activeIndex === overIndex) return null;
+  if (index === activeIndex) return null; // dragged item — DragOverlay handles it
+  if (index !== overIndex) return null; // not the hover target — stay put
+  const activeRect = rects[activeIndex];
+  const thisRect = rects[index];
+  if (!activeRect || !thisRect) return null;
+  return {
+    x: activeRect.left - thisRect.left,
+    y: activeRect.top - thisRect.top,
+    scaleX: 1,
+    scaleY: 1,
+  };
+};
 
 // Sort rule that mirrors the server ORDER BY so the optimistic view
 // can re-shuffle locally the moment a drag lands — otherwise the
@@ -285,10 +310,11 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     setActiveDragId(null);
   };
 
-  // onDragEnd: compute the fractional key for the new slot using the
-  // section neighbours of the *post-drop* order, patch optimistically,
-  // then hit the server. If the drop landed in the exact same slot we
-  // bail without a round-trip.
+  // onDragEnd: swap positions between the dragged card and the hover
+  // target. The two rows exchange their fractional keys outright,
+  // which keeps both sides of the swap in valid canonical form and
+  // matches what rendered on screen during the drag (only the hover
+  // target moved, everything else stayed put).
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
@@ -297,40 +323,37 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     const activeId = Number(active.id);
     const overId = Number(over.id);
 
-    // Figure out which section the drop happened in. Both ids must
-    // live in the same section — dnd-kit's two-context setup makes
-    // this true by construction, but we still guard.
-    const section = starredNotes.some((n) => n.id === activeId)
-      ? starredNotes
-      : restNotes.some((n) => n.id === activeId)
-        ? restNotes
-        : null;
-    if (!section) return;
+    // Both ids must live in the same section; dnd-kit's two-context
+    // setup enforces this by construction, but guard anyway.
+    const sameSection =
+      (starredNotes.some((n) => n.id === activeId) &&
+        starredNotes.some((n) => n.id === overId)) ||
+      (restNotes.some((n) => n.id === activeId) &&
+        restNotes.some((n) => n.id === overId));
+    if (!sameSection) return;
 
-    const oldIndex = section.findIndex((n) => n.id === activeId);
-    const newIndex = section.findIndex((n) => n.id === overId);
-    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const activeNote = optimisticNotes.find((n) => n.id === activeId);
+    const overNote = optimisticNotes.find((n) => n.id === overId);
+    if (!activeNote?.position || !overNote?.position) return;
+    if (activeNote.position === overNote.position) return;
 
-    const reordered = arrayMove(section, oldIndex, newIndex);
-    const prev = reordered[newIndex - 1]?.position ?? null;
-    const next = reordered[newIndex + 1]?.position ?? null;
-
-    let newPos: string;
-    try {
-      newPos = generateKeyBetween(prev, next);
-    } catch (err) {
-      console.error("Reorder: fractional key generation failed", err);
-      toast.error("Reorder failed");
-      return;
-    }
+    const activePos = activeNote.position;
+    const overPos = overNote.position;
 
     startMutation(async () => {
+      // Double optimistic patch — both rows swap their positions in
+      // the client view the moment the drop happens.
       applyOptimistic({
         type: "patch",
         id: activeId,
-        patch: { position: newPos },
+        patch: { position: overPos },
       });
-      const result = await reorderNote(activeId, newPos);
+      applyOptimistic({
+        type: "patch",
+        id: overId,
+        patch: { position: activePos },
+      });
+      const result = await swapNotePositions(activeId, overId);
       if (result?.error) {
         toast.error("Reorder failed", { description: result.error });
       }
@@ -402,7 +425,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
           {starredNotes.length > 0 && (
             <SortableContext
               items={starredNotes.map((n) => n.id)}
-              strategy={rectSortingStrategy}
+              strategy={swapSortingStrategy}
             >
               <motion.div
                 className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8"
@@ -438,7 +461,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               notes exist it's harmlessly empty). */}
           <SortableContext
             items={restNotes.map((n) => n.id)}
-            strategy={rectSortingStrategy}
+            strategy={swapSortingStrategy}
           >
             <motion.div
               className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"

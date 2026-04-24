@@ -280,15 +280,84 @@ export async function restoreNote(content: string, tags: string[]) {
 }
 
 /**
- * Assign a new fractional-indexing position to a note. Called by the
- * grid's drag handler after a `generateKeyBetween(prev, next)` has
- * been computed on the client. `.select('id, position')` catches the
- * RLS-silent-fail pattern — if the UPDATE affected 0 rows we treat
- * it as an error rather than reporting success.
+ * Swap the `position` values between two notes. Used by the drag
+ * handler when the UI drops card A onto card B — the two fractional
+ * keys are exchanged outright. Since both keys were already valid
+ * canonical library output (or backfill-canonical), no
+ * `generateKeyBetween` math is needed, so this is immune to the
+ * invalid-trailing-zero class of errors.
  *
- * Starred <-> unstarred can never be crossed by drag because the UI
- * renders two independent SortableContexts, so this action does not
- * touch the `starred` flag.
+ * Two sequential UPDATEs with `user_id` scoping + `.select('id')`
+ * to catch the RLS silent-fail pattern (same precaution as every
+ * other mutation in this file). Not wrapped in an explicit
+ * transaction because Supabase's JS client doesn't expose one, but
+ * both rows are scoped to the same user and low-contention single-
+ * user drags make the worst-case mid-flight failure recoverable by
+ * a page refresh.
+ */
+export async function swapNotePositions(idA: number, idB: number) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+  if (idA === idB) return { error: "Cannot swap a note with itself" };
+
+  const { data: rows, error: fetchError } = await supabase
+    .from("notes")
+    .select("id, position")
+    .in("id", [idA, idB])
+    .eq("user_id", user.id);
+
+  if (fetchError) {
+    console.error("Supabase Error:", fetchError);
+    return { error: "Error fetching positions." };
+  }
+  if (!rows || rows.length !== 2) {
+    return { error: "One or both notes not found." };
+  }
+
+  const aRow = rows.find((r) => r.id === idA);
+  const bRow = rows.find((r) => r.id === idB);
+  const aPos = aRow?.position as string | null | undefined;
+  const bPos = bRow?.position as string | null | undefined;
+  if (!aPos || !bPos) {
+    return { error: "Missing position values on one of the notes." };
+  }
+
+  // First: write aPos → B (the swap "loses" one side first).
+  const { data: bWrote, error: bErr } = await supabase
+    .from("notes")
+    .update({ position: aPos })
+    .eq("id", idB)
+    .select("id");
+  if (bErr || !bWrote?.length) {
+    console.error("Supabase Error (swap B):", bErr);
+    return { error: "Swap failed on the target side." };
+  }
+
+  // Then: write bPos → A. If this fails we leave the DB in a
+  // half-swapped state; the toast on the client prompts a reload.
+  const { data: aWrote, error: aErr } = await supabase
+    .from("notes")
+    .update({ position: bPos })
+    .eq("id", idA)
+    .select("id");
+  if (aErr || !aWrote?.length) {
+    console.error("Supabase Error (swap A):", aErr);
+    return { error: "Swap failed on the source side (state inconsistent)." };
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+/**
+ * Assign a new fractional-indexing position to a note. Retained for
+ * use cases where a true insert (with arrayMove semantics and a
+ * freshly-generated key) would still be preferable — currently not
+ * wired into the grid but kept as API surface. `.select('id,
+ * position')` catches the RLS-silent-fail pattern.
  */
 export async function reorderNote(noteId: number, newPosition: string) {
   const supabase = await createClient();
