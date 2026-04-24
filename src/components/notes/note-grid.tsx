@@ -537,17 +537,17 @@ function SortableNoteCard({
   return (
     <motion.div
       ref={setNodeRef}
-      // `layout` intentionally NOT applied here — Framer Motion's
-      // layout animator writes its own transform to keep the
-      // element at its measured position, which overrides the
-      // transform dnd-kit assigns to neighbours while an adjacent
-      // card is being dragged. Without this override, neighbours
-      // don't visibly shift and the drag reads as a straight "swap"
-      // with the drop target. The mount stagger still works
-      // because it's driven by variants, not `layout`.
+      // Variants intentionally kept to opacity only. If `y` appears
+      // here, Motion binds a motion value to translateY and keeps
+      // rewriting the element's transform on every render, which
+      // erases the shift transform dnd-kit assigns to neighbours
+      // while a sibling is being dragged. That's what was making
+      // the reorder feel like a swap instead of an insert. The
+      // parent's staggerChildren still produces a nice cascading
+      // fade-in on mount without touching transform.
       variants={{
-        hidden: { opacity: 0, y: 8 },
-        show: { opacity: 1, y: 0 },
+        hidden: { opacity: 0 },
+        show: { opacity: 1 },
       }}
       transition={{ duration: 0.22, ease: "easeOut" }}
       style={{
