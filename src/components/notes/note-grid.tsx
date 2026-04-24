@@ -275,7 +275,11 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
             >
             <Card
               className={cn(
-                "group relative flex flex-col overflow-hidden border-border/60 bg-card transition-colors duration-200 hover:border-primary/40 hover:shadow-md cursor-pointer",
+                // Fixed height so every card is the same size across
+                // rows. Long content clips via mask-gradient-b on the
+                // body; short notes just pad out the space. Keeps
+                // the grid scan-friendly at the cost of some density.
+                "group relative flex flex-col h-[340px] overflow-hidden border-border/60 bg-card transition-colors duration-200 hover:border-primary/40 hover:shadow-md cursor-pointer",
                 // Starred cards get a solid amber-tinted background
                 // (color-mix blends primary into card so we don't get
                 // a transparent bg that lets the animated background
@@ -361,8 +365,10 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               {/* Card Content — editorial body. Task-list checkboxes are
                   the only interactive target here (see NoteMarkdown);
                   clicks on plain text propagate up to the card and open
-                  the edit modal. */}
-              <CardContent className="flex-1 p-5 pb-2 max-h-[260px] overflow-hidden mask-gradient-b">
+                  the edit modal. `flex-1` + the fixed card height above
+                  mean long content gets softly masked out while short
+                  content pads down to the tags/footer row. */}
+              <CardContent className="flex-1 min-h-0 p-5 pb-2 overflow-hidden mask-gradient-b">
                 <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
                   <NoteMarkdown
                     key={note.content}
