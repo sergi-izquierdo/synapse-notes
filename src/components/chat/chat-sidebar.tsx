@@ -14,6 +14,8 @@ import {
     X,
     Check,
     ChevronLeft,
+    Trash2,
+    SquareCheckBig,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useChat } from '@ai-sdk/react'
@@ -23,11 +25,24 @@ import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
 import {
     branchChatAction,
+    deleteChatAction,
+    deleteChatsAction,
     deleteMessageAction,
     deleteMessageAndFollowingAction,
     exportChatAsMarkdownAction,
     regenerateStaleTitlesAction,
 } from '@/actions/chats'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import {
     Sheet,
@@ -74,6 +89,13 @@ export function ChatSidebar({ userId }: { userId: string }) {
     // Which pane is visible on phones. Desktop (md+) renders both
     // sides always; this toggle is purely a mobile affordance.
     const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+    // Bulk-delete mode for the chat list. When on, rows flip from
+    // "tap to load" to "tap to toggle selection", and the header
+    // shows a Delete / Cancel pair instead of Export / New.
+    const [selectMode, setSelectMode] = useState(false)
+    const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(
+        () => new Set(),
+    )
     const { ref: inputRef, adjust: adjustInputHeight } = useAutoResize(40, 160)
 
     // The `useChat` callbacks are captured once at hook init, so they
@@ -341,6 +363,77 @@ export function ChatSidebar({ userId }: { userId: string }) {
         setMessages(messages.filter((m) => m.id !== messageId) as UIMessage[])
     }
 
+    // Delete one chat. Optimistically drops it from the sidebar,
+    // clears the active chat view if it was the one being viewed,
+    // then calls the server. `messages.chat_id` cascades on delete
+    // so its history goes with it.
+    const handleDeleteChat = async (id: string) => {
+        const victim = chatList.find((c) => c.id === id)
+        setChatList((list) => list.filter((c) => c.id !== id))
+        if (chatId === id) {
+            setChatId(null)
+            setMessages([])
+        }
+        const result = await deleteChatAction(id)
+        if (result?.error) {
+            toast.error('Delete failed', { description: result.error })
+            // Revert the optimistic removal on failure.
+            if (victim) {
+                setChatList((list) =>
+                    [...list, victim].sort(
+                        (a, b) =>
+                            new Date(b.created_at).getTime() -
+                            new Date(a.created_at).getTime(),
+                    ),
+                )
+            }
+            return
+        }
+        toast.success('Chat deleted')
+    }
+
+    const enterSelectMode = () => {
+        setSelectMode(true)
+        setSelectedChatIds(new Set())
+    }
+
+    const exitSelectMode = () => {
+        setSelectMode(false)
+        setSelectedChatIds(new Set())
+    }
+
+    const toggleSelectChat = (id: string) => {
+        setSelectedChatIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    // Bulk delete. One server call for the whole selection; the
+    // client optimistically drops every selected chat at once.
+    const handleDeleteSelectedChats = async () => {
+        const ids = Array.from(selectedChatIds)
+        if (ids.length === 0) return
+
+        const snapshot = chatList
+        setChatList((list) => list.filter((c) => !selectedChatIds.has(c.id)))
+        if (chatId && selectedChatIds.has(chatId)) {
+            setChatId(null)
+            setMessages([])
+        }
+        exitSelectMode()
+
+        const result = await deleteChatsAction(ids)
+        if (result?.error) {
+            toast.error('Bulk delete failed', { description: result.error })
+            setChatList(snapshot)
+            return
+        }
+        toast.success(`Deleted ${result.deleted ?? ids.length} chats`)
+    }
+
     const handleExportChat = async () => {
         if (!chatId) return
         const result = await exportChatAsMarkdownAction(chatId)
@@ -372,7 +465,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
             {/* HEADER */}
             <div className="p-4 border-b border-border/60 flex items-center justify-between bg-background/80">
                 <div className="flex items-center gap-2 font-semibold text-foreground">
-                    {mobileView === 'chat' && (
+                    {mobileView === 'chat' && !selectMode && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -385,24 +478,98 @@ export function ChatSidebar({ userId }: { userId: string }) {
                         </Button>
                     )}
                     <Bot className="h-5 w-5 text-primary" />
-                    Synapse AI
+                    {selectMode ? (
+                        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                            {selectedChatIds.size} selected
+                        </span>
+                    ) : (
+                        'Synapse AI'
+                    )}
                 </div>
                 <div className="flex items-center gap-1">
-                    {chatId && messages.length > 0 && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleExportChat}
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            aria-label="Export conversation as Markdown"
-                            title="Export conversation"
-                        >
-                            <Download className="h-3.5 w-3.5" />
-                        </Button>
+                    {selectMode ? (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={exitSelectMode}
+                                className="h-8"
+                            >
+                                Cancel
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={selectedChatIds.size === 0}
+                                        className="h-8 border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                    >
+                                        <Trash2 className="mr-2 h-3 w-3" />
+                                        Delete
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                            Delete {selectedChatIds.size}{' '}
+                                            {selectedChatIds.size === 1
+                                                ? 'chat'
+                                                : 'chats'}
+                                            ?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This wipes the conversations and
+                                            every message inside them. Your
+                                            notes are untouched. You cannot
+                                            undo this.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                            Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={handleDeleteSelectedChats}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                            Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </>
+                    ) : (
+                        <>
+                            {chatList.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={enterSelectMode}
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    aria-label="Select chats to delete"
+                                    title="Select"
+                                >
+                                    <SquareCheckBig className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                            {chatId && messages.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleExportChat}
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    aria-label="Export conversation as Markdown"
+                                    title="Export conversation"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={createNewChat} className="h-8">
+                                <Plus className="mr-2 h-3 w-3" /> Nou
+                            </Button>
+                        </>
                     )}
-                    <Button variant="outline" size="sm" onClick={createNewChat} className="h-8">
-                        <Plus className="mr-2 h-3 w-3" /> Nou
-                    </Button>
                 </div>
             </div>
 
@@ -431,29 +598,75 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             ? chat.title
                             : `Untitled · ${String(chatList.length - index).padStart(2, '0')}`;
                         const isActive = chatId === chat.id;
+                        const isSelected = selectedChatIds.has(chat.id);
                         return (
-                            <motion.button
+                            <motion.div
                                 key={chat.id}
+                                layout
                                 role="listitem"
-                                aria-current={isActive ? 'page' : undefined}
                                 variants={{
                                     hidden: { opacity: 0, y: -4 },
                                     show: { opacity: 1, y: 0 },
                                 }}
                                 transition={{ duration: 0.18, ease: 'easeOut' }}
                                 className={cn(
-                                    "flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors truncate",
-                                    isActive
-                                        ? "bg-primary/15 text-foreground font-medium border-l-2 border-primary"
-                                        : "hover:bg-muted/60 text-muted-foreground border-l-2 border-transparent",
-                                    !hasRealTitle && "font-mono"
+                                    "group/chat-row relative flex items-center w-full rounded-md transition-colors border-l-2",
+                                    selectMode && isSelected
+                                        ? "bg-primary/15 border-primary"
+                                        : !selectMode && isActive
+                                            ? "bg-primary/15 text-foreground font-medium border-primary"
+                                            : "hover:bg-muted/60 text-muted-foreground border-transparent",
                                 )}
-                                onClick={() => loadChat(chat.id)}
-                                title={displayTitle}
                             >
-                                <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate">{displayTitle}</span>
-                            </motion.button>
+                                <button
+                                    type="button"
+                                    aria-current={!selectMode && isActive ? 'page' : undefined}
+                                    aria-pressed={selectMode ? isSelected : undefined}
+                                    className={cn(
+                                        "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left text-xs truncate",
+                                        !hasRealTitle && "font-mono",
+                                    )}
+                                    onClick={() =>
+                                        selectMode
+                                            ? toggleSelectChat(chat.id)
+                                            : loadChat(chat.id)
+                                    }
+                                    title={displayTitle}
+                                >
+                                    {selectMode ? (
+                                        <span
+                                            className={cn(
+                                                "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
+                                                isSelected
+                                                    ? "bg-primary border-primary text-primary-foreground"
+                                                    : "border-muted-foreground/40",
+                                            )}
+                                            aria-hidden
+                                        >
+                                            {isSelected && (
+                                                <Check className="h-2.5 w-2.5" />
+                                            )}
+                                        </span>
+                                    ) : (
+                                        <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                                    )}
+                                    <span className="truncate">{displayTitle}</span>
+                                </button>
+                                {!selectMode && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeleteChat(chat.id)
+                                        }}
+                                        aria-label={`Delete ${displayTitle}`}
+                                        title="Delete chat"
+                                        className="shrink-0 mr-1 h-6 w-6 flex items-center justify-center rounded-md opacity-100 md:opacity-0 md:group-hover/chat-row:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity"
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                    </button>
+                                )}
+                            </motion.div>
                         );
                     })}
                 </motion.div>

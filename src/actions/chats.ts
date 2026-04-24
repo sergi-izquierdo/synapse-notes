@@ -252,6 +252,67 @@ export async function branchChatAction(
 }
 
 /**
+ * Delete a single chat. `messages.chat_id` cascades on delete so the
+ * chat's history vanishes with it. RLS + the chat-access gate keep
+ * the action scoped to the caller.
+ */
+export async function deleteChatAction(chatId: string) {
+    const { supabase, error } = await requireChatAccess(chatId);
+    if (error || !supabase) return { error };
+
+    const { error: deleteError } = await supabase
+        .from("chats")
+        .delete()
+        .eq("id", chatId);
+
+    if (deleteError) {
+        console.error("Supabase Error:", deleteError);
+        return { error: "Error deleting chat." };
+    }
+
+    revalidatePath("/");
+    return { success: true };
+}
+
+/**
+ * Bulk delete. Issues one DELETE with `.in("id", chatIds)` after
+ * scoping to the authenticated user so a forged id list from the
+ * client can't reach a chat they don't own. Returns the count of
+ * rows actually removed so the caller can report "Deleted N chats"
+ * without re-querying.
+ */
+export async function deleteChatsAction(chatIds: string[]) {
+    if (!Array.isArray(chatIds) || chatIds.length === 0) {
+        return { error: "No chats selected" };
+    }
+
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Unauthorized" };
+
+    // .in() + user_id filter is belt-and-braces: RLS already scopes
+    // to the owner, but duplicating the check on the server keeps
+    // this action safe even if a future policy regression widens
+    // visibility.
+    const { data: deleted, error: deleteError } = await supabase
+        .from("chats")
+        .delete()
+        .in("id", chatIds)
+        .eq("user_id", user.id)
+        .select("id");
+
+    if (deleteError) {
+        console.error("Supabase Error:", deleteError);
+        return { error: "Error deleting chats." };
+    }
+
+    revalidatePath("/");
+    return { success: true, deleted: deleted?.length ?? 0 };
+}
+
+/**
  * Export a chat as a Markdown document: H1 title, short header, then
  * one H2 per turn (`# User` / `# Assistant`). Kept server-side so the
  * caller doesn't need to re-fetch messages.
