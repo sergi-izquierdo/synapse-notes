@@ -4,12 +4,14 @@ import { useEffect, useMemo, useOptimistic, useState, useTransition } from "reac
 import { motion } from "framer-motion";
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -93,6 +95,10 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     content: string;
     tags: string[];
   } | null>(null);
+  // Currently-dragged note id, used by DragOverlay to render a
+  // floating clone while the cursor moves. Set on DragStart, cleared
+  // on DragEnd / DragCancel.
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
 
   // Optimistic layer on top of the server-sourced `notes` prop. Each
   // card action (star / archive / delete) paints its intended next
@@ -271,11 +277,20 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(Number(event.active.id));
+  };
+
+  const handleDragCancel = () => {
+    setActiveDragId(null);
+  };
+
   // onDragEnd: compute the fractional key for the new slot using the
   // section neighbours of the *post-drop* order, patch optimistically,
   // then hit the server. If the drop landed in the exact same slot we
   // bail without a round-trip.
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -376,7 +391,9 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
           {/* STARRED SECTION — independent SortableContext so
               starred cards can't be dropped into the unstarred grid.
@@ -451,6 +468,26 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
               ))}
             </motion.div>
           </SortableContext>
+
+          {/* DRAG OVERLAY — floats a clone under the cursor while
+              the original stays in the grid (faded). Sidesteps the
+              fight between dnd-kit's transform and Framer Motion's
+              variants/layout on the in-place card. dropAnimation is
+              disabled so the overlay vanishes the moment we finish
+              the optimistic patch (otherwise it flies back to the
+              start position before the new slot takes over). */}
+          <DragOverlay dropAnimation={null}>
+            {activeDragId != null
+              ? (() => {
+                  const activeNote = optimisticNotes.find(
+                    (n) => n.id === activeDragId,
+                  );
+                  return activeNote ? (
+                    <NoteCardPreview note={activeNote} language={language} />
+                  ) : null;
+                })()
+              : null}
+          </DragOverlay>
         </DndContext>
       )}
 
@@ -511,7 +548,7 @@ function SortableNoteCard({
         transition,
         zIndex: isDragging ? 10 : 0,
       }}
-      className={cn(isDragging && "opacity-70")}
+      className={cn(isDragging && "opacity-30")}
     >
             <Card
               className={cn(
@@ -682,6 +719,59 @@ function SortableNoteCard({
               </CardFooter>
             </Card>
     </motion.div>
+  );
+}
+
+// Visual-only clone of a note card for the DragOverlay portal. No
+// drag listeners, no action buttons, no click handlers — it's purely
+// there to float under the cursor while the original card fades in
+// place. Ring + shadow accent read as "lifted" at a glance.
+function NoteCardPreview({
+  note,
+  language,
+}: {
+  note: GridNote;
+  language: "en" | "es" | "ca";
+}) {
+  return (
+    <Card
+      className={cn(
+        "flex flex-col h-[340px] overflow-hidden border-border/60 bg-card shadow-2xl ring-2 ring-primary/40 cursor-grabbing",
+        note.starred &&
+          "border-primary/40 bg-[color-mix(in_oklch,var(--primary)_7%,var(--card))]",
+      )}
+    >
+      <CardContent className="flex-1 min-h-0 p-5 pb-2 overflow-hidden mask-gradient-b">
+        <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
+          <NoteMarkdown
+            noteId={note.id}
+            content={note.content}
+            tags={note.tags || []}
+          />
+        </div>
+      </CardContent>
+      {note.tags && note.tags.length > 0 && (
+        <div className="px-5 pb-2 flex flex-wrap gap-1">
+          {note.tags.map((tag) => (
+            <Badge
+              key={tag}
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 uppercase tracking-wider font-mono border-border/60 text-muted-foreground bg-muted/30"
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+      <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2">
+        <span
+          className="text-[10px] text-muted-foreground font-mono"
+          title={new Date(note.created_at).toLocaleString(language)}
+        >
+          {formatRelative(note.created_at, language)}
+        </span>
+      </CardFooter>
+    </Card>
   );
 }
 
