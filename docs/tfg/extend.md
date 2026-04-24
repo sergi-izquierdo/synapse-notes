@@ -6,7 +6,7 @@
 > 3. Si una casella queda pendent o bloquejada, deixar-la `[ ]` amb una nota breu al costat.
 >
 > Document viu. Marca cada casella a mesura que la tasca es completa.
-> Última actualització: 2026-04-24.
+> Última actualització: 2026-04-24 (tarda-nit, feature track drag afegit).
 > Finestra total: 47 dies (avui fins al 2026-06-05).
 > Format: una checklist per setmana amb "Codi", "Memòria" i "Administració".
 > Criteri de "fet": la casella només es marca quan la tasca és verificable (test verd, PR fusionat, secció escrita).
@@ -28,6 +28,157 @@
 - [x] Crear les carpetes `/mcp` (a `src/app/api/mcp`), `/supabase/functions`, `/tests/security`, `/tests/rls` i `src/lib/mcp` amb `.gitkeep`. _2026-04-19._
 - [x] `ANTHROPIC_API_KEY` afegida a `.env.local`. _2026-04-19._
 - [ ] Obrir compte a Supabase per al projecte de desenvolupament (o reutilitzar-ne un).
+
+---
+
+## Feature track: Draggable + reorderable note cards
+
+> **Objectiu.** Permetre que l'usuari reordeni les notes manualment per
+> drag, amb ordre persistit a Postgres, animació rebound entre notes, i
+> separació neta entre secció *Starred* i *Resta* (no es barregen per
+> drag; creuar la frontera toggleja l'estat d'estrella).
+>
+> **Decisions arquitectòniques preses (investigació 2026-04-24):**
+> - Llibreria: `@dnd-kit/core@^6` + `@dnd-kit/sortable@^8` amb
+>   `rectSortingStrategy`. Motion `Reorder` és single-axis i no val
+>   per a grid; `react-beautiful-dnd` deprecated; `@hello-pangea/dnd`
+>   no suporta grid. `@dnd-kit/react` 0.4 encara és beta.
+> - Persistència: columna `notes.position text` + paquet
+>   `fractional-indexing` (Rocicorp, ~1 KB). Una sola UPDATE per drag,
+>   sense rebalancing (precisió il·limitada vs floats amb 52
+>   midpoint-splits). Patrons: Figma, Notion, Linear.
+> - Abast del reorder: **global per usuari**, no per filtre. Gaps al
+>   render quan hi ha filtre actiu és el comportament correcte.
+> - Starred vs no-starred: **dos `SortableContext` independents**.
+>   Server sort nou: `starred DESC, position ASC NULLS LAST,
+>   created_at DESC` (position passa a ser la clau primària
+>   d'ordenació intra-secció; created_at queda com a tiebreak per a
+>   notes antigues sense position durant el transitori).
+> - Rebound feel: la llibreria només gestiona posició; el bounce ve
+>   del `motion.div layout` ja existent a cada card, amb
+>   `transition={{ type: 'spring', stiffness: 350, damping: 30 }}`.
+>   Durant el drag dnd-kit escriu `transform` i guanya; entre drags
+>   FM fa el spring de desplaçament dels veïns.
+
+### Sub-tasques
+
+**Schema + backend:**
+
+- [ ] Migració `supabase/migrations/20260425XXXXXX_notes_position.sql`:
+      afegir columna `position text`, backfill amb
+      `generateNKeysBetween` per a les notes existents (ordre inicial:
+      `created_at DESC` preservat), índex compost
+      `notes_user_section_position_idx` sobre
+      `(user_id, starred, position)`.
+- [ ] Aplicar migració al remot via MCP `apply_migration`.
+- [ ] Actualitzar `src/types/database.ts` amb el nou camp
+      `position: string | null`.
+- [ ] Actualitzar la query de `src/app/(dashboard)/page.tsx` al nou
+      sort: `.order('starred', { ascending: false })
+      .order('position', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })`.
+
+**Server action:**
+
+- [ ] Nova action a `src/actions/notes.ts`:
+      `reorderNote(noteId, prevPosition, nextPosition)` que
+      genera la nova key amb
+      `generateKeyBetween(prev, next)`, fa l'UPDATE amb
+      `.select()` per detectar RLS silent-fail (vegeu
+      `feedback_rls_delete_update.md`), `revalidatePath('/')`.
+- [ ] Una segona action defensiva:
+      `rebalanceUserNotesPositionsAction()` per reassignar totes
+      les positions si mai es detecta col·lisió (no esperem que
+      passi però val la pena tenir-la).
+
+**Dependencies:**
+
+- [ ] `npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
+      fractional-indexing`.
+
+**UI — NoteGrid:**
+
+- [ ] Dividir la llista filtrada en `starredNotes` i `restNotes`
+      abans de renderitzar.
+- [ ] Wrap del grid existent amb un `<DndContext>` (sensors:
+      PointerSensor + KeyboardSensor amb
+      `sortableKeyboardCoordinates`), `collisionDetection:
+      closestCenter`.
+- [ ] Dos `<SortableContext>` (starred + rest), cadascun amb la
+      seva pròpia llista d'ids i `rectSortingStrategy`.
+- [ ] Extreure la card actual a `<SortableCard>` que consumeix
+      `useSortable({ id })` i aplica `CSS.Transform.toString` al
+      `style` del `motion.div` existent. **No tocar el `layout`
+      prop ni la transició spring** — és el que dona el rebound.
+- [ ] `onDragEnd` handler que:
+      (1) calcula `prev` i `next` en la llista corresponent,
+      (2) genera `newPos` via `generateKeyBetween`,
+      (3) dispara `applyOptimistic({ type: 'patch', id, patch:
+      { position: newPos } })` dins `startMutation`,
+      (4) crida `reorderNote(...)` al servidor,
+      (5) si error, toast + revert automàtic via el resolve de
+      la transició (patró ja establert).
+
+**Edge cases:**
+
+- [ ] Drag a posició 0 o última: `prev`/`next` poden ser `null`;
+      `generateKeyBetween(null, firstPos)` i
+      `generateKeyBetween(lastPos, null)` ja ho gestionen.
+- [ ] Drag entre la secció *Starred* i *Resta*:
+      **no permetre-ho pel drag**; la frontera és el límit de
+      `SortableContext`. L'estat `starred` es canvia via el botó
+      existent, no per drag. (Decisió simplificadora vs Apple
+      Notes que sí ho permet.)
+- [ ] Filtre actiu durant el drag: els `prev`/`next` visibles NO
+      són els mateixos que els de la llista completa. Calcular
+      `prev`/`next` dins la llista **completa** (no la
+      filtrada) consultant les positions dels veïns reals. Si no
+      hi ha veïns visibles a la mateixa secció, és equivalent a
+      drop al principi/final i `generateKeyBetween(null, first)`
+      o similar.
+
+**Accessibilitat:**
+
+- [ ] Verificar que el `KeyboardSensor` de dnd-kit fa el que cal
+      (Space/Enter per agafar, fletxes per moure, Space per
+      deixar anar, Escape per cancel·lar). Afegir-ho al
+      `KeyboardShortcutsDialog` com a nova entrada
+      ("Drag with keyboard: Space then arrows").
+- [ ] Verificar que les announcements ARIA de dnd-kit funcionen
+      en el nostre layout (ve amb defaults en anglès; l'estat
+      del `LanguageProvider` és CA/ES/EN — decisió: deixar
+      announcements en anglès a la v1, i18n si algú ho demana).
+
+**Testing + build:**
+
+- [ ] Afegir data-test attributes a les cards per futures E2E.
+- [ ] `npm run lint && npm test && npm run build` abans de commit.
+- [ ] Smoke manual: drag a escriptori, drag a mòbil (touch
+      sensor), drag via teclat, drag dins filtre actiu, drag dins
+      cerca activa, drag entre starred i rest (ha d'estar
+      bloquejat).
+
+**Docs + deploy:**
+
+- [ ] Actualitzar `docs/tfg/backlog.md` amb la feina feta com a
+      §6 "Reordenació manual (drag + fractional indexing)".
+- [ ] Actualitzar aquest `extend.md` + mirall SecondBrain amb
+      la fila de progrés.
+- [ ] `tfg/sections/09-implementacio.tex` — afegir subsecció
+      "Ordenació manual via drag i fractional indexing" amb el
+      raonament (per què no `position int`, referència a Figma).
+- [ ] Commit + push a `main` + `vercel --prod --yes`.
+
+**Criteris de fet:**
+
+- [ ] Es pot reordenar notes dins la secció *Resta* i dins la
+      secció *Starred* independentment.
+- [ ] L'ordre persisteix entre recàrregues.
+- [ ] El rebound feel és visible (spring transition sobre
+      neighbour displacement).
+- [ ] El lint segueix net (0 errors), tests verds (16/16), build ✓.
+- [ ] El drag via teclat funciona (Space + fletxes).
+- [ ] El drag entre seccions està bloquejat.
 
 ---
 
