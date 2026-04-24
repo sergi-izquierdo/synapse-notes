@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TagSelector } from "@/components/ui/tag-selector";
 import { useLanguage } from "@/components/language-provider";
+import { TagManagerDialog } from "./tag-manager-dialog";
 
 interface FilterBarProps {
   searchTerm: string;
@@ -58,15 +59,21 @@ export function FilterBar({
         </div>
 
         {/* Multi-tag selector. Empty state reads "Filter by tags". */}
-        <div className="w-full sm:w-[240px]">
-          <TagSelector
-            selectedTags={selectedTags}
-            setSelectedTags={setSelectedTags}
+        <div className="flex w-full sm:w-auto items-center gap-1">
+          <div className="w-full sm:w-[240px]">
+            <TagSelector
+              selectedTags={selectedTags}
+              setSelectedTags={setSelectedTags}
+              availableTags={availableTags}
+              tagCounts={tagCounts}
+              allowCreate={false}
+              placeholder={t.common.filter_by_tag || "Filter by tags..."}
+              triggerClassName="bg-background/50 backdrop-blur-sm"
+            />
+          </div>
+          <TagManagerDialog
             availableTags={availableTags}
             tagCounts={tagCounts}
-            allowCreate={false}
-            placeholder={t.common.filter_by_tag || "Filter by tags..."}
-            triggerClassName="bg-background/50 backdrop-blur-sm"
           />
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   DndContext,
@@ -35,8 +36,8 @@ import {
 } from "@/actions/notes";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
-import { NoteMarkdown } from "./note-markdown";
-import { formatRelative } from "@/lib/format-relative";
+import { NoteMarkdown, type NoteIndex } from "./note-markdown";
+import { formatDateTime, formatRelative } from "@/lib/format-relative";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EditNoteDialog } from "./edit-note-dialog";
@@ -44,6 +45,7 @@ import { FilterBar } from "./filter-bar";
 
 interface GridNote {
   id: number;
+  title?: string | null;
   content: string;
   created_at: string;
   tags: string[] | null;
@@ -118,6 +120,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editingNote, setEditingNote] = useState<{
     id: number;
+    title: string | null;
     content: string;
     tags: string[];
   } | null>(null);
@@ -147,6 +150,28 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   });
 
   const [, startMutation] = useTransition();
+
+  // Shared lookup for backlink label resolution. Any `[[N]]` in a
+  // card body renders with the target's title (or first-line
+  // excerpt) instead of the opaque numeric id, so a user can see at
+  // a glance where a link points — including the degenerate case of
+  // a self-reference.
+  const noteIndex: NoteIndex = useMemo(() => {
+    const map = new Map<
+      number,
+      { title: string | null; excerpt: string }
+    >();
+    for (const n of notes) {
+      const first =
+        String(n.content ?? "")
+          .split("\n")
+          .map((s) => s.trim())
+          .find(Boolean) ?? "";
+      const excerpt = first.length > 80 ? `${first.slice(0, 80)}…` : first;
+      map.set(n.id, { title: n.title ?? null, excerpt });
+    }
+    return map;
+  }, [notes]);
 
   // Frequency map used by the filter selector, the top-3 keyboard
   // shortcuts, and (when we want to surface popular tags) any UI.
@@ -196,6 +221,49 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
     return () =>
       document.removeEventListener("notes-filter-top-tag", handler);
   }, [topTags]);
+
+  // Deep-link handler for `/?note=<id>` — graph viewer and any future
+  // external link opens the edit dialog on navigation. We strip the
+  // query once consumed so a refresh / back-nav doesn't reopen it.
+  // The setState is an effect-driven side effect (URL → dialog +
+  // history rewrite), not derived render state, so the lint rule's
+  // default guidance doesn't apply.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const rawNote = searchParams.get("note");
+    const rawTag = searchParams.get("tag");
+    if (!rawNote && !rawTag) return;
+
+    if (rawNote) {
+      const id = Number(rawNote);
+      if (Number.isFinite(id)) {
+        const target = notes.find((n) => n.id === id);
+        if (target) {
+          setEditingNote({
+            id: target.id,
+            title: target.title ?? null,
+            content: target.content,
+            tags: target.tags ?? [],
+          });
+        }
+      }
+    }
+
+    if (rawTag) {
+      // Additive: keep any tags the user had already selected and
+      // merge the deep-linked one, so `/?tag=Idees` from a note body
+      // doesn't silently clear a pre-existing filter.
+      const tag = rawTag;
+      setSelectedTags((prev) =>
+        prev.includes(tag) ? prev : [...prev, tag],
+      );
+    }
+
+    router.replace("/", { scroll: false });
+  }, [searchParams, notes, router]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Sort the optimistic view with the same rule as the server so
   // drag-reorder lands visually the moment the optimistic patch
@@ -456,8 +524,14 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                     note={note}
                     language={language}
                     selectedTags={selectedTags}
+                    noteIndex={noteIndex}
                     onOpenEdit={() =>
-                      setEditingNote({ ...note, tags: note.tags || [] })
+                      setEditingNote({
+                        id: note.id,
+                        title: note.title ?? null,
+                        content: note.content,
+                        tags: note.tags || [],
+                      })
                     }
                     onToggleStar={() =>
                       handleToggleStar(note.id, Boolean(note.starred))
@@ -492,8 +566,14 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                   note={note}
                   language={language}
                   selectedTags={selectedTags}
+                  noteIndex={noteIndex}
                   onOpenEdit={() =>
-                    setEditingNote({ ...note, tags: note.tags || [] })
+                    setEditingNote({
+                        id: note.id,
+                        title: note.title ?? null,
+                        content: note.content,
+                        tags: note.tags || [],
+                      })
                   }
                   onToggleStar={() =>
                     handleToggleStar(note.id, Boolean(note.starred))
@@ -521,7 +601,11 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
                     (n) => n.id === activeDragId,
                   );
                   return activeNote ? (
-                    <NoteCardPreview note={activeNote} language={language} />
+                    <NoteCardPreview
+                      note={activeNote}
+                      language={language}
+                      noteIndex={noteIndex}
+                    />
                   ) : null;
                 })()
               : null}
@@ -552,6 +636,7 @@ function SortableNoteCard({
   note,
   language,
   selectedTags,
+  noteIndex,
   onOpenEdit,
   onToggleStar,
   onToggleTagFilter,
@@ -562,6 +647,7 @@ function SortableNoteCard({
   note: GridNote;
   language: "en" | "es" | "ca";
   selectedTags: string[];
+  noteIndex: NoteIndex;
   onOpenEdit: () => void;
   onToggleStar: () => void;
   onToggleTagFilter: (tag: string) => void;
@@ -716,14 +802,44 @@ function SortableNoteCard({
               {/* Card Content — editorial body. Task-list checkboxes
                   are the only interactive target here (see
                   NoteMarkdown); clicks on plain text propagate up to
-                  the card and open the edit modal. */}
+                  the card and open the edit modal. Title lives above
+                  the body and reads as a heading; when the user
+                  didn't set one we skip the line entirely so short
+                  body notes don't get weighed down by empty space. */}
               <CardContent className="flex-1 min-h-0 p-5 pb-2 overflow-hidden mask-gradient-b">
-                <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
+                {note.title && (
+                  <h3 className="mb-2 text-base font-semibold tracking-tight text-card-foreground line-clamp-2">
+                    {note.title}
+                  </h3>
+                )}
+                <div
+                  className={cn(
+                    "prose prose-sm dark:prose-invert max-w-none wrap-break-word text-card-foreground pointer-events-none",
+                    // Tightened rhythm for card-sized previews.
+                    "prose-p:my-1.5 prose-p:leading-relaxed",
+                    "prose-ul:my-1.5 prose-ul:pl-5 prose-li:my-0",
+                    "prose-ol:my-1.5 prose-ol:pl-5",
+                    "prose-headings:font-semibold prose-headings:tracking-tight",
+                    "prose-h1:text-base prose-h1:mt-3 prose-h1:mb-1.5",
+                    "prose-h2:text-sm prose-h2:mt-3 prose-h2:mb-1",
+                    "prose-h3:text-sm prose-h3:mt-2 prose-h3:mb-1",
+                    // Inline code: pill-like, subtle background.
+                    "prose-code:text-[0.85em] prose-code:font-mono prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-muted/60 prose-code:px-1 prose-code:py-0.5",
+                    // Code blocks: stronger surface, softer border.
+                    "prose-pre:my-2 prose-pre:rounded-md prose-pre:bg-muted/80 prose-pre:border prose-pre:border-border/40 prose-pre:p-3 prose-pre:text-xs",
+                    // Blockquote: lighter, less visual weight.
+                    "prose-blockquote:my-2 prose-blockquote:border-l-2 prose-blockquote:border-border prose-blockquote:pl-3 prose-blockquote:not-italic prose-blockquote:text-muted-foreground",
+                    // Horizontal rules and table borders sit on the theme.
+                    "prose-hr:my-3 prose-hr:border-border/60",
+                    "prose-strong:text-foreground",
+                  )}
+                >
                   <NoteMarkdown
                     key={note.content}
                     noteId={note.id}
                     content={note.content}
                     tags={note.tags || []}
+                    noteIndex={noteIndex}
                   />
                 </div>
               </CardContent>
@@ -766,13 +882,16 @@ function SortableNoteCard({
                 </div>
               )}
 
-              {/* FOOTER — proceedings-style timestamp. */}
-              <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2">
-                <span
-                  className="text-[10px] text-muted-foreground font-mono"
-                  title={new Date(note.created_at).toLocaleString(language)}
-                >
+              {/* FOOTER — proceedings-style timestamp: relative on
+                  the left, absolute DD/MM/YYYY HH:MM on the right so
+                  the reader gets both "how recent" and "the exact
+                  moment" without a tooltip hover. */}
+              <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2 flex items-center justify-between gap-3">
+                <span className="text-[10px] text-muted-foreground font-mono">
                   {formatRelative(note.created_at, language)}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+                  {formatDateTime(note.created_at)}
                 </span>
               </CardFooter>
             </Card>
@@ -788,9 +907,11 @@ function SortableNoteCard({
 function NoteCardPreview({
   note,
   language,
+  noteIndex,
 }: {
   note: GridNote;
   language: "en" | "es" | "ca";
+  noteIndex: NoteIndex;
 }) {
   return (
     <Card
@@ -801,11 +922,17 @@ function NoteCardPreview({
       )}
     >
       <CardContent className="flex-1 min-h-0 p-5 pb-2 overflow-hidden mask-gradient-b">
+        {note.title && (
+          <h3 className="mb-2 text-base font-semibold tracking-tight text-card-foreground line-clamp-2">
+            {note.title}
+          </h3>
+        )}
         <div className="prose prose-sm dark:prose-invert wrap-break-word text-card-foreground pointer-events-none">
           <NoteMarkdown
             noteId={note.id}
             content={note.content}
             tags={note.tags || []}
+            noteIndex={noteIndex}
           />
         </div>
       </CardContent>
@@ -822,12 +949,12 @@ function NoteCardPreview({
           ))}
         </div>
       )}
-      <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2">
-        <span
-          className="text-[10px] text-muted-foreground font-mono"
-          title={new Date(note.created_at).toLocaleString(language)}
-        >
+      <CardFooter className="border-t border-border/60 bg-muted/20 px-5 py-2.5 mt-2 flex items-center justify-between gap-3">
+        <span className="text-[10px] text-muted-foreground font-mono">
           {formatRelative(note.created_at, language)}
+        </span>
+        <span className="text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+          {formatDateTime(note.created_at)}
         </span>
       </CardFooter>
     </Card>

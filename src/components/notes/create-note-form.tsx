@@ -2,13 +2,14 @@
 
 import { createNote } from "@/actions/notes";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useRef, useState } from "react";
 import { Send, Bold, List, ListTodo, Italic } from "lucide-react"; // Noves icones
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
-import { TagInput } from "@/components/ui/tag-input";
 import { TagSelector } from "../ui/tag-selector";
+import { useTagSuggestions } from "@/hooks/use-tag-suggestions";
+import { TagSuggestionRow } from "./tag-suggestion-row";
+import { BacklinkTextarea } from "./backlink-textarea";
 
 export function CreateNoteForm({
   availableTags,
@@ -20,8 +21,18 @@ export function CreateNoteForm({
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null); // Referència per manipular el text
   const { t } = useLanguage();
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState(""); // Controlem l'estat per a la toolbar
   const [tags, setTags] = useState<string[]>([]); // Estat per tags
+
+  // AI-suggested tags refresh as the user keeps typing. The hook
+  // itself handles debouncing + aborting stale requests.
+  const { status: suggestionsStatus, suggestions, dismiss } =
+    useTagSuggestions(content, availableTags);
+
+  const handleAddSuggestedTag = (tag: string) => {
+    setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+  };
 
   // Funció per inserir format al cursor
   const insertFormat = (prefix: string, suffix: string = "") => {
@@ -52,6 +63,7 @@ export function CreateNoteForm({
       ref={formRef}
       action={async (formData) => {
         // Assegurem que s'envia l'estat actual
+        formData.set("title", title);
         formData.set("content", content);
         formData.set("tags", JSON.stringify(tags));
 
@@ -68,13 +80,28 @@ export function CreateNoteForm({
             description: "Note added.",
             id: toastId,
           });
+          setTitle("");
           setContent(""); // Netejem l'estat
           setTags([]); // Netejem tags
+          dismiss();
           onSaved?.();
         }
       }}
       className="group relative mb-8 overflow-hidden rounded-2xl border bg-background shadow-lg transition-all focus-within:ring-2 focus-within:ring-primary/20"
     >
+      {/* TITLE — optional, large and unobtrusive. Blends with the
+          card background when empty so the compose surface still
+          reads as a single textarea at rest. */}
+      <input
+        type="text"
+        name="title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (optional)"
+        maxLength={200}
+        className="w-full bg-transparent border-none px-6 pt-5 pb-1 text-xl font-semibold tracking-tight placeholder:text-muted-foreground/40 focus:outline-none"
+      />
+
       {/* TOOLBAR */}
       <div className="flex items-center gap-1 border-b bg-muted/30 p-2">
         <Button
@@ -120,12 +147,14 @@ export function CreateNoteForm({
         </Button>
       </div>
 
-      {/* TEXTAREA */}
-      <Textarea
+      {/* TEXTAREA — wrapped in BacklinkTextarea so typing `[[` /
+          `@` / `#` opens inline autocomplete popovers (notes / tags). */}
+      <BacklinkTextarea
         ref={textareaRef}
         name="content"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={setContent}
+        availableTags={availableTags}
         onKeyDown={(e) => {
           // Ctrl/⌘ + Enter submits. Enter alone inserts newline as
           // users expect from a multi-line compose box.
@@ -146,7 +175,14 @@ export function CreateNoteForm({
 
       {/* ZONA DE TAGS — visually separated from the textarea and the
           action row by hairlines on a slightly darker surface. */}
-      <div className="border-t border-border/60 bg-muted/15 px-6 py-4">
+      <div className="border-t border-border/60 bg-muted/15 px-6 py-4 space-y-2.5">
+        <TagSuggestionRow
+          status={suggestionsStatus}
+          suggestions={suggestions}
+          selectedTags={tags}
+          onAdd={handleAddSuggestedTag}
+          onDismiss={dismiss}
+        />
         <TagSelector
           selectedTags={tags}
           setSelectedTags={setTags}

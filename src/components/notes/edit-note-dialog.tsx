@@ -11,18 +11,23 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { updateNote } from "@/actions/notes";
 import { toast } from "sonner";
 import { Loader2, Bold, Italic, List, ListTodo } from "lucide-react";
-// ✅ CHANGE: Import Selector instead of Input
 import { TagSelector } from "@/components/ui/tag-selector";
+import { useTagSuggestions } from "@/hooks/use-tag-suggestions";
+import { TagSuggestionRow } from "./tag-suggestion-row";
+import { BacklinkTextarea } from "./backlink-textarea";
 
 interface EditNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  note: { id: number; content: string; tags: string[] };
-  // ✅ NEW PROP
+  note: {
+    id: number;
+    title?: string | null;
+    content: string;
+    tags: string[];
+  };
   availableTags: string[];
 }
 
@@ -32,11 +37,33 @@ export function EditNoteDialog({
   note,
   availableTags,
 }: EditNoteDialogProps) {
+  const [title, setTitle] = useState(note.title ?? "");
   const [content, setContent] = useState(note.content);
   const [tags, setTags] = useState<string[]>(note.tags || []);
   const [isSaving, setIsSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+
+  // Edit mode: if the note already has tags, skip the auto-trigger
+  // on open (don't burn an LLM call when the user just wanted to
+  // read/edit the body). The dropdown's open handler fires a manual
+  // trigger so the user can still ask for suggestions on demand.
+  const hasExistingTags = (note.tags?.length ?? 0) > 0;
+  const { status: suggestionsStatus, suggestions, dismiss, trigger } =
+    useTagSuggestions(content, availableTags, {
+      enabled: open,
+      auto: !hasExistingTags,
+    });
+
+  const handleAddSuggestedTag = (tag: string) => {
+    setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+  };
+
+  const handleSelectorOpen = (openNow: boolean) => {
+    if (openNow && hasExistingTags && suggestionsStatus === "idle") {
+      trigger();
+    }
+  };
 
   // Toolbar logic
   const insertFormat = (prefix: string, suffix: string = "") => {
@@ -64,7 +91,7 @@ export function EditNoteDialog({
   const handleSave = async () => {
     setIsSaving(true);
 
-    const result = await updateNote(note.id, content, tags);
+    const result = await updateNote(note.id, content, tags, title);
 
     if (result?.error) {
       setIsSaving(false);
@@ -79,13 +106,45 @@ export function EditNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden gap-0">
+      <DialogContent
+        className="sm:max-w-[600px] p-0 overflow-hidden gap-0"
+        /* Keep the dialog open when the user clicks inside the
+           @/#/[[ autocomplete popover. Radix dispatches
+           `onInteractOutside` as a CustomEvent whose own `target`
+           is the DialogContent element, not the real click target —
+           the latter lives in `event.detail.originalEvent.target`.
+           Checking both covers every Radix version and both the
+           pointer + focus branches of the detector. */
+        onInteractOutside={(e) => {
+          const direct = e.target as Element | null;
+          const original =
+            (e.detail as { originalEvent?: Event } | undefined)
+              ?.originalEvent?.target as Element | null | undefined;
+          const target = original ?? direct;
+          if (target?.closest?.("[data-backlink-popover]")) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>Edit Note</DialogTitle>
           <DialogDescription>
-            Modify your note content and tags.
+            Modify your note title, content and tags.
           </DialogDescription>
         </DialogHeader>
+
+        {/* TITLE — large input that blends into the dialog
+            background, matching the compose surface style. */}
+        <div className="px-6 pt-1">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional)"
+            maxLength={200}
+            className="w-full bg-transparent border-none text-xl font-semibold tracking-tight placeholder:text-muted-foreground/40 focus:outline-none"
+          />
+        </div>
 
         {/* TOOLBAR */}
         <div className="flex items-center gap-1 border-y bg-muted/30 p-2 px-6">
@@ -129,10 +188,11 @@ export function EditNoteDialog({
         </div>
 
         <div className="px-6 pt-4 pb-2">
-          <Textarea
+          <BacklinkTextarea
             ref={textareaRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
+            availableTags={availableTags}
             className="min-h-[300px] resize-none text-base border border-border/60 focus-visible:ring-1 focus-visible:ring-primary p-4 shadow-none font-sans rounded-md"
             placeholder="Type here..."
           />
@@ -147,15 +207,22 @@ export function EditNoteDialog({
           </div>
         </div>
 
-        <div className="px-6 pb-4">
+        <div className="px-6 pb-4 space-y-2">
           <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
             Tags
           </label>
-          {/* ✅ CHANGE: Use TagSelector */}
+          <TagSuggestionRow
+            status={suggestionsStatus}
+            suggestions={suggestions}
+            selectedTags={tags}
+            onAdd={handleAddSuggestedTag}
+            onDismiss={dismiss}
+          />
           <TagSelector
             selectedTags={tags}
             setSelectedTags={setTags}
             availableTags={availableTags}
+            onOpenChange={handleSelectorOpen}
           />
         </div>
 

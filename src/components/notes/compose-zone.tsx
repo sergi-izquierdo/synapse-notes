@@ -52,6 +52,29 @@ export function ComposeZone({ availableTags }: { availableTags: string[] }) {
                     <SheetContent
                         side="bottom"
                         className="max-h-[92vh] overflow-y-auto p-0"
+                        /* Same trick as EditNoteDialog. The Radix
+                           CustomEvent's own target is the sheet
+                           itself; the real click target lives under
+                           `event.detail.originalEvent.target`. */
+                        onInteractOutside={(e) => {
+                            const direct = e.target as Element | null;
+                            const original = (
+                                e.detail as
+                                    | { originalEvent?: Event }
+                                    | undefined
+                            )?.originalEvent?.target as
+                                | Element
+                                | null
+                                | undefined;
+                            const target = original ?? direct;
+                            if (
+                                target?.closest?.(
+                                    "[data-backlink-popover]",
+                                )
+                            ) {
+                                e.preventDefault();
+                            }
+                        }}
                     >
                         <SheetHeader className="px-5 pt-5 pb-2">
                             <SheetTitle>New note</SheetTitle>

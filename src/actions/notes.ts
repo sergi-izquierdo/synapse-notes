@@ -6,6 +6,7 @@ import { z } from "zod";
 import { generateKeyBetween } from "fractional-indexing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateEmbedding } from "@/lib/ai";
+import { extractNoteLinks } from "@/lib/note-links";
 
 const NoteSchema = z.object({
   content: z.string().min(1, "Content cannot be empty"),
@@ -50,6 +51,12 @@ export async function createNote(formData: FormData) {
   const tagsRaw = formData.get("tags") as string;
   const tags = tagsRaw ? JSON.parse(tagsRaw) : [];
 
+  // Title is optional; empty strings are normalized to null so the
+  // graph RPC's coalesce(nullif(trim(title), ''), ...) falls back
+  // to the first-line-of-content path consistently.
+  const titleRaw = (formData.get("title") as string | null) ?? "";
+  const title = titleRaw.trim() ? titleRaw.trim().slice(0, 200) : null;
+
   const validatedFields = NoteSchema.safeParse({ content });
 
   if (!validatedFields.success) {
@@ -57,8 +64,11 @@ export async function createNote(formData: FormData) {
   }
 
   try {
-    // 1. Generem l'Embedding (La part IA)
-    const embedding = await generateEmbedding(content);
+    // 1. Generem l'Embedding. Include the title so semantic search
+    //    can surface the note when the user queries its topic even
+    //    if the body is short.
+    const embedText = title ? `${title}\n\n${content}` : content;
+    const embedding = await generateEmbedding(embedText);
 
     // 2. Position at the top of the unstarred section so the new
     //    note shows up first (preserves the legacy "newest on top"
@@ -69,21 +79,42 @@ export async function createNote(formData: FormData) {
       false,
     );
 
-    // 3. Guardem Text + Vector a Supabase
-    const { error } = await supabase.from("notes").insert({
-      user_id: user.id,
-      content,
-      tags,
-      embedding,
-      position,
-    });
+    // 3. Guardem Text + Vector a Supabase. `.select('id').single()`
+    //    perquè necessitem l'id de la nova fila per sincronitzar els
+    //    backlinks a continuació.
+    const { data: inserted, error } = await supabase
+      .from("notes")
+      .insert({
+        user_id: user.id,
+        title,
+        content,
+        tags,
+        embedding,
+        position,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       console.error("Supabase Error:", error);
       return { error: "Error saving note to database." };
     }
 
+    // 4. Parsegem [[N]] i materialitzem els edges dirigits a
+    //    `note_links`. La RPC filtra targets que no pertanyen a
+    //    l'usuari, self-refs, i notes archived; errors aquí no
+    //    haurien de tombar la creació de la nota.
+    const targets = extractNoteLinks(content, inserted?.id as number);
+    if (targets.length > 0 && inserted?.id) {
+      const { error: linkErr } = await supabase.rpc("sync_note_links", {
+        p_source_id: inserted.id,
+        p_target_ids: targets,
+      });
+      if (linkErr) console.error("sync_note_links error:", linkErr);
+    }
+
     revalidatePath("/");
+    revalidatePath("/graph");
     return { success: true };
   } catch (e) {
     console.error("AI/Server Error:", e);
@@ -395,7 +426,8 @@ export async function reorderNote(noteId: number, newPosition: string) {
 export async function updateNote(
   noteId: number,
   content: string,
-  tags: string[]
+  tags: string[],
+  title?: string | null
 ) {
   const supabase = await createClient();
 
@@ -411,23 +443,50 @@ export async function updateNote(
     return { error: "El contingut no pot estar buit." };
   }
 
+  // Normalize title the same way createNote does. `undefined`
+  // means "don't touch" (callers that don't know about titles yet,
+  // e.g. the optimistic star toggle path); an explicit null or
+  // empty string clears it.
+  const normalizedTitle =
+    title === undefined
+      ? undefined
+      : title && title.trim()
+        ? title.trim().slice(0, 200)
+        : null;
+
   try {
-    // 2. Generar Embedding
-    const embedding = await generateEmbedding(content);
+    // 2. Generar Embedding. Include title when we have one.
+    const embedText = normalizedTitle
+      ? `${normalizedTitle}\n\n${content}`
+      : content;
+    const embedding = await generateEmbedding(embedText);
 
     // 3. Actualitzar a Supabase
+    const updatePayload: Record<string, unknown> = {
+      content,
+      tags,
+      embedding,
+      updated_at: new Date().toISOString(),
+    };
+    if (normalizedTitle !== undefined) updatePayload.title = normalizedTitle;
     const { error } = await supabase
       .from("notes")
-      .update({
-        content,
-        tags,
-        embedding,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", noteId)
       .select(); // IMPORTANT: Això ens permet veure si realment ha tocat alguna fila
 
+    // 4. Re-sincronitzar els backlinks: la RPC substitueix
+    //    completament el set d'outgoing links, per tant un
+    //    [[N]] esborrat a l'edit desapareix del graph.
+    const targets = extractNoteLinks(content, noteId);
+    const { error: linkErr } = await supabase.rpc("sync_note_links", {
+      p_source_id: noteId,
+      p_target_ids: targets,
+    });
+    if (linkErr) console.error("sync_note_links error:", linkErr);
+
     revalidatePath("/");
+    revalidatePath("/graph");
     return { success: true };
   } catch (error) {
     return { error: "Error al actualitzar la nota." };

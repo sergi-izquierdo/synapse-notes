@@ -4,6 +4,7 @@ import { streamText, generateText, tool, stepCountIs } from "ai";
 import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
 import type { ChatRequestMessage, MatchedNote } from "@/types/database";
+import { createGraphService } from "@/services/graph.service";
 
 export const maxDuration = 30;
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     //      below require to target a specific note.
     const { data: allNotes } = await supabase
         .from('notes')
-        .select('id, content, tags')
+        .select('id, title, content, tags')
         .is('archived_at', null)
         .order('created_at', { ascending: false });
 
@@ -59,23 +60,25 @@ export async function POST(req: Request) {
         new Set((allNotes ?? []).flatMap((n) => n.tags ?? [])),
     ).join(', ');
 
-    // 1-line excerpt (first non-blank line, capped) — enough for the
-    // model to decide whether to pull the full body via RAG or the tag
-    // tool, without flooding the context with full markdown. The
-    // leading `[id=N]` is what the graph tools use as the handle.
+    // 1-line excerpt for the inventory: prefer the user-set title,
+    // fall back to the first non-blank line of content. The leading
+    // `[id=N]` is still the handle that graph tools target.
     const inventoryLines = (allNotes ?? []).map((n) => {
-        const firstLine =
-            String(n.content ?? '')
-                .split('\n')
-                .map((s) => s.trim())
-                .find(Boolean) ?? '';
-        const excerpt =
-            firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
+        const title = typeof n.title === 'string' ? n.title.trim() : '';
+        let label = title;
+        if (!label) {
+            const firstLine =
+                String(n.content ?? '')
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .find(Boolean) ?? '';
+            label = firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
+        }
         const tagList =
             n.tags && n.tags.length > 0
                 ? ` · [${(n.tags as string[]).map((t) => `#${t}`).join(', ')}]`
                 : '';
-        return `- [id=${n.id}] ${excerpt}${tagList}`;
+        return `- [id=${n.id}] ${label}${tagList}`;
     });
     const notesInventory =
         inventoryLines.length > 0
@@ -137,7 +140,31 @@ export async function POST(req: Request) {
           edge kinds ('tag' = shared category, 'embed' = semantic
           similarity) at each hop.
 
-     4. **Language:** answer in the user's language.
+     4. **Tool strategy — be efficient.**
+        - When asked about correlations across 3+ notes, prefer ONE
+          'graph_neighbors' call on a central note over N*(N-1)/2
+          'graph_shortest_path' calls. It returns every direct
+          connection in a single round trip.
+        - Don't over-fetch. If 'graph_neighbors' already answers the
+          question, don't follow up with shortest_path.
+
+     5. **Answer style — be concise and precise.**
+        - When several connections share the same tag and weight,
+          state it once and group them. Don't list three identical
+          bullet points.
+        - Weight = 1.00 between two notes means they share the EXACT
+          same tag set (Jaccard index of 1), not just "any shared
+          tag". Mention this when it applies — it's a stronger signal
+          than a partial overlap.
+        - edge_kind 'tag' = shared tag category; edge_kind 'embed' =
+          semantically similar content. Say which one connects the
+          notes, not just "they're connected".
+        - No filler ("Perfecte!", "Les correlacions són molt clares").
+          Start with the substance.
+
+     6. **Language:** answer in the user's language, with correct
+        grammar. In Catalan, "pertanyen" (not "perts"), "idees" (not
+        "ideas"), "d'aquí a" (with accent).
    `;
 
     // Define Tool Schema
@@ -145,36 +172,10 @@ export async function POST(req: Request) {
         tag: z.string().describe(`The tag to filter by. Must be one of: ${uniqueTags}`),
     });
 
-    // Lazy graph loader — the RPC is only called if the model decides
-    // to invoke one of the graph tools. Cached for the duration of
-    // this request so back-to-back graph calls don't re-query
-    // Postgres.
-    type GraphNode = { id: number; title: string; tags: string[]; starred: boolean; created_at: string };
-    type GraphLink = { source: number; target: number; weight: number; kind: 'tag' | 'embed' };
-    type CachedGraph = {
-        nodes: GraphNode[];
-        links: GraphLink[];
-        adjacency: Map<number, Array<{ neighbour: number; weight: number; kind: 'tag' | 'embed' }>>;
-    };
-    let graphCache: CachedGraph | null = null;
-    const loadGraph = async (): Promise<CachedGraph> => {
-        if (graphCache) return graphCache;
-        const { data, error } = await supabase.rpc("get_note_graph");
-        if (error || !data) {
-            graphCache = { nodes: [], links: [], adjacency: new Map() };
-            return graphCache;
-        }
-        const graph = data as { nodes: GraphNode[]; links: GraphLink[] };
-        const adjacency = new Map<number, Array<{ neighbour: number; weight: number; kind: 'tag' | 'embed' }>>();
-        for (const link of graph.links) {
-            if (!adjacency.has(link.source)) adjacency.set(link.source, []);
-            if (!adjacency.has(link.target)) adjacency.set(link.target, []);
-            adjacency.get(link.source)!.push({ neighbour: link.target, weight: link.weight, kind: link.kind });
-            adjacency.get(link.target)!.push({ neighbour: link.source, weight: link.weight, kind: link.kind });
-        }
-        graphCache = { nodes: graph.nodes, links: graph.links, adjacency };
-        return graphCache;
-    };
+    // Single graph service per request: BFS/shortest-path + lazy RPC
+    // cache live inside the service so back-to-back graph tool calls
+    // don't re-query Postgres. Same service powers the MCP tools.
+    const graphService = createGraphService(supabase);
 
     const GraphNeighboursSchema = z.object({
         noteId: z.number().int().describe("The numeric note id from the INVENTORY (the `id=N` prefix)."),
@@ -217,43 +218,13 @@ export async function POST(req: Request) {
                     "Return the notes directly connected to a given note in the user's knowledge graph. Edges are either `tag` (shared tag, weighted by Jaccard) or `embed` (cosine similarity on embeddings). Use when the user asks `what does X relate to?` or `what's near this idea?`.",
                 inputSchema: GraphNeighboursSchema,
                 execute: async ({ noteId, depth, limit }: z.infer<typeof GraphNeighboursSchema>) => {
-                    const graph = await loadGraph();
-                    if (!graph.adjacency.has(noteId)) {
+                    const entries = await graphService.neighbours(noteId, depth, limit);
+                    if (entries === null) {
                         return `No graph neighbours for note ${noteId} (it may be unconnected, archived, or the id doesn't belong to the user).`;
                     }
-                    // BFS up to `depth`, collecting unique neighbours
-                    // with the first edge encountered (the most direct
-                    // one) and its weight/kind.
-                    const found = new Map<number, { hops: number; weight: number; kind: 'tag' | 'embed' }>();
-                    const frontier: Array<{ id: number; hops: number }> = [{ id: noteId, hops: 0 }];
-                    const seen = new Set<number>([noteId]);
-                    while (frontier.length > 0) {
-                        const { id, hops } = frontier.shift()!;
-                        if (hops >= depth) continue;
-                        const edges = graph.adjacency.get(id) ?? [];
-                        for (const edge of edges) {
-                            if (seen.has(edge.neighbour)) continue;
-                            seen.add(edge.neighbour);
-                            found.set(edge.neighbour, { hops: hops + 1, weight: edge.weight, kind: edge.kind });
-                            frontier.push({ id: edge.neighbour, hops: hops + 1 });
-                        }
+                    if (entries.length === 0) {
+                        return `Note ${noteId} has no neighbours within ${depth} hop(s).`;
                     }
-                    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-                    const entries = Array.from(found.entries())
-                        .sort((a, b) => b[1].weight - a[1].weight)
-                        .slice(0, limit)
-                        .map(([id, meta]) => {
-                            const node = byId.get(id);
-                            return {
-                                id,
-                                title: node?.title ?? "(unknown)",
-                                tags: node?.tags ?? [],
-                                hops: meta.hops,
-                                edge_kind: meta.kind,
-                                edge_weight: Number(meta.weight.toFixed(3)),
-                            };
-                        });
-                    if (entries.length === 0) return `Note ${noteId} has no neighbours within ${depth} hop(s).`;
                     return JSON.stringify(entries);
                 },
             }),
@@ -262,45 +233,17 @@ export async function POST(req: Request) {
                     "Find the shortest chain of notes that connects two ideas via shared tags or embedding similarity. Use when the user asks `how is X connected to Y?` — the chain explains how one idea leads to the other. Returns the path node by node with the edge kind at each hop.",
                 inputSchema: GraphPathSchema,
                 execute: async ({ fromId, toId, maxHops }: z.infer<typeof GraphPathSchema>) => {
-                    if (fromId === toId) return `Same note (${fromId}) — trivial path.`;
-                    const graph = await loadGraph();
-                    if (!graph.adjacency.has(fromId) || !graph.adjacency.has(toId)) {
-                        return `One of the notes (${fromId} or ${toId}) isn't in the graph — check the inventory for a valid id.`;
+                    const result = await graphService.shortestPath(fromId, toId, maxHops);
+                    switch (result.status) {
+                        case "same":
+                            return `Same note (${fromId}) — trivial path.`;
+                        case "missing":
+                            return `One of the notes (${fromId} or ${toId}) isn't in the graph — check the inventory for a valid id.`;
+                        case "no_path":
+                            return `No path within ${maxHops} hops between ${fromId} and ${toId}.`;
+                        case "ok":
+                            return JSON.stringify({ hops: result.hops, chain: result.chain });
                     }
-                    // BFS with predecessor map
-                    const pred = new Map<number, { from: number; kind: 'tag' | 'embed'; weight: number }>();
-                    const seen = new Set<number>([fromId]);
-                    const q: Array<{ id: number; hops: number }> = [{ id: fromId, hops: 0 }];
-                    let found = false;
-                    while (q.length > 0) {
-                        const { id, hops } = q.shift()!;
-                        if (hops >= maxHops) continue;
-                        const edges = graph.adjacency.get(id) ?? [];
-                        for (const edge of edges) {
-                            if (seen.has(edge.neighbour)) continue;
-                            seen.add(edge.neighbour);
-                            pred.set(edge.neighbour, { from: id, kind: edge.kind, weight: edge.weight });
-                            if (edge.neighbour === toId) { found = true; break; }
-                            q.push({ id: edge.neighbour, hops: hops + 1 });
-                        }
-                        if (found) break;
-                    }
-                    if (!found) return `No path within ${maxHops} hops between ${fromId} and ${toId}.`;
-                    // Reconstruct path
-                    const chain: Array<{ id: number; title: string; via?: string }> = [];
-                    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-                    let cur = toId;
-                    while (cur !== fromId) {
-                        const p = pred.get(cur)!;
-                        chain.unshift({
-                            id: cur,
-                            title: byId.get(cur)?.title ?? "(unknown)",
-                            via: `${p.kind} (w=${p.weight.toFixed(2)}) from ${p.from}`,
-                        });
-                        cur = p.from;
-                    }
-                    chain.unshift({ id: fromId, title: byId.get(fromId)?.title ?? "(unknown)" });
-                    return JSON.stringify({ hops: chain.length - 1, chain });
                 },
             }),
         },

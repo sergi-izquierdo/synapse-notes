@@ -6,10 +6,18 @@ import {
     createSearchNotesHandler,
     searchNotesToolDefinition,
 } from "@/lib/mcp/tools/search-notes";
+import {
+    createGraphNeighborsHandler,
+    graphNeighborsToolDefinition,
+} from "@/lib/mcp/tools/graph-neighbors";
+import {
+    createGraphShortestPathHandler,
+    graphShortestPathToolDefinition,
+} from "@/lib/mcp/tools/graph-shortest-path";
 
 export function createMcpServer(client: SupabaseClient) {
     const server = new McpServer(
-        { name: "synapse-notes-mcp", version: "0.1.0" },
+        { name: "synapse-notes-mcp", version: "0.2.0" },
         { capabilities: { tools: {} } },
     );
 
@@ -17,6 +25,18 @@ export function createMcpServer(client: SupabaseClient) {
         "search_notes",
         searchNotesToolDefinition,
         createSearchNotesHandler(client),
+    );
+
+    server.registerTool(
+        "graph_neighbors",
+        graphNeighborsToolDefinition,
+        createGraphNeighborsHandler(client),
+    );
+
+    server.registerTool(
+        "graph_shortest_path",
+        graphShortestPathToolDefinition,
+        createGraphShortestPathHandler(client),
     );
 
     return server;

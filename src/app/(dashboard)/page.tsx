@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { signOut } from "@/actions/auth";
@@ -70,7 +71,12 @@ export default async function DashboardPage() {
                     {notes?.length || 0}
                   </span>
                 </h2>
-                <NoteGrid notes={notes || []} availableTags={availableTags} />
+                <Suspense fallback={null}>
+                  <NoteGrid
+                    notes={notes || []}
+                    availableTags={availableTags}
+                  />
+                </Suspense>
               </section>
             </div>
           </div>

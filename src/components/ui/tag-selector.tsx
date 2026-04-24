@@ -32,6 +32,11 @@ interface TagSelectorProps {
   allowCreate?: boolean;
   placeholder?: string;
   triggerClassName?: string;
+  /** Fires when the popover opens or closes. Used by callers that
+   *  need to react to the user intentionally reaching for the tag
+   *  picker (e.g. firing an LLM tag-suggestion only when the user
+   *  explicitly asks for one). */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function TagSelector({
@@ -42,10 +47,16 @@ export function TagSelector({
   allowCreate = true,
   placeholder,
   triggerClassName,
+  onOpenChange,
 }: TagSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState("");
   const { t } = useLanguage();
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    onOpenChange?.(next);
+  };
 
   const handleSelect = (currentValue: string) => {
     if (selectedTags.includes(currentValue)) {
@@ -76,7 +87,7 @@ export function TagSelector({
 
   return (
     <div className="flex flex-col gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
