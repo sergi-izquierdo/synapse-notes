@@ -85,3 +85,8 @@ tfg/**/*.run.xml
 tfg/**/*.synctex.gz
 tfg/**/*.synctex.gz(busy)
 tfg/main.pdf
+
+# Generated figure artefacts — sources are .mmd (committed);
+# rebuild with `mmdc -i x.mmd -o x.pdf` per tfg/figures/README.md.
+tfg/figures/*.pdf
+tfg/figures/*.svg

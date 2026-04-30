@@ -60,10 +60,10 @@ proveïdors de model} (Anthropic, Google AI). El sistema integra
 amb \textbf{Supabase Auth} (OAuth amb Google i GitHub) i
 \textbf{Supabase Postgres} (persistència).
 
-\IfFileExists{tfg/figures/c4-context.svg}{%
+\IfFileExists{figures/c4-context.pdf}{%
     \begin{figure}[H]
         \centering
-        \includegraphics[width=0.95\linewidth]{tfg/figures/c4-context.svg}
+        \includegraphics[width=0.95\linewidth]{figures/c4-context.pdf}
         \caption{Diagrama C4 nivell 1: context. Font:
             \texttt{tfg/figures/c4-context.mmd}, generat amb Mermaid CLI.}
         \label{fig:c4-context}
@@ -103,10 +103,10 @@ Dins el sistema, els \emph{containers} (en sentit C4) són:
         consumits per la capa AI SDK.
 \end{itemize}
 
-\IfFileExists{tfg/figures/c4-containers.svg}{%
+\IfFileExists{figures/c4-containers.pdf}{%
     \begin{figure}[H]
         \centering
-        \includegraphics[width=0.95\linewidth]{tfg/figures/c4-containers.svg}
+        \includegraphics[width=0.95\linewidth]{figures/c4-containers.pdf}
         \caption{Diagrama C4 nivell 2: containers.}
         \label{fig:c4-containers}
     \end{figure}
@@ -203,10 +203,10 @@ L'autenticació segueix el patró OAuth 2.1 que recomana l'spec MCP
 cada crida). Per a la fase actual (Setmana 2) el flux és simplificat
 amb un access token estàtic obtingut via Supabase Auth:
 
-\IfFileExists{tfg/figures/mcp-oauth-sequence.svg}{%
+\IfFileExists{figures/mcp-oauth-sequence.pdf}{%
     \begin{figure}[H]
         \centering
-        \includegraphics[width=0.95\linewidth]{tfg/figures/mcp-oauth-sequence.svg}
+        \includegraphics[width=0.95\linewidth]{figures/mcp-oauth-sequence.pdf}
         \caption{Seqüència OAuth + primera crida MCP. Font Mermaid
             \texttt{tfg/figures/mcp-oauth-sequence.mmd}.}
         \label{fig:mcp-oauth-sequence}
