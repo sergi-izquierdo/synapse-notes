@@ -84,6 +84,18 @@ class NotesService {
         if (!content) {
             throw new Error("content cannot be empty");
         }
+        // The notes table's RLS INSERT policy is `user_id = auth.uid()`
+        // and the column has no default, so we must set it explicitly.
+        // Mirrors the createNote Server Action. The auth.getUser() call
+        // here re-uses the JWT already attached to this client (no
+        // extra network round-trip beyond the one Supabase makes for
+        // any authenticated request).
+        const { data: authData, error: authErr } =
+            await this.client.auth.getUser();
+        if (authErr || !authData.user) {
+            throw new Error("createNote failed: not authenticated");
+        }
+
         // Embedding indexed over `${title}\n\n${content}` when a title
         // is set so RAG / semantic search can locate the note by its
         // topic name even if the body is sparse — matches the same
@@ -94,6 +106,7 @@ class NotesService {
         const { data, error } = await this.client
             .from("notes")
             .insert({
+                user_id: authData.user.id,
                 title,
                 content,
                 tags: input.tags ?? [],

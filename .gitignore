@@ -90,3 +90,4 @@ tfg/main.pdf
 # rebuild with `mmdc -i x.mmd -o x.pdf` per tfg/figures/README.md.
 tfg/figures/*.pdf
 tfg/figures/*.svg
+.env*.local

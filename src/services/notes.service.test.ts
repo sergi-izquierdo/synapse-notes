@@ -181,6 +181,15 @@ describe("NotesService.createNote", () => {
         const client = makeFromBuilder({
             single: () => Promise.resolve({ data: inserted, error: null }),
         });
+        // createNote needs auth.getUser() because the RLS INSERT policy
+        // requires user_id = auth.uid() and the column has no default.
+        (client as { auth?: unknown }).auth = {
+            getUser: () =>
+                Promise.resolve({
+                    data: { user: { id: "u" } },
+                    error: null,
+                }),
+        };
         const service = createNotesService(client as never);
 
         const result = await service.createNote({
