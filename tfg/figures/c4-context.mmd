@@ -1,0 +1,23 @@
+%%{init: {'theme': 'neutral'}}%%
+flowchart TB
+    user["👤 Usuari humà<br/>(via navegador)"]
+    extagent["🤖 Agent LLM extern<br/>(Claude Desktop, Cursor,<br/>client MCP genèric)"]
+
+    subgraph synapse["Synapse Notes"]
+        app["Sistema<br/>(Next.js + Supabase)"]
+    end
+
+    auth["🔐 Supabase Auth<br/>(OAuth Google + GitHub)"]
+    anthropic["🧠 Anthropic API<br/>(Claude Haiku 4.5)"]
+    google["🧠 Google AI API<br/>(Gemini embedding-001)"]
+
+    user -->|"HTTPS<br/>(login + UI)"| app
+    extagent -->|"MCP over HTTPS<br/>(Bearer JWT)"| app
+    app <-->|"OAuth callback<br/>+ JWT validation"| auth
+    app -->|"streamText<br/>generateObject<br/>generateText"| anthropic
+    app -->|"embed (768 dims)"| google
+
+    classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef system fill:#fff3e0,stroke:#e65100,stroke-width:3px;
+    class user,extagent,auth,anthropic,google external;
+    class app system;

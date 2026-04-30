@@ -1,0 +1,37 @@
+%%{init: {'theme': 'neutral'}}%%
+sequenceDiagram
+    autonumber
+    actor User as Usuari
+    participant Client as Client MCP<br/>(Claude Desktop)
+    participant App as Next.js<br/>frontend
+    participant Auth as Supabase Auth
+    participant API as /api/mcp<br/>route handler
+    participant Lib as createMcpSupabase<br/>Client (auth.ts)
+    participant Server as createMcpServer<br/>(server.ts)
+    participant DB as Supabase Postgres<br/>(RLS-gated)
+
+    User->>App: Login OAuth (Google/GitHub)
+    App->>Auth: redirect to OAuth provider
+    Auth-->>App: callback amb code
+    App->>Auth: exchange code for JWT
+    Auth-->>App: access_token (JWT)
+    Note over User,App: Sergi configura Claude Desktop<br/>amb el JWT com a Bearer token
+
+    User->>Client: invoca eina MCP<br/>(p.ex. search_notes "lidl")
+    Client->>API: POST /api/mcp<br/>Authorization: Bearer <jwt><br/>JSON-RPC 2.0
+    API->>Lib: createMcpSupabaseClient(req)
+    Lib->>Lib: extractBearerToken(req)
+    Lib->>Auth: supabase.auth.getUser(token)
+    Auth-->>Lib: { user }
+    Lib->>Lib: createServerClient amb<br/>global.headers.Authorization
+    Lib-->>API: { client, user }
+    API->>Server: createMcpServer(client)
+    Server-->>API: McpServer amb tools registrades
+    API->>Server: server.connect(transport)
+    Server->>Server: dispatch tool: searchByEmbedding
+    Server->>DB: rpc match_notes(embedding, 0.1, 5)
+    Note over DB: RLS aplica<br/>auth.uid() = user_id
+    DB-->>Server: top-5 notes del user
+    Server-->>API: content blocks
+    API-->>Client: JSON-RPC response
+    Client-->>User: render dels resultats

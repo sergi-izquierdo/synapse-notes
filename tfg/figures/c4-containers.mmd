@@ -1,0 +1,48 @@
+%%{init: {'theme': 'neutral'}}%%
+flowchart TB
+    user["👤 Usuari humà"]
+    extagent["🤖 Agent LLM extern"]
+
+    subgraph nextjs["Next.js app (Vercel)"]
+        rsc["Server Components<br/>+ Server Actions"]
+        chatapi["/api/chat<br/>(streamText + tools)"]
+        graphapi["/api/graph<br/>(get_note_graph RPC)"]
+        mcpapi["/api/mcp<br/>(MCP Streamable HTTP)"]
+        searchapi["/api/note-search<br/>/api/suggest-tags"]
+    end
+
+    subgraph supabase["Supabase"]
+        pg[("Postgres + pgvector + pg_trgm<br/>notes / note_links / chats /<br/>messages / agent_events /<br/>tag_suggestions")]
+        sbauth["Supabase Auth<br/>(OAuth + JWT)"]
+    end
+
+    anthropic["Anthropic API"]
+    google["Google AI API"]
+
+    user --> rsc
+    user --> chatapi
+    user --> graphapi
+    user --> searchapi
+    extagent --> mcpapi
+
+    rsc <--> pg
+    chatapi <--> pg
+    graphapi <--> pg
+    mcpapi <--> pg
+    searchapi <--> pg
+
+    rsc <--> sbauth
+    mcpapi <--> sbauth
+
+    chatapi --> anthropic
+    searchapi --> anthropic
+    mcpapi --> anthropic
+    rsc --> google
+    chatapi --> google
+
+    classDef container fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef datastore fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    class rsc,chatapi,graphapi,mcpapi,searchapi container;
+    class pg,sbauth datastore;
+    class user,extagent,anthropic,google external;

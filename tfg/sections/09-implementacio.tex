@@ -1,24 +1,345 @@
 \chapter{Implementació}
 \label{ch:implementacio}
 
-\section{Tecnologies utilitzades}
-\subsection{Frontend}
-% TODO: Next.js 16, React 19, TypeScript, Tailwind 4, Shadcn/UI. Justificació vs alternatives.
+\section{Arquitectura general i tecnologies}
+\label{sec:arquitectura-general}
 
-\subsection{Backend}
-% TODO: Supabase (Postgres + pgvector + Auth), Edge Functions. Justificació vs Firebase/backend propi.
+Synapse Notes és una aplicació full-stack desplegada sobre Vercel
+amb Supabase com a única superfície de persistència. La pila és:
 
-\subsection{Intel·ligència artificial}
-% TODO: Claude Haiku 4.5 (chat), Gemini embedding-001 (768 dim). Per què Anthropic i no OpenAI/Gemini directe.
+\begin{itemize}
+    \item \textbf{Frontend}: Next.js 16 (App Router) amb React 19,
+        TypeScript 5, Tailwind CSS 4 i shadcn/ui. Server Components
+        com a estratègia per defecte; les illes interactives són
+        explícitament \texttt{"use client"}. La motivació és reduir
+        el bundle JS a la primera càrrega ---el dashboard inicial
+        embarca menys de 90~KB de JavaScript--- i delegar
+        l'autenticació al servidor.
+    \item \textbf{Backend}: Supabase Postgres amb les extensions
+        \texttt{pgvector} (embeddings de 768~dims, índex HNSW per a
+        top-k semàntic) i \texttt{pg\_trgm} (cerca lèxica per al
+        autocompletat de títols). Tota la lògica multi-tenant es
+        delega a polítiques RLS sobre cada taula --- tant l'app
+        com el servidor MCP usen el mateix client autenticat, de
+        manera que la regla \emph{user\_id = auth.uid()} val per
+        a totes dues superfícies.
+    \item \textbf{Intel·ligència artificial}: Claude Haiku 4.5
+        (Anthropic) per a generació de text \emph{(xat, suggeriment
+        d'etiquetes, daily-review prompt)} i Gemini
+        \texttt{embedding-001} (Google AI) per als embeddings.
+        L'elecció és pràctica: Anthropic dóna latències baixes a
+        Haiku 4.5 amb cost competitiu per al volum esperat
+        (subsecció \S\ref{sec:costos}); Gemini ofereix embeddings
+        de 768~dims gratuïts dins els límits de l'API i amb una
+        qualitat suficient per a la mida de corpus d'usuari (1k--5k
+        notes). Es discuteixen alternatives a la valoració personal
+        \S\ref{ch:valoracio-personal}.
+    \item \textbf{Vercel AI SDK 6}: capa d'abstracció sobre els
+        proveïdors LLM. Permet \texttt{streamText} per al xat i
+        \texttt{generateObject} per a les sortides estructurades
+        (suggeriment d'etiquetes, classificació). Independitza el
+        codi de l'aplicació del proveïdor concret.
+    \item \textbf{Model Context Protocol (MCP)}: estàndard obert
+        d'Anthropic (2024) per a exposar capacitats d'una
+        aplicació a clients LLM externs. Synapse Notes l'implementa
+        amb \texttt{@modelcontextprotocol/sdk} sobre transport
+        Streamable HTTP, exposat a \texttt{/api/mcp}. Veure
+        \S\ref{sec:servidor-mcp} per al disseny detallat.
+    \item \textbf{Vercel} per al desplegament. Branques de feature
+        es prèviuen automàticament; \texttt{main} desplega a
+        producció (\texttt{synapse-notes.vercel.app}).
+\end{itemize}
 
-\subsection{Model Context Protocol}
-% TODO: justificació del MCP com a estàndard 2026 (cites: Anthropic, AWS, Cloudflare, OWASP).
+\subsection{Vista C4 --- Context}
+\label{sec:c4-context}
+
+Els actors externs que interactuen amb el sistema són
+\textbf{l'usuari humà} (via navegador), \textbf{agents LLM externs}
+(Claude Desktop, Cursor, qualsevol client MCP), i \textbf{els
+proveïdors de model} (Anthropic, Google AI). El sistema integra
+amb \textbf{Supabase Auth} (OAuth amb Google i GitHub) i
+\textbf{Supabase Postgres} (persistència).
+
+\IfFileExists{tfg/figures/c4-context.svg}{%
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.95\linewidth]{tfg/figures/c4-context.svg}
+        \caption{Diagrama C4 nivell 1: context. Font:
+            \texttt{tfg/figures/c4-context.mmd}, generat amb Mermaid CLI.}
+        \label{fig:c4-context}
+    \end{figure}
+}{%
+    \begin{quote}\itshape
+    [Diagrama C4 Context pendent de generació SVG. La font
+    Mermaid es troba a \texttt{tfg/figures/c4-context.mmd};
+    compilable amb \texttt{mmdc -i c4-context.mmd -o
+    c4-context.svg}.]
+    \end{quote}
+}
+
+\subsection{Vista C4 --- Containers}
+\label{sec:c4-containers}
+
+Dins el sistema, els \emph{containers} (en sentit C4) són:
+
+\begin{itemize}
+    \item \textbf{Next.js app} (Vercel Edge/Node runtimes): conté
+        Server Components, Server Actions, Route Handlers
+        (\texttt{/api/chat}, \texttt{/api/graph}, \texttt{/api/mcp},
+        \texttt{/api/note-search}, \texttt{/api/suggest-tags}) i
+        Client Components.
+    \item \textbf{Supabase Postgres + pgvector}: la base de dades
+        amb les taules \texttt{notes}, \texttt{note\_links},
+        \texttt{chats}, \texttt{messages}, \texttt{agent\_events},
+        \texttt{tag\_suggestions}; les funcions
+        \texttt{match\_notes()}, \texttt{get\_note\_graph()},
+        \texttt{rename\_tag()}, \texttt{delete\_tag()},
+        \texttt{sync\_note\_links()}; i les polítiques RLS per
+        usuari sobre cada taula.
+    \item \textbf{Supabase Auth}: gestiona sessions, JWTs i
+        callbacks OAuth. Una sola font de veritat tant per la web
+        com pel servidor MCP.
+    \item \textbf{Anthropic API + Google AI API}: serveis externs
+        consumits per la capa AI SDK.
+\end{itemize}
+
+\IfFileExists{tfg/figures/c4-containers.svg}{%
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.95\linewidth]{tfg/figures/c4-containers.svg}
+        \caption{Diagrama C4 nivell 2: containers.}
+        \label{fig:c4-containers}
+    \end{figure}
+}{%
+    \begin{quote}\itshape
+    [Diagrama C4 Containers pendent. Font Mermaid:
+    \texttt{tfg/figures/c4-containers.mmd}.]
+    \end{quote}
+}
 
 \section{Migració SQL per a MCP i agents}
 % TODO: explicar la migració 20260419120000_mcp_tfg.sql (taules agent_events, tag_suggestions, índex HNSW).
 
 \section{Servidor MCP}
-% TODO: explicar src/app/api/mcp/route.ts. Decisions: Streamable HTTP stateless, Bearer-token PoC -> OAuth.
+\label{sec:servidor-mcp}
+
+El servidor MCP és el \textit{contribut central} de la Part~B del
+TFG. Exposa la mateixa lògica de domini (notes, etiquetes, graph)
+a clients LLM externs sota la mateixa identitat i les mateixes
+polítiques RLS que el frontend de l'aplicació.
+
+\subsection{Topologia}
+
+\begin{itemize}
+    \item \textbf{Punt d'entrada}: route handler de Next.js a
+        \texttt{src/app/api/mcp/route.ts}. Maneja \texttt{GET},
+        \texttt{POST} i \texttt{DELETE} sobre la mateixa URL via
+        \texttt{WebStandardStreamableHTTPServerTransport}, l'adaptador
+        del SDK MCP a \texttt{Request}/\texttt{Response} estàndard
+        del Web.
+    \item \textbf{Runtime}: Node.js (\texttt{export const runtime =
+        "nodejs"}). Edge no és viable perquè el SDK MCP usa APIs
+        no disponibles a l'entorn d'edge de Vercel.
+    \item \textbf{Stateless}: cada petició construeix un nou
+        \texttt{McpServer} amb un \texttt{SupabaseClient} fresc
+        autenticat amb el JWT del header \texttt{Authorization:
+        Bearer ...}. No hi ha sessions servidor-side --- la
+        identitat viatja a cada crida.
+\end{itemize}
+
+\subsection{Mòduls}
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{tabular}{|l|p{0.55\linewidth}|}
+        \hline
+        \textbf{Path} & \textbf{Responsabilitat} \\
+        \hline
+        \texttt{src/app/api/mcp/route.ts} &
+            Punt d'entrada HTTP. Auth + handler. \\
+        \texttt{src/lib/mcp/auth.ts} &
+            \texttt{extractBearerToken()} +
+            \texttt{createMcpSupabaseClient()}. Crea un client
+            Supabase amb el JWT del caller injectat al header
+            \texttt{global.headers}, de manera que cada query
+            travessa la RLS sota la identitat de l'usuari. \\
+        \texttt{src/lib/mcp/server.ts} &
+            \texttt{createMcpServer(client)} factory. Registra
+            tools, resources i prompts contra l'instància. \\
+        \texttt{src/lib/mcp/tools/*.ts} &
+            Una eina per fitxer (8 totals --- vegeu
+            \S\ref{sec:taula-eines}). Cada eina és una closure
+            amb Zod schema d'entrada + handler que retorna
+            content blocks. \\
+        \texttt{src/lib/mcp/resources/*.ts} &
+            Recursos exposats: \texttt{notes://recent} (estàtic) i
+            \texttt{notes://tag/\{tag\}} (templated, amb
+            completion sobre la biblioteca de tags del caller). \\
+        \texttt{src/lib/mcp/prompts/daily-review.ts} &
+            Plantilla de prompt invocable pel client (Claude
+            Desktop, etc.) que pulla notes recents i instrueix
+            el model a generar highlights, action items i open
+            threads. \\
+        \texttt{src/services/notes.service.ts} &
+            \textbf{La superfície de domini única}. Tota la lògica
+            CRUD viu aquí --- la usen tant els route handlers de
+            l'app web com els tools MCP. Garanteix que les dues
+            interfícies vegin exactament la mateixa veritat. \\
+        \texttt{src/services/graph.service.ts} &
+            BFS i shortest-path sobre el graph de notes; la usen
+            \texttt{graph\_neighbors} i \texttt{graph\_shortest\_path}
+            tant des del xat intern com des del MCP. \\
+        \hline
+    \end{tabular}
+    \caption{Mòduls del servidor MCP i les seves dependencies.}
+    \label{tab:mcp-moduls}
+\end{table}
+
+\subsection{Seqüència: OAuth + primera crida}
+
+L'autenticació segueix el patró OAuth 2.1 que recomana l'spec MCP
+(servei d'auth servidor-side, JWT al client, Bearer al header de
+cada crida). Per a la fase actual (Setmana 2) el flux és simplificat
+amb un access token estàtic obtingut via Supabase Auth:
+
+\IfFileExists{tfg/figures/mcp-oauth-sequence.svg}{%
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.95\linewidth]{tfg/figures/mcp-oauth-sequence.svg}
+        \caption{Seqüència OAuth + primera crida MCP. Font Mermaid
+            \texttt{tfg/figures/mcp-oauth-sequence.mmd}.}
+        \label{fig:mcp-oauth-sequence}
+    \end{figure}
+}{%
+    \begin{quote}\itshape
+    [Diagrama de seqüència pendent de generació. Font Mermaid:
+    \texttt{tfg/figures/mcp-oauth-sequence.mmd}.]
+    \end{quote}
+}
+
+Els passos clau:
+\begin{enumerate}
+    \item Client MCP obté un JWT de Supabase Auth (login OAuth
+        amb Google o GitHub al frontend de l'app).
+    \item Client envia \texttt{POST /api/mcp} amb header
+        \texttt{Authorization: Bearer <jwt>} i un cos de tipus
+        JSON-RPC 2.0.
+    \item \texttt{createMcpSupabaseClient} valida el JWT amb
+        \texttt{supabase.auth.getUser(token)}. Si és vàlid,
+        construeix un \texttt{SupabaseClient} amb el header
+        injectat globalment.
+    \item \texttt{createMcpServer(client)} retorna un servidor amb
+        totes les eines registrades.
+    \item L'instància s'enganxa al transport HTTP, processa la
+        petició, i retorna la resposta JSON-RPC.
+    \item Cada query del handler dins l'eina passa pel client
+        autenticat; PostgreSQL aplica les polítiques RLS amb
+        \texttt{auth.uid() = user\_id}.
+\end{enumerate}
+
+\subsection{Taula d'eines, resources i prompts}
+\label{sec:taula-eines}
+
+A data de tancament de la Setmana 2, el servidor exposa
+\textbf{8 tools}, \textbf{2 resources} i \textbf{1 prompt}.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{tabular}{|l|l|p{0.30\linewidth}|l|}
+        \hline
+        \textbf{Tool} & \textbf{Tipus} &
+            \textbf{Input schema (resum)} & \textbf{Aprovació host (D2)} \\
+        \hline
+        \texttt{search\_notes} & Read &
+            \texttt{query, limit?} & --- (auto) \\
+        \texttt{get\_note} & Read &
+            \texttt{id} & --- (auto) \\
+        \texttt{create\_note} & Write &
+            \texttt{title?, content, tags?} & Sempre \\
+        \texttt{update\_note} & Write &
+            \texttt{id, title?, content?, tags?} & Per sessió \\
+        \texttt{tag\_notes} & Write &
+            \texttt{note\_ids[], add?, remove?} & Per sessió \\
+        \texttt{summarise\_notes} & LLM &
+            \texttt{note\_ids?, tag?, style?} & --- (filtre D3 \S\ref{sec:trifecta}) \\
+        \texttt{graph\_neighbors} & Read &
+            \texttt{noteId, depth?, limit?} & --- (auto) \\
+        \texttt{graph\_shortest\_path} & Read &
+            \texttt{fromId, toId, maxHops?} & --- (auto) \\
+        \hline
+    \end{tabular}
+    \caption{Eines del servidor MCP. La política d'aprovació (D2) la
+        fa complir el host MCP (Claude Desktop, etc.), no el
+        servidor --- el wire-protocol no exposa
+        \texttt{needsApproval} de manera nadiva.}
+    \label{tab:mcp-tools}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{tabular}{|l|l|p{0.45\linewidth}|}
+        \hline
+        \textbf{URI} & \textbf{Tipus} & \textbf{Descripció} \\
+        \hline
+        \texttt{notes://recent} & Static &
+            Top-20 notes vives ordenades per \texttt{created\_at} desc. \\
+        \texttt{notes://tag/\{tag\}} & Template &
+            Notes amb tag \texttt{\{tag\}} (cap a 50). Completion
+            offereix la biblioteca de tags del caller. \\
+        \hline
+    \end{tabular}
+    \caption{Resources MCP exposats.}
+    \label{tab:mcp-resources}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \begin{tabular}{|l|p{0.55\linewidth}|}
+        \hline
+        \textbf{Prompt} & \textbf{Descripció} \\
+        \hline
+        \texttt{daily-review} &
+            Genera un missatge user-side que demana al model un
+            resum estructurat (highlights / action items / open
+            threads) sobre les notes recents. Argument opcional
+            \texttt{date} (format \texttt{YYYY-MM-DD}). \\
+        \hline
+    \end{tabular}
+    \caption{Prompts MCP exposats.}
+    \label{tab:mcp-prompts}
+\end{table}
+
+\subsection{Seguretat: layered defences}
+\label{sec:mcp-seguretat}
+
+El servidor aplica defenses en capes:
+
+\begin{enumerate}
+    \item \textbf{Autenticació}: JWT Supabase verificat a cada
+        petició. Token expirat o invàlid --- retorn 401 sense
+        crida a la BD.
+    \item \textbf{Autorització}: cada query passa per RLS sota la
+        identitat del JWT. La superfície d'aïllament multi-tenant
+        és la mateixa que la del frontend (vegeu \S\ref{sec:rls}).
+    \item \textbf{Validació d'entrada}: Zod schema a cada eina;
+        errors retornen \texttt{isError: true} sense tocar la BD.
+    \item \textbf{Aprovació host (D2)}: el servidor confia en el
+        client MCP per gating de mutacions. Justificació: el
+        wire-protocol no exposa una primitiva nativa
+        d'\texttt{needsApproval}, així que mantenir-ho a la capa
+        host és consistent amb el principi MCP de "el client
+        controla la UX d'aprovació".
+    \item \textbf{Filtre LLM-as-judge sobre \texttt{summarise\_notes}}
+        (D3): planificat per Setmana 5 \S\ref{sec:trifecta}.
+        Aquesta eina és l'única vector clàssic de la \textit{Lethal
+        Trifecta} (untrusted content + private data + external
+        comms). Fins que arribi el filtre, els defenses són les
+        descrites a \S\ref{sec:trifecta}.
+\end{enumerate}
 
 \section{Agents en segon pla}
 % TODO: Edge Function per cada agent. Programació via pg_cron. Auditoria via agent_events.
