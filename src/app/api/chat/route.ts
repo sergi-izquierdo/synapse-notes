@@ -5,6 +5,7 @@ import { generateEmbedding } from "@/lib/ai";
 import { z } from "zod";
 import type { ChatRequestMessage, MatchedNote } from "@/types/database";
 import { createGraphService } from "@/services/graph.service";
+import { assertAiAllowed, isAiGuardError } from "@/lib/ai/guards";
 
 export const maxDuration = 30;
 
@@ -23,6 +24,35 @@ export async function POST(req: Request) {
     } = await req.json();
     const isRegenerate = trigger === "regenerate-message";
     const supabase = await createClient();
+
+    // Cost-safety gate: every AI surface authenticates first and then
+    // runs the kill-switch + allowlist checks (TFG D4). Before this
+    // landed, the route only relied on RLS cookies, so an
+    // unauthenticated POST could still spend Anthropic/Google quota
+    // even though it returned zero RAG context.
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+        return new Response(
+            JSON.stringify({ error: "Unauthorized" }),
+            { status: 401, headers: { "content-type": "application/json" } },
+        );
+    }
+    try {
+        assertAiAllowed(user.id);
+    } catch (err) {
+        if (isAiGuardError(err)) {
+            return new Response(
+                JSON.stringify({ error: err.message }),
+                {
+                    status: err.status,
+                    headers: { "content-type": "application/json" },
+                },
+            );
+        }
+        throw err;
+    }
 
     // Extract text content from each message
     const coreMessages = messages.map((m: ChatRequestMessage) => {

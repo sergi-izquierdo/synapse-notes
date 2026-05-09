@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createNotesService } from "@/services/notes.service";
+import { assertAiAllowed, isAiGuardError } from "@/lib/ai/guards";
 
 // SECURITY NOTE — Lethal Trifecta surface
 // ──────────────────────────────────────────
@@ -54,7 +55,10 @@ export const summariseNotesToolDefinition = {
     inputSchema: summariseNotesInputSchema,
 };
 
-export function createSummariseNotesHandler(client: SupabaseClient) {
+export function createSummariseNotesHandler(
+    client: SupabaseClient,
+    userId: string,
+) {
     const service = createNotesService(client);
     return async ({
         note_ids,
@@ -65,6 +69,32 @@ export function createSummariseNotesHandler(client: SupabaseClient) {
         tag?: string;
         style?: "bullets" | "paragraph";
     }) => {
+        // Cost-safety gate (TFG D4). Read-only MCP tools (search_notes,
+        // get_note, graph_*) are intentionally NOT gated — they return
+        // useful data without spending Anthropic/Google quota. The
+        // mutating tools (create_note, update_note, tag_notes) only
+        // call the embedding model, which the route layer governs via
+        // the same env vars indirectly (a leaked JWT can mutate, but
+        // the spend is bounded by Google's per-call cost cap and the
+        // host's per-call confirmation under D2). Only summarise_notes
+        // does an unbounded LLM call here.
+        try {
+            assertAiAllowed(userId);
+        } catch (err) {
+            if (isAiGuardError(err)) {
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: `summarise_notes is unavailable: ${err.message}.`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+            throw err;
+        }
+
         try {
             const summary = await service.summariseNotes({
                 noteIds: note_ids,

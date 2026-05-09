@@ -201,3 +201,63 @@ A §11.3 es generaran 50-100 variants amb Promptfoo i es mesurarà la taxa de fa
 **Reproduïbilitat:** el payload exacte i l'output es recullen a `docs/tfg/extend.md` (Setmana 2 progress log row, secció "Red-team baseline sobre `summarise_notes`").
 
 ---
+
+## 2026-05-04. D4. Controls de seguretat de cost (kill-switch + allowlist + caps de proveïdor)
+
+**Decisió:** introduir tres capes de defensa contra abús econòmic abans de començar la suite Promptfoo (Setmana 3) i abans d'obrir la URL de producció a tribunals i recruiters. Les capes són:
+
+1. **Capa 1 — Caps de despesa al proveïdor.** Configurats al panell de cada proveïdor (no al codi):
+   - **Google AI Studio** (Gemini embeddings): alerta + cap a 5 €/mes.
+   - **Anthropic Console** (Haiku 4.5 per a xat, títols i — pendent — filtre D3): cap a 10 €/mes.
+   Aquesta és l'única xarxa de seguretat real: un bug, una clau filtrada o un cas degenerat de retry no poden mai superar aquestes quantitats.
+2. **Capa 5 — Kill-switch global** via env var `AI_ENABLED`. Quan val `"false"`, qualsevol superfície d'IA retorna 503 sense cridar el model. Implementat al codi com a `assertAiAllowed(userId)` (`src/lib/ai/guards.ts`) que cada superfície invoca abans de tocar el proveïdor.
+3. **Capa 3 — Allowlist d'usuaris** via env vars `AI_ALLOWLIST_ONLY=true` + `AI_ALLOWLIST_USER_IDS=uuid1,uuid2,…`. Quan `ONLY=true`, només els `user_id` enumerats poden invocar IA. Producció arrenca amb la meva uid + comptes demo del tribunal; usuaris fora de l'allowlist reben 403 amb missatge clar.
+
+### Per què
+
+- **Risc real, no teòric.** La URL `synapse-notes.vercel.app` és pública. Sense gates, qualsevol amb una sessió Supabase pot disparar `/api/chat` o `/api/mcp` indefinidament. El xat usa Haiku 4.5 (~1 $/M tokens input, més tools) i embeddings Gemini per cada nota. Un agent maliciós o un bug de bucle pot generar centenars d'euros en hores.
+- **Defensa en capes alineada amb la Lethal Trifecta.** Capes 5 i 3 es componen amb les defenses ja existents (RLS, system prompt restrictiu, filtre D3 pendent). Cada capa para una classe diferent d'incident: la 5 és un interruptor d'emergència manual, la 3 limita la població autoritzada, la 1 és el límit dur.
+- **Per què env vars en lloc d'una taula `ai_allowlist`.** L'allowlist és curta (< 10 entrades en tot el cicle del TFG: jo + comptes demo) i no necessita gestió dinàmica via UI. Una env var: zero migration, zero RLS, zero superfície d'atac, canviable amb `vercel env add AI_ALLOWLIST_USER_IDS production` en menys d'un minut. Si l'app sortís del context TFG, migraria a taula amb política RLS sobre la pròpia entrada.
+- **Per què degradació elegant a embeddings i no fall-hard.** A `createNote`/`updateNote`/`duplicateNote`/`restoreNote`, si el guard bloqueja, la nota es desa amb `embedding = NULL` (la columna ja era nullable i l'índex HNSW és parcial — `WHERE embedding IS NOT NULL`). Bloquejar el desat sencer faria que un usuari fora de l'allowlist no pogués usar **gens** Synapse Notes, fins i tot la part no-IA. La nota queda fora de la RAG i del graf `embed`-edges fins a un re-embed posterior, però la UX bàsica (escriure, etiquetar, llegir) es preserva.
+
+### Implementació
+
+| Fitxer | Què hi va |
+|---|---|
+| `src/lib/ai/guards.ts` | `assertAiAllowed(userId)` + classes `AiDisabledError` (503) i `AiNotAllowlistedError` (403). Llegeix `AI_ENABLED`, `AI_ALLOWLIST_ONLY`, `AI_ALLOWLIST_USER_IDS` de `process.env` per crida. |
+| `src/lib/ai/guards.test.ts` | 9 casos cobrint defaults, kill-switch (true/false/0/off/no), allowlist on+dins, allowlist on+fora, allowlist buit, kill-switch + allowlist combinats. |
+| `src/lib/ai/embeddings.ts` | `tryGenerateEmbedding(userId, text)` retorna `null` quan el guard bloqueja, embolicant `generateEmbedding` per a degradació elegant. |
+| `src/app/api/chat/route.ts` | Afegit `getUser()` (abans la ruta confiava només en cookies RLS) + `assertAiAllowed`. Retorn 401 si no hi ha sessió, 403/503 si guard. |
+| `src/app/api/suggest-tags/route.ts` | `assertAiAllowed` després del `getUser()` existent. |
+| `src/lib/mcp/tools/summarise-notes.ts` | `assertAiAllowed` al `execute`. Errors retornats com a `content` MCP-friendly amb `isError: true`. La resta de tools MCP (read-only + mutacions sense LLM) NO es bloquegen — els primers no costen res, els segons només toquen embeddings, gestionats al servei de notes. |
+| `src/lib/mcp/server.ts` + `/api/mcp/route.ts` | `createMcpServer(client, userId)` accepta el `user.id` que ja es derivava del JWT a `createMcpSupabaseClient`. |
+| `src/actions/notes.ts` | `tryGenerateEmbedding(user.id, …)` substitueix `generateEmbedding` a 4 accions. |
+| `src/actions/chats.ts` (`regenerateStaleTitlesAction`) | `isAiAllowedForUser` com a guard *no-throw*: si bloqueja, retorna `{ ok: true, updated: 0 }` per no llançar errors al sidebar mount. |
+| `.env.example` | Documenta les 3 vars amb defaults i justificació. |
+
+### Implicacions per a la memòria
+
+- **§9.4 (Disseny de seguretat).** Subsecció "Defensa en profunditat: kill-switch + allowlist" amb la taula de capes i l'arquitectura de `assertAiAllowed`. Aquesta secció guanya contingut concret abans de la suite Promptfoo.
+- **§11 (Avaluació).** Casos de prova: bloquejar la URL pública amb `AI_ALLOWLIST_ONLY=true` i comptar zero crides Anthropic/Google durant 24h via dashboards dels proveïdors. Comprovar que un user no allowlistat rep 403 i no genera trànsit.
+- **§12 (Costos).** Escenari "atac econòmic" baseline (sense capes): 1 client maliciós × 10 RPS × 24 h × Haiku 4.5 ≈ 870.000 crides ≈ ~870 € → tallat a 10 € pel cap del proveïdor. Aquesta xifra és la justificació numèrica de la capa 1.
+
+### Operacions
+
+Configuració a producció (Vercel):
+
+```bash
+vercel env add AI_ALLOWLIST_ONLY production            # value: true
+vercel env add AI_ALLOWLIST_USER_IDS production        # value: <uid>,<uid demo>
+vercel env add AI_ENABLED production                   # value: true (default)
+vercel --prod --yes                                    # redeploy per aplicar
+```
+
+L'auth.users.id es treu de la consola del navegador després del login: `(await window.supabase.auth.getUser()).data.user.id`.
+
+### Alternatives descartades
+
+- **Rate-limit per `auth.uid()` via taula Postgres.** Útil per a un producte real, però per a un TFG amb tribunal controlat afegeix complexitat (taula + RLS + servei + UI) sense canvi material en el risc d'abús — la capa 3 ja ho cobreix amb una env var.
+- **Vercel BotID a `/api/chat` i `/api/mcp`.** Defensa en profunditat útil però redundant si la capa 3 és restrictiva. Reservada per a "treball futur" si l'app surt del context TFG i s'obre l'allowlist.
+- **Bloquejar el desat de notes quan el guard bloqueja l'embedding.** Descartada: l'usuari fora de l'allowlist hauria de poder llegir/escriure les seves notes encara que la RAG no funcioni. Degradació elegant > fall-hard.
+
+---

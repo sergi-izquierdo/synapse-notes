@@ -7,8 +7,9 @@ export const maxDuration = 30;
 
 async function handle(req: Request): Promise<Response> {
     let client;
+    let user;
     try {
-        ({ client } = await createMcpSupabaseClient(req));
+        ({ client, user } = await createMcpSupabaseClient(req));
     } catch (err) {
         const status = err instanceof McpAuthError ? err.status : 500;
         const message = err instanceof Error ? err.message : "Internal error";
@@ -18,7 +19,7 @@ async function handle(req: Request): Promise<Response> {
         });
     }
 
-    const server = createMcpServer(client);
+    const server = createMcpServer(client, user.id);
     const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,

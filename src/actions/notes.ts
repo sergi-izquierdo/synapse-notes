@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { generateKeyBetween } from "fractional-indexing";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { generateEmbedding } from "@/lib/ai";
+import { tryGenerateEmbedding } from "@/lib/ai/embeddings";
 import { extractNoteLinks } from "@/lib/note-links";
 
 const NoteSchema = z.object({
@@ -66,9 +66,11 @@ export async function createNote(formData: FormData) {
   try {
     // 1. Generem l'Embedding. Include the title so semantic search
     //    can surface the note when the user queries its topic even
-    //    if the body is short.
+    //    if the body is short. Cost-safety guard (D4) may return
+    //    null — the note still saves and is fully usable, it just
+    //    won't appear in RAG/graph until a successful re-embed.
     const embedText = title ? `${title}\n\n${content}` : content;
-    const embedding = await generateEmbedding(embedText);
+    const embedding = await tryGenerateEmbedding(user.id, embedText);
 
     // 2. Position at the top of the unstarred section so the new
     //    note shows up first (preserves the legacy "newest on top"
@@ -240,8 +242,9 @@ export async function duplicateNote(noteId: number) {
   try {
     // Regenerate the embedding for the copy so the clone is
     // immediately searchable — we don't trust the original's vector
-    // will stay in sync with edits.
-    const embedding = await generateEmbedding(content);
+    // will stay in sync with edits. Guard-blocked ⇒ embedding = null
+    // (graceful degradation per D4).
+    const embedding = await tryGenerateEmbedding(user.id, content);
     const position = await nextTopPositionForSection(
       supabase,
       user.id,
@@ -282,7 +285,8 @@ export async function restoreNote(content: string, tags: string[]) {
   }
 
   try {
-    const embedding = await generateEmbedding(content);
+    // Guard-blocked ⇒ embedding = null (graceful degradation per D4).
+    const embedding = await tryGenerateEmbedding(user.id, content);
     const position = await nextTopPositionForSection(
       supabase,
       user.id,
@@ -456,10 +460,14 @@ export async function updateNote(
 
   try {
     // 2. Generar Embedding. Include title when we have one.
+    //    Guard-blocked ⇒ embedding = null (graceful degradation per
+    //    D4). The note row still updates so the user can keep
+    //    editing; RAG visibility resumes once a successful re-embed
+    //    lands.
     const embedText = normalizedTitle
       ? `${normalizedTitle}\n\n${content}`
       : content;
-    const embedding = await generateEmbedding(embedText);
+    const embedding = await tryGenerateEmbedding(user.id, embedText);
 
     // 3. Actualitzar a Supabase
     const updatePayload: Record<string, unknown> = {

@@ -49,7 +49,7 @@ import {
     dailyReviewMetadata,
 } from "@/lib/mcp/prompts/daily-review";
 
-export function createMcpServer(client: SupabaseClient) {
+export function createMcpServer(client: SupabaseClient, userId: string) {
     const server = new McpServer(
         { name: "synapse-notes-mcp", version: "0.3.0" },
         {
@@ -97,7 +97,7 @@ export function createMcpServer(client: SupabaseClient) {
     server.registerTool(
         "summarise_notes",
         summariseNotesToolDefinition,
-        createSummariseNotesHandler(client),
+        createSummariseNotesHandler(client, userId),
     );
 
     // Graph-aware exploration tools, shared backend with the internal

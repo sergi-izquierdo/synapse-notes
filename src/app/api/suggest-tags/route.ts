@@ -3,6 +3,7 @@ import { z } from "zod";
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { createClient } from "@/lib/supabase/server";
+import { assertAiAllowed, isAiGuardError } from "@/lib/ai/guards";
 
 export const maxDuration = 15;
 
@@ -33,6 +34,16 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser();
     if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Cost-safety gate (TFG D4) — refuse before hitting Anthropic.
+    try {
+        assertAiAllowed(user.id);
+    } catch (err) {
+        if (isAiGuardError(err)) {
+            return NextResponse.json({ error: err.message }, { status: err.status });
+        }
+        throw err;
     }
 
     let body: unknown;

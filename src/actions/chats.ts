@@ -4,6 +4,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isAiAllowedForUser } from "@/lib/ai/guards";
 
 /**
  * Backfill chat titles that are still the "Nova Conversa" default.
@@ -26,6 +27,15 @@ export async function regenerateStaleTitlesAction() {
 
     if (!user) {
         return { ok: false as const, reason: "unauthenticated", updated: 0 };
+    }
+
+    // Cost-safety gate (D4): regenerating titles fires N Anthropic
+    // calls in parallel — exactly the kind of bulk loop we want to
+    // suppress when the kill-switch is on or the user isn't on the
+    // allowlist. Bail out as a no-op success so the sidebar mount
+    // doesn't surface a failure toast.
+    if (!isAiAllowedForUser(user.id)) {
+        return { ok: true as const, updated: 0 };
     }
 
     // A "stale" chat is one whose title is still the default placeholder
