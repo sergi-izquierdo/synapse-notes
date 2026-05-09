@@ -21,11 +21,23 @@ export const JUDGE_CATEGORIES = [
   "encoding_bypass",
 ] as const;
 
+// NOTE: Anthropic's structured-output schema validation rejects
+// `minimum`, `maximum`, and `maxLength` properties on primitive types
+// (verified 2026-05-09 against claude-haiku-4-5: error
+// "output_config.format.schema: For 'number' type, properties maximum,
+// minimum are not supported"). We therefore keep the schema bare and
+// post-validate / normalize on the consumer side via shouldBlock.
 export const JudgeVerdictSchema = z.object({
   verdict: z.enum(["allow", "block"]),
   categories: z.array(z.enum(JUDGE_CATEGORIES)),
-  confidence: z.number().min(0).max(1),
-  reason: z.string().max(280),
+  confidence: z
+    .number()
+    .describe(
+      "Confidence in detection, expected range [0, 1]. Higher means more certain.",
+    ),
+  reason: z
+    .string()
+    .describe("One short English sentence explaining the verdict."),
 });
 export type JudgeVerdict = z.infer<typeof JudgeVerdictSchema>;
 
@@ -95,7 +107,12 @@ export function shouldBlock(
   threshold: number = getJudgeThreshold(),
 ): boolean {
   if (verdict.verdict === "block") return true;
-  return verdict.categories.length > 0 && verdict.confidence >= threshold;
+  // Defensive clamp: the schema no longer enforces [0, 1] (Anthropic
+  // rejects min/max on number), so the model could in principle return
+  // anything. Clamp before comparing so the threshold check still
+  // behaves predictably.
+  const conf = Math.max(0, Math.min(1, verdict.confidence));
+  return verdict.categories.length > 0 && conf >= threshold;
 }
 
 export async function judgeContent(corpus: string): Promise<JudgeVerdict> {
