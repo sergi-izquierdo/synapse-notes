@@ -1,29 +1,29 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createNotesService } from "@/services/notes.service";
+import {
+    JudgeBlockedError,
+    JudgeUnavailableError,
+} from "@/lib/ai/content-judge";
 import { assertAiAllowed, isAiGuardError } from "@/lib/ai/guards";
 
-// SECURITY NOTE — Lethal Trifecta surface
+// SECURITY: Lethal Trifecta surface
 // ──────────────────────────────────────────
-// This tool is the canonical Lethal Trifecta vector in this MCP
-// server (untrusted content + private data + external comms via the
-// LLM response). It ships in Setmana 2 WITHOUT the D3 output filter
-// (LLM-as-judge with Haiku 4.5) which is planned for Setmana 5 §11.3
-// alongside the Promptfoo red-team suite.
-//
-// Until then, the layered defences are:
-//   1. RLS gates which notes the SupabaseClient can read — the
+// This is the canonical Lethal Trifecta tool in this MCP server
+// (untrusted content + private data + external comms via the LLM
+// response). Defence in depth (D2, D3, D4):
+//   1. D4 cost gates (auth allowlist) — assertAiAllowed below.
+//   2. RLS gates which notes the SupabaseClient can read — the
 //      summary can only ever be over the authenticated user's own
 //      rows, so cross-tenant exfiltration is structurally blocked.
-//   2. The model's system prompt (in NotesService.summariseNotes)
-//      constrains output to a summary; tool use isn't bound here.
-//   3. The output is plain text returned to the caller — there are
-//      no automatic side effects unless the caller chains it into
-//      `create_note` or `update_note`, both of which Claude Desktop
-//      gates with confirmation per D2.
+//   3. D3 LLM-as-judge filter — runs inside NotesService.summariseNotes
+//      before the summariser; throws JudgeBlockedError on detected
+//      injection, surfaced here as a friendly MCP error.
+//   4. Restrictive summariser system prompt (in NotesService).
+//   5. Output is plain text — chained mutations are gated by Claude
+//      Desktop confirmation per D2.
 //
-// See docs/tfg/00-decision-log.md (D2, D3) and docs/tfg/setmana-2-
-// mcp-tools-plan.md for the full reasoning.
+// See docs/tfg/00-decision-log.md (D2, D3, D4).
 
 export const summariseNotesInputSchema = {
     note_ids: z
@@ -51,7 +51,7 @@ export const summariseNotesInputSchema = {
 
 export const summariseNotesToolDefinition = {
     description:
-        "Generate a natural-language summary of the user's own notes. Read-only at the database level. Output is unfiltered text — see file header for the open security question this raises and where the planned mitigation lives (§11.3).",
+        "Generate a natural-language summary of the user's own notes. Read-only at the database level. Output is filtered by an LLM-as-judge content classifier (D3) before reaching the summariser; calls may return isError if the judge detects prompt-injection or exfiltration attempts in the corpus.",
     inputSchema: summariseNotesInputSchema,
 };
 
@@ -105,6 +105,37 @@ export function createSummariseNotesHandler(
                 content: [{ type: "text" as const, text: summary }],
             };
         } catch (err) {
+            // D3 judge blocked the corpus before summarisation reached
+            // the model. The categories + reason are user-friendly and
+            // useful for §11.3 metric collection (Promptfoo asserts on
+            // text matching /blocked/i).
+            if (err instanceof JudgeBlockedError) {
+                const cats =
+                    err.verdict.categories.join(", ") || "unspecified";
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: `summarise_notes blocked by content judge (${cats}): ${err.verdict.reason}`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+            // Judge upstream call failed; we fail-closed so the caller
+            // sees a 503-style transient error rather than the bare
+            // summary. Anthropic outage = no summarisation, by design.
+            if (err instanceof JudgeUnavailableError) {
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: "summarise_notes is temporarily unavailable: content judge upstream error. Retry shortly.",
+                        },
+                    ],
+                    isError: true,
+                };
+            }
             const message =
                 err instanceof Error ? err.message : "Unknown error";
             return {

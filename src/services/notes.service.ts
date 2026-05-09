@@ -4,7 +4,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateEmbedding } from "@/lib/ai";
+import {
+    JudgeBlockedError,
+    isJudgeEnabled,
+    judgeContent,
+    shouldBlock,
+} from "@/lib/ai/content-judge";
 import type { MatchedNote, Note } from "@/types/database";
+
+// Notes whose tags contain this string opt out of the D3 judge for
+// summarise_notes. Used for archived red-team probes and for the
+// Promptfoo bypass smoke test (see promptfoo/README.md). Anything
+// tagged with this skips the judge entirely; logged at warn level.
+const JUDGE_BYPASS_TAG = "redteam-archived";
 
 export interface SearchByEmbeddingOptions {
     query: string;
@@ -238,18 +250,23 @@ class NotesService {
         return (data ?? []) as Note[];
     }
 
-    // SECURITY NOTE: this method ships without the D3 output filter
-    // (LLM-as-judge with Haiku 4.5). The filter is scheduled for
-    // Setmana 5 §11.3 — until then the layered defences are:
-    //   1. RLS limits which notes are visible (this query already runs
-    //      under auth.uid() via the injected client).
-    //   2. The system prompt below constrains the LLM to summarise and
-    //      nothing else — no tool use, no fabrication.
-    //   3. The output is plain text returned to the caller; no
-    //      automatic side effects unless the caller chains it into a
-    //      mutation tool, which Claude Desktop gates with confirmation
-    //      per D2.
-    // See docs/tfg/00-decision-log.md sections D2 and D3.
+    // SECURITY: layered defences on summarise_notes (the only tool
+    // that fully matches the Lethal Trifecta of untrusted content +
+    // tool access + exfil channel):
+    //   1. D4 cost gates (auth + allowlist) at the MCP route level.
+    //   2. RLS scopes which notes are visible, via the injected
+    //      client running under auth.uid().
+    //   3. D3 LLM-as-judge: a separate Haiku 4.5 call classifies the
+    //      corpus before the summariser sees it. Throws JudgeBlocked
+    //      Error on detected injection above threshold (default 0.7),
+    //      JudgeUnavailableError on judge outage (fail-closed).
+    //   4. Restrictive summariser system prompt (below) constrains
+    //      output to a summary, no tool use, no fabrication.
+    //   5. Output is plain text; the caller (Claude Desktop) gates
+    //      any chained mutation tool per D2.
+    // Per-note bypass: notes tagged JUDGE_BYPASS_TAG skip step 3 so
+    // archived red-team probes don't break daily use.
+    // See docs/tfg/00-decision-log.md sections D2, D3, D4.
     async summariseNotes(input: SummariseNotesInput): Promise<string> {
         let notes: Note[];
         if (input.noteIds && input.noteIds.length > 0) {
@@ -286,6 +303,24 @@ class NotesService {
                 return `## ${title}\n${n.content.trim()}`;
             })
             .join("\n\n---\n\n");
+
+        if (isJudgeEnabled()) {
+            const bypassed = notes.some(
+                (n) =>
+                    Array.isArray(n.tags) &&
+                    n.tags.includes(JUDGE_BYPASS_TAG),
+            );
+            if (bypassed) {
+                console.warn(
+                    `summariseNotes: judge bypassed (note tagged ${JUDGE_BYPASS_TAG})`,
+                );
+            } else {
+                const verdict = await judgeContent(corpus);
+                if (shouldBlock(verdict)) {
+                    throw new JudgeBlockedError(verdict);
+                }
+            }
+        }
 
         const { text } = await generateText({
             model: anthropic("claude-haiku-4-5"),
