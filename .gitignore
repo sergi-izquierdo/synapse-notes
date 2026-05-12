@@ -91,3 +91,7 @@ tfg/main.pdf
 tfg/figures/*.pdf
 tfg/figures/*.svg
 .env*.local
+
+# Promptfoo eval artifacts (HTML reports + result JSON)
+promptfoo/results/
+promptfoo/.created-notes.jsonl

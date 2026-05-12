@@ -12,7 +12,8 @@ import { z } from "zod";
 // system prompt, layered on top of D2 (restrictive summariser
 // prompt) and D4 (cost gates + auth allowlist).
 //
-// See docs/tfg/00-decision-log.md D3 and §11.3 of the memoir.
+// See docs/tfg/00-decision-log.md D3 and §8.4 of the memoir
+// (chapter 8 "Avaluació" → "Red team amb Promptfoo").
 
 export const JUDGE_CATEGORIES = [
   "instruction_override",

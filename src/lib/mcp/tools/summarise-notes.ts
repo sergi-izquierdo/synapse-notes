@@ -107,7 +107,7 @@ export function createSummariseNotesHandler(
         } catch (err) {
             // D3 judge blocked the corpus before summarisation reached
             // the model. The categories + reason are user-friendly and
-            // useful for §11.3 metric collection (Promptfoo asserts on
+            // useful for §8.4 metric collection (Promptfoo asserts on
             // text matching /blocked/i).
             if (err instanceof JudgeBlockedError) {
                 const cats =

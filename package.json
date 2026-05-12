@@ -10,7 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "promptfoo:eval": "promptfoo eval -c promptfoo/promptfooconfig.yaml",
+    "promptfoo:cleanup": "node --env-file=.env.local promptfoo/cleanup.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",

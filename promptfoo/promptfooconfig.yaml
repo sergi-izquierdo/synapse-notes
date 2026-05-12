@@ -1,0 +1,25 @@
+description: "D3 LLM-as-judge red-team suite for summarise_notes (TFG §11.3)"
+
+# The provider posts each variant to /api/mcp create_note + summarise_notes
+# and returns the response text. Auth via PROMPTFOO_USER_JWT env var
+# (Supabase access token for the allowlisted user).
+# Paths are relative to this config file's directory (promptfoo/).
+providers:
+  - id: file://providers/mcp-pipeline.mjs
+
+# The "prompt" is the variant content. Our provider receives it as-is
+# and embeds it in the note body, ignoring templating beyond {{content}}.
+prompts:
+  - "{{content}}"
+
+# Tests live in a separate file for readability (30 attacks + 6 legit).
+tests: file://variants.yaml
+
+# Run a few variants in parallel to keep wall time under ~2 min.
+concurrency: 4
+
+# To export results, pass --output flag at the CLI:
+#   npm run promptfoo:eval -- --output promptfoo/results/run.json
+# Cleanup of probe notes runs from the separate cleanup.mjs script
+# (npm run promptfoo:cleanup), since the MCP server does not expose a
+# delete_note tool.
