@@ -9,6 +9,10 @@ import { LogOut } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { BackgroundPaths } from "@/components/backgrounds/background-paths";
+import {
+  TodayBrainCard,
+  TodayBrainSkeleton,
+} from "@/components/today-brain/today-brain-card";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -60,6 +64,10 @@ export default async function DashboardPage() {
 
             {/* Creació i Grid */}
             <div className="space-y-8 pb-20">
+              <Suspense fallback={<TodayBrainSkeleton />}>
+                <TodayBrainCard userId={user.id} />
+              </Suspense>
+
               <section>
                 <ComposeZone availableTags={availableTags} />
               </section>

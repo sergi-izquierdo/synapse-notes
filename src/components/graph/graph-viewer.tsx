@@ -9,16 +9,40 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Search, Star } from "lucide-react";
+import { ArrowLeft, Box, Loader2, Search, Square, Star } from "lucide-react";
 import { UndirectedGraph } from "graphology";
 import louvain from "graphology-communities-louvain";
 import seedrandom from "seedrandom";
 import { forceCollide, forceX, forceY } from "d3-force-3d";
 import { useTheme } from "next-themes";
 
+import * as THREE from "three";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// Three.js objects used by the 3D renderer to mark starred nodes.
+// Created once at module load so each starred node reuses the same
+// geometry / material — instantiating per-render would generate
+// hundreds of GPU resources during simulation ticks.
+//
+// Design: wireframe icosahedron cage. Read at a glance from any
+// camera angle (the wires give clear silhouette regardless of
+// orientation), unambiguous "this is special", and cheaper than a
+// translucent halo because there's no transparency sorting overhead.
+//
+// IcosahedronGeometry(radius, detail). detail=1 gives 80 triangles,
+// which renders as a clean 20-face cage with subtle subdivision.
+// Radius 13 sits just outside the starred sphere (radius ~9.4 with
+// nodeVal=3.5, nodeRelSize=5) so the cage is visibly external.
+const STARRED_CAGE_GEOMETRY = new THREE.IcosahedronGeometry(13, 1);
+const STARRED_CAGE_MATERIAL = new THREE.MeshBasicMaterial({
+    color: 0xe7a13c,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.85,
+});
 
 type GraphNode = {
     id: number;
@@ -46,9 +70,14 @@ type GraphData = {
 };
 
 // react-force-graph-2d touches `window` on import — load only on the
-// client to keep Next.js SSR happy.
+// client to keep Next.js SSR happy. Same dynamic-import pattern for
+// the 3D variant.
 const ForceGraph2D = dynamic(
     () => import("react-force-graph-2d").then((m) => m.default),
+    { ssr: false },
+);
+const ForceGraph3D = dynamic(
+    () => import("react-force-graph-3d").then((m) => m.default),
     { ssr: false },
 );
 
@@ -125,6 +154,12 @@ export function GraphViewer() {
     const [hoverNode, setHoverNode] = useState<GraphNode | null>(null);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const [dims, setDims] = useState({ width: 0, height: 0 });
+    // Render mode: "2d" uses the canvas-painted view with hover focus,
+    // starred rings, and Obsidian-style physics. "3d" swaps to WebGL
+    // with default node rendering (community color + size) for a
+    // demo-friendly orbital view. The 2D path is the daily-driver
+    // experience; 3D is opt-in via the toolbar toggle.
+    const [mode, setMode] = useState<"2d" | "3d">("2d");
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Theme-aware palette. The canvas paints labels, edges and
@@ -512,7 +547,7 @@ export function GraphViewer() {
                         {error}
                     </div>
                 )}
-                {data && dims.width > 0 && dims.height > 0 && (
+                {data && dims.width > 0 && dims.height > 0 && mode === "2d" && (
                     <ForceGraph2D
                         /* eslint-disable @typescript-eslint/no-explicit-any */
                         ref={setFgInstance as any}
@@ -566,6 +601,98 @@ export function GraphViewer() {
                         /* eslint-enable @typescript-eslint/no-explicit-any */
                     />
                 )}
+                {data && dims.width > 0 && dims.height > 0 && mode === "3d" && (
+                    /* 3D variant. WebGL rendering means we can't reuse
+                       the canvas-painted node ornaments (starred ring,
+                       hover aura) — those would need three.js objects.
+                       For the demo path we rely on built-in node
+                       coloring (community palette) + size (starred
+                       slightly larger) + hover label. Click still
+                       opens the inspector via shared selectedNode
+                       state; search + focusIds still dim non-matching
+                       nodes via nodeOpacity / linkOpacity accessors. */
+                    <ForceGraph3D
+                        /* eslint-disable @typescript-eslint/no-explicit-any */
+                        graphData={data as any}
+                        width={dims.width}
+                        height={dims.height}
+                        backgroundColor="rgba(0,0,0,0)"
+                        nodeRelSize={5}
+                        nodeVal={((n: GraphNode) =>
+                            n.starred ? 3.5 : 1.5) as any}
+                        nodeColor={((n: GraphNode) => {
+                            const active = isActive(n.id);
+                            const base = communityColor(n.community);
+                            // Dim by mixing with the canvas background
+                            // when filters are active and this node is
+                            // off-focus.
+                            if (!active && anyFilterActive) {
+                                return isDark
+                                    ? "rgba(120,140,170,0.18)"
+                                    : "rgba(60,80,110,0.18)";
+                            }
+                            return base;
+                        }) as any}
+                        nodeOpacity={0.95}
+                        nodeLabel={((n: GraphNode) => n.title) as any}
+                        linkColor={((l: GraphLink) => {
+                            const s = typeof l.source === "object"
+                                ? l.source.id
+                                : l.source;
+                            const t = typeof l.target === "object"
+                                ? l.target.id
+                                : l.target;
+                            const edgeActive = isActive(s) && isActive(t);
+                            return baseLinkColor(l.kind, anyFilterActive ? edgeActive : false);
+                        }) as any}
+                        linkOpacity={0.45}
+                        linkWidth={((l: GraphLink) =>
+                            0.4 + (l.weight ?? 0.5) * 1.2) as any}
+                        linkDirectionalArrowLength={((l: GraphLink) =>
+                            l.kind === "link" ? 3.5 : 0) as any}
+                        linkDirectionalArrowRelPos={0.85}
+                        linkDirectionalArrowColor={((l: GraphLink) =>
+                            l.kind === "link"
+                                ? "rgba(185, 154, 224, 0.95)"
+                                : "transparent") as any}
+                        /* Starred parity with the 2D renderer: extend
+                           the default community-coloured sphere with
+                           an amber wireframe cage. Cage is silhouette-
+                           clear from every camera angle, no opacity
+                           sorting overhead, and reads as "this node
+                           is special" without obscuring its color.
+                           Returns null for non-starred so they keep
+                           just the default sphere. */
+                        nodeThreeObjectExtend={true}
+                        nodeThreeObject={((n: GraphNode) => {
+                            if (!n.starred) return null;
+                            return new THREE.Mesh(
+                                STARRED_CAGE_GEOMETRY,
+                                STARRED_CAGE_MATERIAL,
+                            );
+                        }) as any}
+                        /* GPU optimisations: disable antialiasing
+                           because the wireframe cage doesn't benefit
+                           from MSAA and the smoother edges aren't
+                           visible against the dark canvas at default
+                           zoom. powerPreference defaults to
+                           "high-performance" on desktops; explicit
+                           here so dedicated GPUs are preferred. */
+                        rendererConfig={{
+                            antialias: false,
+                            powerPreference: "high-performance",
+                        }}
+                        cooldownTicks={200}
+                        warmupTicks={40}
+                        enableNodeDrag={true}
+                        onNodeHover={((n: GraphNode | null) =>
+                            setHoverNode(n)) as any}
+                        onNodeClick={((n: GraphNode) =>
+                            setSelectedNode(n)) as any}
+                        onBackgroundClick={() => setSelectedNode(null)}
+                        /* eslint-enable @typescript-eslint/no-explicit-any */
+                    />
+                )}
             </main>
 
             {/* Side panel */}
@@ -581,9 +708,45 @@ export function GraphViewer() {
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
-                    <h1 className="text-sm font-semibold tracking-tight">
+                    <h1 className="text-sm font-semibold tracking-tight flex-1">
                         Note graph
                     </h1>
+                    <div
+                        className="flex items-center rounded-md border border-border/60 bg-muted/40 p-0.5"
+                        role="group"
+                        aria-label="Render mode"
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setMode("2d")}
+                            data-test="graph-mode-2d"
+                            className={cn(
+                                "flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors",
+                                mode === "2d"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground",
+                            )}
+                            aria-pressed={mode === "2d"}
+                        >
+                            <Square className="h-3 w-3" />
+                            2D
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMode("3d")}
+                            data-test="graph-mode-3d"
+                            className={cn(
+                                "flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors",
+                                mode === "3d"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground",
+                            )}
+                            aria-pressed={mode === "3d"}
+                        >
+                            <Box className="h-3 w-3" />
+                            3D
+                        </button>
+                    </div>
                 </div>
 
                 <div className="relative p-4 border-b border-border/60">
