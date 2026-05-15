@@ -315,3 +315,65 @@ L'auth.users.id es treu de la consola del navegador després del login: `(await 
 - **Bloquejar el desat de notes quan el guard bloqueja l'embedding.** Descartada: l'usuari fora de l'allowlist hauria de poder llegir/escriure les seves notes encara que la RAG no funcioni. Degradació elegant > fall-hard.
 
 ---
+
+## 2026-05-14. D5. Arquitectura d'agents en segon pla (decisió pendent de la reunió 2026-05-18)
+
+**Decisió pendent.** Aquest document fixa el problema, les opcions i el recommanat per discutir-lo amb Marc dilluns 2026-05-18. L'opció escollida s'incorporarà aquí un cop confirmada.
+
+### Context
+
+Setmana 4 del plan original (`docs/tfg/extend.md` línia 563) preveu 3 agents executats per `pg_cron` sobre Supabase Edge Functions:
+
+| Agent | Schedule | LLM downstream | Lethal Trifecta? |
+|---|---|---|---|
+| `embedding-backfill` | cada 15 min | no (només Gemini embed) | no (no genera text llegible) |
+| `auto-tag` | cada hora | sí (Haiku per proposar tags) | parcial (input privat + LLM, sense canal extern) |
+| `weekly-digest` | diumenge nit | sí (Haiku per agregar setmana) | sí (mateixa trifecta que `summarise_notes`, requereix D3) |
+
+Plus UI:
+- `activity-drawer` per visualitzar `agent_events`
+- `tag-suggestion-card` per acceptar/rebutjar propostes d'auto-tag
+
+### Restricció temporal
+
+Avui 2026-05-14. Entrega 2026-06-05. **19 dies de marge.**
+
+Setmana 4 (2026-05-11 a 2026-05-17): pràcticament tota dedicada al D3 + Promptfoo + §8.4 i a polit demo per a entrevista 2026-05-13. **Net dies disponibles per a agents: 0-2.**
+
+Setmana 5 (2026-05-18 a 2026-05-24): plan original era load test + Promptfoo expansion + memoir §11.
+Setmana 6 (2026-05-25 a 2026-05-31): memoir-only (capítols 11-15).
+Setmana 7 (2026-06-01 a 2026-06-05): polit final + entrega.
+
+### Opcions
+
+#### (a) Construir els 3 agents (plan original)
+
+Pros: completa el plan oficial; demostra que es pot construir un sistema multi-agent real.
+
+Cons: 5 dies per implementar + integrar + memoir-ar és apretat. Risc de bug d'integració (`pg_cron` + Edge Functions + Supabase) que mengi temps de polit del memoir. La part més arriscada (auto-tag, weekly-digest) implica D3 judge a cada agent — duplica la complexitat del que ja està validat al `summarise_notes`.
+
+#### (b) Construir només `embedding-backfill`
+
+Pros: agent més simple del catàleg (cap LLM downstream, sense Lethal Trifecta), lliura valor immediat (notes que es van desar amb embedding null per quota Google ara apareixen al RAG i al graph), valida el patró `pg_cron` + Edge Function sobre Supabase, deixa traça verificable a `agent_events`. Els altres 2 queden a nivell de disseny complet al §6 amb diagrames + decisió de no implementar.
+
+Cons: el TFG promet 3 agents al plan inicial. El triatge ha de ser justificat honestament a §14 Valoració personal.
+
+#### (c) Document-only: cap agent implementat
+
+Pros: 3-4 dies addicionals de polit del memoir, capítols 11-15 amb més qualitat.
+
+Cons: el plan inicial promet implementar agents. Pot percebre's com a sub-lliurament.
+
+### Recomanat per a la reunió
+
+**Opció (b)**: implementar `embedding-backfill` (agent més simple, valor immediat, cap risc D3), documentar exhaustivament els altres 2 al §6.4 amb diagrames de seqüència + matriu de capacitats + crítica honesta de què hauria de ser revisat abans de production-ize-los. Argument per al tribunal: el TFG demostra que el patró és viable amb una instància representativa, els altres dos són variants del mateix patró i no afegeixen profunditat tècnica nova.
+
+### Decisió presa (omplir post-reunió)
+
+(pendent)
+
+### Action items resultants (omplir post-reunió)
+
+(pendent)
+
+---

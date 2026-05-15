@@ -1,27 +1,46 @@
-% TODO: substituir per la portada oficial de la URV (ETSE, Enginyeria Informàtica).
-% La URV proporciona una plantilla PDF/DOCX; si es fa servir la seva portada com a imatge,
-% incloure amb \includepdf{portada-urv.pdf} (requereix \usepackage{pdfpages} al preamble).
-% Referència: liamato/URV-TFG-Template (només com a guia de marges, no adoptar sencer).
+% Portada oficial de la URV (model TFG/TFM).
+% Estructura segons el "Model de portada per a TFG i TFM" de la URV:
+%   - Bloc 1 (2/3 superior): autor + títol + "Treball de Fi de Grau" +
+%     "dirigit per ..." + nom de l'ensenyament.
+%   - Bloc 2 (1/3 inferior): logotip URV + ciutat + any.
+% La logo PNG es genera des de figures/URV-logo.gif via Pillow
+% (vegeu tfg/figures/README.md).
 
 \thispagestyle{empty}
 \begin{center}
-    \vspace*{2cm}
-    {\Huge\bfseries Synapse Notes\par}
+    \vspace*{1cm}
+    {\large Sergi Izquierdo Segarra\par}
+
+    \vspace{3cm}
+    {\Large\bfseries Synapse Notes\par}
+    \vspace{0.4cm}
+    {\large Plataforma de notes amb xat contextual basat en RAG, ampliada amb un servidor MCP i agents en segon pla\par}
+
+    \vspace{2.5cm}
+    {\large\bfseries Treball de Fi de Grau\par}
+
+    \vspace{0.8cm}
+    {\large dirigit pel Sr.~Marc S\'anchez\par}
+
     \vspace{0.5cm}
-    {\Large Plataforma de notes amb xat contextual basat en RAG,\\ampliada amb un servidor MCP i agents en segon pla\par}
-    \vspace{2cm}
-    {\large Treball de Fi de Grau\par}
-    {\large Grau en Enginyeria Informàtica\par}
-    \vspace{1cm}
-    {\large Escola Tècnica Superior d'Enginyeria\par}
-    {\large Universitat Rovira i Virgili\par}
+    {\large Grau en Enginyeria Inform\`atica\par}
+
     \vfill
-    \begin{tabular}{rl}
-        Autor: & Sergi Izquierdo \\
-        Tutor: & Marc Sánchez \\
-        Curs:  & 2025--2026 \\
-        Convocatòria: & 1a (juny 2026) \\
-    \end{tabular}
+
+    \IfFileExists{figures/URV-logo.png}{%
+        \includegraphics[width=4.5cm]{URV-logo.png}\par
+    }{%
+        \fbox{\parbox{4.5cm}{\centering\small[logo URV pendent]}}\par
+    }
+
+    \vspace{0.3cm}
+    {\large\scshape Universitat Rovira i Virgili\par}
+
+    \vspace{1cm}
+    {\large Tarragona\par}
+    \vspace{0.3cm}
+    {\large 2026\par}
+
     \vspace{1cm}
 \end{center}
 \clearpage

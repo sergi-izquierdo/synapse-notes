@@ -1,0 +1,41 @@
+% Declaració d'ús d'eines d'IA al TFG.
+% S'insereix a la frontmatter després del §02-resum i abans de la
+% taula de continguts, com indica el comunicat oficial rebut a tres
+% setmanes vista de l'entrega.
+
+\chapter*{Declaració d'ús d'eines d'intel·ligència artificial}
+\addcontentsline{toc}{chapter}{Declaració d'ús d'eines d'IA}
+
+\section*{Marc i propòsit d'aquesta declaració}
+
+D'acord amb la indicació rebuda de la coordinació del TFG, aquest capítol declara quines eines d'intel·ligència artificial s'han utilitzat durant el desenvolupament del present treball, amb quina finalitat, i com han contribuït al resultat final. La declaració distingeix \textbf{l'ús d'IA com a eina de suport al desenvolupament} (l'objecte d'aquesta secció) de \textbf{l'ús d'IA com a component intern del producte} (Claude Haiku 4.5 per al xat RAG, judge filter i sumarització; Google Gemini per als embeddings vectorials), que constitueix part de la pròpia matèria del TFG i està documentat als capítols~\ref{ch:disseny}, \ref{ch:implementacio} i \ref{ch:avaluacio}.
+
+\section*{Eines emprades i finalitat}
+
+\begin{itemize}
+    \item \textbf{Claude Code (Anthropic)} amb models Claude Sonnet 4.x i Claude Haiku 4.x. Eina principal de suport al desenvolupament. Utilitzada com a assistent interactiu per a:
+    \begin{itemize}
+        \item Suggeriments d'implementació i refactor de codi TypeScript/React/Next.js, principalment per accelerar la traducció d'una decisió de disseny ja presa per l'autor a una implementació conforme a les convencions del projecte.
+        \item Auxili a la depuració d'errors d'integració concrets, sobretot al voltant de les fronteres entre el SDK MCP, l'AI SDK de Vercel i les RPC de Supabase (per exemple, el rebuig d'\textit{output\_config.format.schema} d'Anthropic davant constraints numèriques de Zod, documentat al D3 del registre de decisions).
+        \item Redacció i revisió iterativa de prosa en català per al present memoir, amb posterior revisió manual i ajustos editorials de l'autor.
+        \item Generació de scripts auxiliars de diagnòstic com \texttt{scripts/probe-judge.mjs} i \texttt{promptfoo/analyze.mjs}, sempre a partir d'una especificació funcional escrita per l'autor.
+        \item Suggeriments de format LaTeX (taules, figures pgfplots, referències creuades).
+    \end{itemize}
+
+    \item \textbf{Eines de cerca i documentació tècnica}. Cercadors generals (Google, DuckDuckGo) i documentació oficial dels frameworks emprats (Next.js, Supabase, Vercel AI SDK, Model Context Protocol). Quan la consulta s'ha fet a través d'un assistent (Claude Code), la resposta s'ha verificat contra la documentació oficial abans d'aplicar-la al projecte. Aquestes verificacions estan reflectides parcialment a les referències bibliogràfiques al final del document.
+
+    \item \textbf{Ús d'IA com a contingut del producte (no com a assistència al desenvolupament)}. El propi Synapse Notes integra dos models d'IA: Claude Haiku 4.5 d'Anthropic per al xat amb RAG, el filtre LLM-as-judge (D3) i la sumarització, i \texttt{gemini-embedding-001} de Google per a la generació dels embeddings vectorials. Aquesta integració és \textbf{l'objecte d'estudi del TFG}, no una eina de suport, i la seva descripció exhaustiva es troba als capítols de disseny i implementació.
+\end{itemize}
+
+\section*{Naturalesa de la contribució de l'autor}
+
+Totes les decisions de disseny, arquitectura, i abast del projecte han estat preses per l'autor. En particular:
+
+\begin{itemize}
+    \item Les cinc decisions de disseny majors (D1 a D5, registrades a \texttt{docs/tfg/00-decision-log.md} amb data i justificació) són pròpies de l'autor i han precedit la implementació corresponent. El registre està commitejat a Git amb segells temporals que mostren l'ordre cronològic decisió $\rightarrow$ implementació.
+    \item L'elecció del marc d'anàlisi de seguretat (Lethal Trifecta de Willison, secció~\ref{sec:trifecta}), la metodologia de validació empírica del filtre D3 (secció~\ref{sec:red-team-promptfoo}), els llindars numèrics (\texttt{AI\_JUDGE\_THRESHOLD=0.7}, \texttt{match\_threshold=0.05}, \texttt{match\_count=20}), la decisió d'utilitzar una arquitectura dual de retrieval (inventari per títol + RAG top-K) i la decisió de declinar capes addicionals (rate-limiting per taula, Vercel BotID) han estat raonades i justificades per l'autor en cada cas a partir de l'anàlisi de cost/benefici aplicada al context del TFG.
+    \item La verificació empírica, l'execució de la suite Promptfoo contra producció, la interpretació dels resultats i la redacció de la subsecció \emph{Discussió: defense-in-depth i el guany marginal de D3} (secció~\ref{subsec:defense-in-depth}) reflecteixen l'anàlisi crítica de l'autor sobre les seves pròpies dades.
+    \item Cada commit del repositori està signat per l'autor i pot ser contrastat amb el registre de decisions. L'historial git complet és consultable al repositori del projecte (vegeu l'annex amb les instruccions d'accés al codi font).
+\end{itemize}
+
+\clearpage

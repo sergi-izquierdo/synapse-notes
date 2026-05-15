@@ -15,11 +15,107 @@
 % Autenticació OAuth 2.1 (JWT passthrough a Supabase RLS).
 
 \section{Disseny dels agents}
+\label{sec:disseny-agents}
 % TODO: embedding-backfill, auto-tag, weekly-digest. Desplegament en Supabase Edge Functions + pg_cron.
 
 \section{Disseny de seguretat}
-% TODO: aplicar el framework Lethal Trifecta (Willison) eina per eina.
-% Matriu: eina × (input privat / contingut no fiable / comunicació externa) × mitigació.
+\label{sec:disseny-seguretat}
+
+Aquest capítol presenta el marc de risc del sistema (Lethal Trifecta de Willison), una matriu per eina, i les cinc capes de defensa dissenyades. La verificació empírica d'una d'aquestes capes (D3 LLM-as-judge) està a la secció~\ref{sec:red-team-promptfoo}; la descripció dels mecanismes implementats està al capítol d'implementació (\S\ref{sec:mcp-seguretat}).
+
+\subsection{Marc d'anàlisi: Lethal Trifecta}
+\label{sec:trifecta}
+
+Simon Willison va proposar el patró conegut com a \emph{Lethal Trifecta} per a sistemes d'agents amb LLMs i tool calling \parencite{willison2025trifecta}. La hipòtesi és que un atac d'injecció de prompt esdevé una vulnerabilitat de seguretat (no només un comportament inadequat del model) quan tres condicions es donen \textbf{simultàniament} en la mateixa traça d'execució:
+
+\begin{enumerate}
+    \item \textbf{Untrusted content reaches the model.} Contingut que prové d'una font que el model ha de tractar com a dada (no com a instrucció): cossos de notes, correus, documents importats, o sortida d'una crida web.
+    \item \textbf{Private data accessible.} El model té accés (directe via context o indirecte via tool) a informació sensible que un atacant voldria veure exposada.
+    \item \textbf{External communication channel.} Existeix un canal pel qual el model pot retornar text fora del límit de confiança original (xat, email, webhook, eina de cerca, fitxer escrit).
+\end{enumerate}
+
+Cap dels tres factors aïllats és perillós. Un LLM que llegeix contingut hostil però sense accés a dades privades simplement retorna una resposta neutralitzada. Un LLM amb accés a dades privades però sense canal extern d'exfiltració pot, com a molt, mostrar-les al mateix usuari autenticat (que ja les podria veure d'altres maneres). Un LLM amb canal extern però que mai veu contingut hostil tampoc és vulnerable, perquè cap actor li està dirigint les instruccions.
+
+L'arquitectura de Synapse Notes és exposada precisament a aquesta intersecció: el servidor MCP exposa eines que llegeixen el contingut de l'usuari (que un atacant podria embolicar amb instruccions ocultes), que tenen accés a la base de dades privada del propietari (via JWT) i que retornen text a agents externs (Claude Desktop, agents personalitzats, futurs ChatGPT plugins). El disseny de seguretat ha de fer que les tres potes coexisteixin sense convergir en cap path d'execució real.
+
+Willison documenta diversos incidents públics el 2023-2025 com a instàncies estructuralment idèntiques d'aquest patró \parencite{willison2025trifecta}, entre ells filtracions a Microsoft Copilot via documents Office, exposicions a Slack AI via missatges directes i un XSS via comentaris d'issues a GitLab Duo. Cada cas és diferent en superfície (correu, missatges, comentaris) però estructuralment idèntic: contingut hostil entra al context, dada privada accessible, i un canal de sortida que el converteix en exfil real.
+
+\subsection{Matriu eina-per-eina}
+\label{sec:trifecta-matrix}
+
+La taula~\ref{tab:trifecta-matrix} aplica el framework a les vuit eines exposades pel servidor MCP. Cada cel·la indica si la trifecta està \emph{intacta} ($\bullet$), \emph{mitigada} per disseny ($\circ$) o \emph{absent} estructuralment ($-$).
+
+\begin{table}[H]
+    \centerfloat
+    \caption{Aplicació del Lethal Trifecta a les eines del servidor MCP. $\bullet${} = factor present sense mitigació; $\circ${} = factor present però mitigat per disseny; $-${} = factor absent estructuralment.}
+    \label{tab:trifecta-matrix}
+    \footnotesize
+    \begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{4.4cm}@{}}
+        \toprule
+        Eina & Untrusted & Private data & External comms & Trifecta & Mitigació primària \\
+        \midrule
+        \texttt{search\_notes} & $\bullet$ & $\bullet$ & $\circ$ & no & retorna ids + similarity, no contingut LLM-processat \\
+        \texttt{get\_note} & $\bullet$ & $\bullet$ & $\circ$ & no & RLS, contingut retornat literal \\
+        \texttt{create\_note} & $-$ & $\bullet$ & $-$ & no & no llegeix, només escriu; D2 host confirmation \\
+        \texttt{update\_note} & $-$ & $\bullet$ & $-$ & no & no llegeix abans, només escriu; D2 host confirmation \\
+        \texttt{tag\_notes} & $-$ & $\bullet$ & $-$ & no & operació set-semantics, no involucra LLM downstream \\
+        \texttt{graph\_neighbors} & $\bullet$ & $\bullet$ & $\circ$ & no & retorna estructura (ids, weights, edge kinds), no text \\
+        \texttt{graph\_shortest\_path} & $\bullet$ & $\bullet$ & $\circ$ & no & idem \\
+        \texttt{summarise\_notes} & $\bullet$ & $\bullet$ & $\bullet$ & \textbf{sí} & D3 LLM-as-judge filter (capa principal) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Lectura clau de la matriu}: \texttt{summarise\_notes} és l'única eina del catàleg on les tres potes convergeixen en el mateix path d'execució. És, per construcció, el vector canònic de la trifecta en aquest sistema. La resta d'eines o bé no involucren un LLM downstream (totes les CRUD i tag) o bé retornen estructura tipada en lloc de text generat (les graph-* i search\_notes). Per a aquestes el risc es manté a "naive prompt injection" (el model que les rep encara podria ser-ne víctima, però el host MCP no és el que generà la sortida hostil).
+
+Aquesta concentració del risc en una sola eina és deliberada i prèvia al disseny dels mecanismes de defensa. \textbf{La concentració permet aplicar el mecanisme més costós (un LLM-as-judge addicional) a una sola eina en lloc de bloquejar tot l'ecosistema.} El cost per crida (\$0.001 d'overhead de judge + 1,5 s de latència) hauria estat insostenible si el judge calgués executar-se a totes les 8 eines.
+
+\subsection{Capes de defensa dissenyades}
+\label{sec:defense-layers}
+
+La taula~\ref{tab:defense-layers} resumeix les cinc capes que componen la defensa de \texttt{summarise\_notes} i, en menor mesura, de la resta d'eines MCP. Cadascuna està dissenyada per parar una classe diferent d'atac sense dependre de les altres.
+
+\begin{table}[H]
+    \centerfloat
+    \caption{Capes de defensa al servidor MCP. Cada capa para una classe diferent d'atac i és independent (defense in depth).}
+    \label{tab:defense-layers}
+    \small
+    \begin{tabular}{@{}c>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{6.5cm}@{}}
+        \toprule
+        \# & Capa & Tipus & Atac que para \\
+        \midrule
+        1 & D4 cost guards & operacional & DoS o abusos econòmics: kill-switch global, allowlist per UID, caps de proveïdor manuals \\
+        2 & Auth + RLS & estructural & cross-tenant leakage (un usuari mai veu les dades d'un altre, ni a través d'un LLM intermediari) \\
+        3 & D3 LLM-as-judge & contingut & injeccions de prompt al corpus de notes que arriben a \texttt{summarise\_notes} \\
+        4 & D2 system prompt restrictiu & contingut & override directe del sumaritzador: el prompt instrueix ``summarise only, no tool use, no fabrication'' \\
+        5 & Plain-text output sense tool use & estructural & accions side-effect indirectes: el sumaritzador no té tools registrades, només retorna text \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Anàlisi de risc residual per eina}
+\label{sec:risk-residual}
+
+\paragraph{summarise\_notes (alt risc, mitigat).} Trifecta completa. D3+D2+D4 actuen en sèrie. L'avaluació empírica (\S\ref{sec:red-team-promptfoo}) mostra 0/30 exfiltracions reals tant amb D3 actiu com desactivat, perquè D2 sol ja captura tot el suite. El risc residual és el long tail no provat: 30 atacs en 5 categories no esgota l'espai de paràfrasis automatitzades. Mitigació futura proposada: ampliar la suite a 200--500 variants i mesurar la corba precision-recall del threshold del judge.
+
+\paragraph{search\_notes, get\_note, graph\_neighbors, graph\_shortest\_path (risc mig, mitigat).} Aquestes eines llegeixen contingut potencialment hostil i el retornen al client MCP. El risc és que l'agent client (Claude Desktop) processi el contingut amb les seves pròpies eines i caigui en una trifecta indirecta. Mitigació pel servidor: retornar estructura (ids, similaritats, edge kinds) en lloc de text lliure sempre que la semàntica de l'eina ho permet. La responsabilitat última de mitigar prompt injection al costat client recau sobre el host MCP (D2: \emph{host confirmation} de cada tool call abans de fer-la executar).
+
+\paragraph{create\_note, update\_note, tag\_notes (risc baix, mitigat).} Aquestes eines escriuen però no llegeixen abans d'escriure. No hi ha contingut downstream que un LLM resumeixi com a part de la mateixa traça. La mitigació primària és D2 \emph{host confirmation}: el host MCP (Claude Desktop) ha de demanar permís a l'usuari abans d'invocar cap d'aquestes eines, perquè podrien ser encadenades després d'una resposta de \texttt{summarise\_notes} comprometuda. La seqüència d'atac defensable és: (1) atacant amaga instrucció a una nota; (2) usuari demana resum; (3) sumaritzador retorna text amb instruccions ocultes per al host; (4) host crida \texttt{create\_note} per exfiltrar a una nota nova. D2 trenca el pas (4).
+
+\paragraph{Resta d'agents (Setmana 4, encara pendents).} Els agents en segon pla descrits a la secció~\ref{sec:disseny-agents} (\texttt{embedding-backfill}, \texttt{auto-tag}, \texttt{weekly-digest}) tindran la mateixa anàlisi quan estiguin implementats. La capa més rellevant per a ells serà D4 (cost guards), perquè un agent que s'executa per pg\_cron en background pot consumir quota sense interacció humana. El plan inicial és que cada agent escriu a \texttt{agent\_events} amb el seu action + payload (vegeu \S\ref{sec:disseny-agents}), de manera que un atac que el comprometés deixarà signatura auditable.
+
+\subsection{Limitacions del disseny}
+\label{sec:security-limitations}
+
+Aquest disseny no resol tres classes d'atac que queden documentades com a treball futur o limitacions acceptades:
+
+\begin{itemize}
+    \item \textbf{End-to-end encryption}. Les notes són emmagatzemades al servidor de Supabase en clar (amb encryption at rest del proveïdor però no E2EE). Un compromís del compte Supabase exposaria tot el contingut. Mitigació prevista al \S\ref{ch:annex-install} d'instal·lació: la base de dades pot ser un Supabase self-hosted del propi usuari.
+    \item \textbf{Side-channel timing}. La diferència de latència entre el path "judge bloqueja" i "judge permet" (\S\ref{sec:red-team-promptfoo} mostra mean 2363 ms vs $\sim$3500 ms quan el sumaritzador també corre) és teòricament observable per un atacant que pugui mesurar el temps de resposta. No es considera explotable a l'escala actual (1 usuari allowlistat) però seria mitigable amb un timing jitter aleatori al wrapper de \texttt{summarise\_notes}.
+    \item \textbf{Compromise de la cadena de proveïdors}. Una actualització maliciosa d'\texttt{@ai-sdk/anthropic} o de \texttt{@modelcontextprotocol/sdk} podria comprometre el sistema. Mitigació actual: tots els paquets són d'autors oficials i versionats al \texttt{package-lock.json}. Una capa addicional de defensa seria un mirror privat amb auditoria, fora de l'abast d'un TFG.
+\end{itemize}
+
+\textbf{Honestedat metodològica}: aquest disseny no és un panaceu i no s'auto-presenta com a tal. La secció~\ref{sec:red-team-promptfoo} de l'avaluació documenta explícitament que en el suite de 30 atacs, el guany marginal de D3 sobre D2 sol és 0\%. La defensa de D3 reposa en quatre arguments operatius (signatura estructurada auditable, earlier rejection, resilència a regressions del model upstream, mostra petita amb long tail no explorat) i no en una afirmació de millora absoluta de la seguretat. Aquesta postura és intencional: vol evitar les promeses de "AI security" que no s'aguanten quan són examinades quantitativament.
 
 \section{Disseny de la interfície}
 % TODO: mockups/screenshots. Drawer d'activitat d'agents amb botons accept/reject.
