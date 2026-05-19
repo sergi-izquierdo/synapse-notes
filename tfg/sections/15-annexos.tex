@@ -1,20 +1,212 @@
 \chapter{Manual d'instal·lació}
 \label{ch:annex-install}
 
-% TODO: passos per clonar el repo, configurar .env.local, npm install, npm run dev.
-% Variables d'entorn necessàries. Requisits del sistema.
+Aquest annex documenta els passos per a desplegar una còpia local i pre-producció de Synapse Notes. El repositori és públic a \url{https://github.com/sergi-izquierdo/synapse-notes} i la versió etiquetada per a l'entrega del TFG és \texttt{v1.0-tfg-entrega}.
+
+\section*{Requisits del sistema}
+
+\begin{itemize}
+    \item Node.js $\geq$ 24.0 (LTS recomanat). El \texttt{package.json} ho fa explícit amb el camp \texttt{engines}.
+    \item NPM $\geq$ 10 (ve amb Node 24).
+    \item Compte a Supabase amb un projecte creat (free tier suficient).
+    \item Compte a Anthropic Console amb una clau API generada.
+    \item Compte a Google AI Studio amb una clau API generada.
+    \item Opcional per a deploy: compte a Vercel.
+\end{itemize}
+
+\section*{Passos d'instal·lació}
+
+\begin{enumerate}
+    \item \textbf{Clonar el repositori}:
+    \begin{verbatim}
+git clone https://github.com/sergi-izquierdo/synapse-notes.git
+cd synapse-notes
+git checkout v1.0-tfg-entrega
+    \end{verbatim}
+
+    \item \textbf{Instal·lar dependències}:
+    \begin{verbatim}
+npm install
+    \end{verbatim}
+
+    \item \textbf{Configurar variables d'entorn}. Copiar \texttt{.env.example} a \texttt{.env.local} i omplir les variables descrites a la taula~\ref{tab:env-vars}.
+
+    \item \textbf{Aplicar les migracions SQL al Supabase del projecte}. Les migracions estan a \texttt{supabase/migrations/}. Cal aplicar-les en ordre cronològic (segons el prefix del nom). Si es té el CLI de Supabase instal·lat:
+    \begin{verbatim}
+npx supabase db push
+    \end{verbatim}
+
+    \item \textbf{Configurar els OAuth providers al Supabase}. Activar Google i GitHub a \texttt{Auth $\rightarrow$ Providers} del Dashboard de Supabase, configurant els callbacks segons la documentació oficial de cada proveïdor.
+
+    \item \textbf{Iniciar el servidor de desenvolupament}:
+    \begin{verbatim}
+npm run dev
+    \end{verbatim}
+
+    La UI estarà disponible a \texttt{http://localhost:3000}.
+\end{enumerate}
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Variables d'entorn del projecte (\texttt{.env.local}).}
+    \label{tab:env-vars}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6.5cm}l@{}}
+        \toprule
+        Variable & Propòsit & Obligatori \\
+        \midrule
+        \texttt{NEXT\_PUBLIC\_SUPABASE\_URL} & URL del projecte Supabase & sí \\
+        \texttt{NEXT\_PUBLIC\_SUPABASE\_ANON\_KEY} & Clau anònima de Supabase (segura per al client) & sí \\
+        \texttt{SUPABASE\_SERVICE\_ROLE\_KEY} & Clau de service-role (només servidor) & sí \\
+        \texttt{ANTHROPIC\_API\_KEY} & Clau de l'API d'Anthropic & sí \\
+        \texttt{GOOGLE\_GENERATIVE\_AI\_API\_KEY} & Clau de Google AI Studio & sí \\
+        \texttt{AI\_ENABLED} & Kill-switch global (D4). Default \texttt{true}. & no \\
+        \texttt{AI\_ALLOWLIST\_ONLY} & Activa allowlist mode (D4). Default \texttt{false}. & no \\
+        \texttt{AI\_ALLOWLIST\_USER\_IDS} & UIDs autoritzats (CSV) si allowlist actiu. & no \\
+        \texttt{AI\_JUDGE\_ENABLED} & Kill-switch del filtre D3. Default \texttt{true}. & no \\
+        \texttt{AI\_JUDGE\_THRESHOLD} & Llindar de confiança per a bloqueig D3. Default 0{,}7. & no \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \chapter{Manual d'ús}
 \label{ch:annex-usage}
 
-% TODO: screenshots del flux usuari (login, crear nota, chat amb RAG, drawer d'agents).
+Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'autenticació fins a la consulta amb el xat RAG. Les captures de pantalla estan disponibles al repositori sota \texttt{docs/screenshots/} (no incloses al PDF per a mantenir-lo lleuger).
 
-\chapter{Configuració del servidor MCP}
+\section*{Primer accés}
+
+\begin{enumerate}
+    \item Obrir la URL del desplegament (per defecte \url{https://synapse-notes.vercel.app}).
+    \item Triar un proveïdor OAuth (Google o GitHub) i autoritzar el redirect cap a Synapse Notes.
+    \item En cas que el sistema estigui en mode allowlist (D4) i l'usuari no estigui inclòs, les funcionalitats d'IA mostraran un missatge informatiu. Les notes seguiran funcionant però sense RAG ni summarise.
+\end{enumerate}
+
+\section*{Crear i organitzar notes}
+
+\begin{enumerate}
+    \item Al dashboard, la zona \emph{ComposeZone} té un camp opcional de \emph{títol} i un textarea per al cos. El títol millora la cerca semàntica perquè s'inclou a la generació de l'embedding.
+    \item Mentre s'escriu, els tres sigils invoquen autocomplete: \texttt{[[} obre cerca de notes per a backlinks, \texttt{@} per a mencions estil-tag, \texttt{\#} filtra tags existents.
+    \item En desar, el sistema genera automàticament un embedding (Gemini) per a la nota i suggereix tags via Haiku 4.5 amb el component \emph{TagSuggestionRow}. L'usuari pot acceptar o rebutjar.
+    \item Star, archive, delete i restore són accions disponibles a cada card amb actualitzacions optimistes.
+\end{enumerate}
+
+\section*{Xat RAG}
+
+\begin{enumerate}
+    \item Obrir la barra lateral del xat (icona a la cantonada inferior-dreta a mòbil, integrada al panel esquerre a desktop).
+    \item Escriure una consulta en llenguatge natural (qualsevol idioma; el sistema detecta i respon en el mateix).
+    \item El sistema mostra els raonaments del model i invoca tools (\texttt{getNotesByTag}, \texttt{graph\_neighbors}, \texttt{graph\_shortest\_path}) quan és necessari.
+    \item Les referències a notes apareixen com \texttt{[id=N]} o clicables amb el seu títol.
+\end{enumerate}
+
+\section*{Visualització del graph}
+
+\begin{enumerate}
+    \item Navegar a \texttt{/graph}.
+    \item Al canvas 2D, els nodes són notes, les arestes representen relacions per tag compartit, similitud semàntica o backlink directe.
+    \item Hover sobre un node mostra previsualització; click obre l'inspector lateral.
+    \item Toggle 2D/3D a la part superior del side panel canvia entre les dues vistes. La 3D té rotació orbital amb el ratolí.
+    \item La cerca textual filtra el graph en temps real, dimming els nodes no coincidents.
+\end{enumerate}
+
+\chapter{Configuració del servidor MCP per a Claude Desktop}
 \label{ch:annex-mcp}
 
-% TODO: com connectar Claude Desktop al servidor MCP remot. Exemple de JSON de config.
+Aquest annex descriu com configurar Claude Desktop perquè es connecti al servidor MCP remot de Synapse Notes. Aquesta configuració permet a l'usuari invocar les eines des de fora del navegador, dins una sessió de xat amb Claude.
 
-\chapter{Exportació del repositori Git}
+\section*{Pas 1: Obtenir un JWT de Supabase}
+
+El servidor MCP requereix autenticació via JWT de Supabase al header \texttt{Authorization: Bearer <token>}. El JWT es pot extreure de la sessió web autenticada:
+
+\begin{enumerate}
+    \item Autenticar-se a \url{https://synapse-notes.vercel.app}.
+    \item Obrir DevTools del navegador (\texttt{F12}).
+    \item Anar a la pestanya \emph{Application} (Chrome) o \emph{Storage} (Firefox).
+    \item Sota \emph{Cookies}, buscar les entrades \texttt{sb-*-auth-token}. Pot ser-hi una sola o estar partida en \texttt{.0}, \texttt{.1}, etc.
+    \item Concatenar els valors, fer base64-decode si comencen amb \texttt{base64-}, i parsejar com a JSON. El camp \texttt{access\_token} és el JWT.
+\end{enumerate}
+
+\section*{Pas 2: Configurar \texttt{claude\_desktop\_config.json}}
+
+A Claude Desktop, editar el fitxer de configuració (la seva ubicació depèn del sistema operatiu; vegeu la documentació oficial d'Anthropic):
+
+\begin{verbatim}
+{
+  "mcpServers": {
+    "synapse-notes": {
+      "url": "https://synapse-notes.vercel.app/api/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer <token-aqui>",
+        "Accept": "application/json, text/event-stream"
+      }
+    }
+  }
+}
+\end{verbatim}
+
+\textbf{Important}: el JWT té una durada limitada (1 hora per defecte). Cal renovar-lo refrescant la sessió web i actualitzant el fitxer de configuració.
+
+\section*{Pas 3: Verificar la connexió}
+
+A Claude Desktop, iniciar una nova conversa i preguntar:
+
+\begin{quote}
+``Quines eines tens disponibles del servidor synapse-notes?''
+\end{quote}
+
+Claude hauria de respondre amb la llista de les 8 eines exposades. Provar una crida senzilla:
+
+\begin{quote}
+``Cerca a les meves notes la paraula \emph{tutorial}.''
+\end{quote}
+
+Claude invocarà \texttt{search\_notes} via MCP, retornarà els resultats i els resumirà.
+
+\chapter{Repositori i artefactes del projecte}
 \label{ch:annex-repo}
 
-% TODO: URL del repo públic + tag v1.0-tfg-entrega. Instruccions de reproducció del build.
+\section*{Codi font}
+
+\begin{itemize}
+    \item \textbf{Repositori principal}: \url{https://github.com/sergi-izquierdo/synapse-notes}
+    \item \textbf{Tag d'entrega}: \texttt{v1.0-tfg-entrega} (es crearà al moment de l'entrega).
+    \item \textbf{Branca de desenvolupament}: \texttt{main}.
+\end{itemize}
+
+\section*{Artefactes verificables}
+
+\begin{itemize}
+    \item \texttt{docs/tfg/00-decision-log.md}: 5 decisions arquitectòniques majors (D1--D5) amb segells temporals.
+    \item \texttt{docs/tfg/extend.md}: log granular de progrés setmana a setmana.
+    \item \texttt{promptfoo/}: suite red-team amb 36 variants i scripts d'execució + cleanup. Fitxers de resultats raw a \texttt{promptfoo/results/}.
+    \item \texttt{supabase/migrations/}: tota la història d'evolució de l'schema des de la versió MCP.
+    \item \texttt{graphify-out/graph.html}: graph interactiu del propi repositori (auditoria estructural via graphify del 2026-04-24).
+\end{itemize}
+
+\section*{Reproducció del build del memoir}
+
+El memoir està escrit en LaTeX (memoir class) amb \texttt{lualatex} + \texttt{biber}. Per a reproduir el PDF:
+
+\begin{verbatim}
+cd tfg/
+mmdc -i figures/c4-context.mmd -o figures/c4-context.pdf
+mmdc -i figures/c4-containers.mmd -o figures/c4-containers.pdf
+mmdc -i figures/mcp-oauth-sequence.mmd -o figures/mcp-oauth-sequence.pdf
+
+lualatex main.tex
+biber main
+lualatex main.tex
+lualatex main.tex
+\end{verbatim}
+
+El procés requereix MiKTeX o TeX Live amb els paquets memoir, biblatex-apa, pgfplots, fontspec i graphicx. La regeneració de les figures Mermaid requereix Node.js i \texttt{@mermaid-js/mermaid-cli} (\texttt{mmdc}).
+
+\section*{Demo i materials suplementaris}
+
+\begin{itemize}
+    \item \textbf{URL de la demo}: \url{https://synapse-notes.vercel.app} (sotmesa a allowlist D4).
+    \item \textbf{Vídeo de demostració}: enllaç pendent (es generarà al moment de l'entrega).
+    \item \textbf{Slides de defensa}: pendents (es prepararan setmana 7 segons el plan).
+\end{itemize}

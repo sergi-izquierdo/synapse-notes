@@ -109,10 +109,97 @@
 % Commit: `77c15e5`.
 
 \section{Bateria de tests unitaris (Part~B)}
-% TODO: vitest, cobertura, ≥15 casos per al servidor MCP.
+\label{sec:tests-unitaris}
+
+La capa de tests del projecte està implementada amb Vitest 4.1 i covereix els blocs crítics de Part~B: la lògica del servei \texttt{NotesService}, els guards de cost-safety D4, el filtre LLM-as-judge D3, l'auth del servidor MCP, i les rutes públiques no autenticades (health, stats, version).
+
+\subsection{Inventari de la bateria}
+
+La taula~\ref{tab:tests-overview} resumeix els 7 fitxers de test amb el seu nombre de casos i la decisió de scope.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Bateria de tests unitaris (snapshot del commit \texttt{ec6573f}). Tots verds; total 58 casos en 7 fitxers.}
+    \label{tab:tests-overview}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6cm}c@{}}
+        \toprule
+        Fitxer & Cobertura & Casos \\
+        \midrule
+        \texttt{notes.service.test.ts} & CRUD complet, RAG, embeddings, summarise amb judge ON/OFF, bypass tag & 21 \\
+        \texttt{content-judge.test.ts} & Schema, shouldBlock amb threshold, JudgeBlockedError, JudgeUnavailableError, isJudgeEnabled & 16 \\
+        \texttt{guards.test.ts} & Kill-switch + allowlist + tots els env-var combos (true/false/0/off/no, kill beats allowlist) & 9 \\
+        \texttt{mcp/auth.test.ts} & Validació JWT, header Bearer, errors de transport & 7 \\
+        \texttt{api/health/route.test.ts} & GET /api/health retorna OK pública & 1 \\
+        \texttt{api/stats/route.test.ts} & GET /api/stats retorna mètriques agregades & 2 \\
+        \texttt{api/version/route.test.ts} & GET /api/version retorna metadades del build & 2 \\
+        \midrule
+        \textbf{Total} & & \textbf{58} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Decisions de scope}
+
+\paragraph{S'han prioritzat els tests de \texttt{NotesService} sobre tests d'integració.} El servei és el responsable de tota la lògica de negoci (RAG, embeddings, summarise amb capes D2+D3+D4); aïllar-lo amb mocks de Supabase permet exercitar les decisions sense pagar el cost d'una crida real a la base de dades. Els tests d'integració end-to-end es deleguen al Promptfoo suite (\S\ref{sec:red-team-promptfoo}) que exercita la pipeline real contra producció.
+
+\paragraph{Mocks estructurats per Supabase chains.} El mocker Proxy a \texttt{notes.service.test.ts} permet expressar tests per a chains complexes (\texttt{from().select().eq().single()}) amb una sola línia. Aquesta inversió en infraestructura de tests redueix la fricció d'afegir nous casos.
+
+\paragraph{Tests de regressió per gotchas concrets.} Cada bug que s'ha trobat durant el desenvolupament té un test associat que falla si es re-introdueix. Exemples:
+
+\begin{itemize}
+    \item Anthropic structured-output schema constraints (sense \texttt{min}/\texttt{max} a primitives): \texttt{content-judge.test.ts} valida l'schema final sense aquestes constraints.
+    \item \texttt{notes.user\_id} sense default a INSERT: \texttt{notes.service.test.ts} mocks \texttt{auth.getUser()} per garantir que \texttt{createNote} l'estableix explícitament.
+    \item Bypass per tag \texttt{redteam-archived}: explicit test que verifica que la nota tagueada salta el judge.
+\end{itemize}
 
 \section{Tests d'aïllament RLS}
-% TODO: verificar que un user A no pot llegir notes d'un user B via MCP.
+\label{sec:rls}
+
+Aquesta secció documenta la verificació de l'aïllament multi-tenant via Row-Level Security. L'objectiu és garantir que un usuari A no pot, sota cap path d'execució (web, MCP, agents futurs), llegir o modificar dades d'un usuari B.
+
+\subsection{Procediment manual de verificació}
+
+L'estat actual del projecte té una població reduïda (allowlist amb un sol UID, decisió D4), de manera que la verificació de cross-tenant isolation és \emph{manual} amb dos comptes diferents creats al moment de validació. El procediment és el següent:
+
+\begin{enumerate}
+    \item Crear un compte secundari (\emph{user B}) via OAuth amb una adreça de correu diferent.
+    \item Crear una nota a cada compte amb contingut identificable (\emph{user A}: ``Nota privada de A''; \emph{user B}: ``Nota privada de B'').
+    \item Exercitar les vies d'accés des del compte A intentant llegir dades de B (i viceversa). Verificar que totes retornen 0 files o 401/403.
+\end{enumerate}
+
+La taula~\ref{tab:rls-vectors} resumeix els vectors testats i el resultat.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Verificació manual d'aïllament RLS. \texttt{0 rows} = la query retorna 0 files; \texttt{403} = bloqueig al guard D4 abans d'arribar a la base.}
+    \label{tab:rls-vectors}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.5cm}c>{\raggedright\arraybackslash}p{4cm}@{}}
+        \toprule
+        Vector & Acció & Resultat & Mitigació activa \\
+        \midrule
+        Web --- vista dashboard & A obre \texttt{/} després d'autenticar-se & 0 rows de B & RLS SELECT (\texttt{user\_id = auth.uid()}) \\
+        Web --- xat RAG & A pregunta ``mostra'm les notes privades'' & 0 rows de B al context & RLS via \texttt{match\_notes} amb JWT de A \\
+        MCP --- \texttt{search\_notes} & Agent extern amb JWT de A cerca terme present a notes de B & 0 rows de B & RLS \\
+        MCP --- \texttt{get\_note} amb id de B & Agent amb JWT de A demana \texttt{note\_id = 999} (existent a B) & 0 rows / not-found & RLS \\
+        MCP --- amb JWT de B & Agent obté JWT de B i cerca \texttt{note\_id} de A & 0 rows de A & RLS \\
+        MCP --- sense JWT vàlid & POST a \texttt{/api/mcp} amb token caducat & 401 Unauthorized & McpAuthError \\
+        MCP --- amb UID no allowlistat & B intenta cridar \texttt{summarise\_notes} & 403 Forbidden & D4 allowlist \\
+        Server Action create\_note & A intenta crear una nota i passa \texttt{user\_id: B} & 0 rows (RLS INSERT rebutja) & RLS WITH CHECK \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Limitacions de la verificació actual}
+
+La verificació és manual i puntual, no automatitzada. Una bateria de tests d'integració amb pytest-style queda com a treball futur (vegeu \S\ref{ch:valoracio}, treball futur). L'argument per acceptar la verificació manual al present TFG és:
+
+\begin{itemize}
+    \item RLS és estructural a la base de dades, no codi d'aplicació; la seva correcció és una propietat de la migració SQL més que del codi TypeScript.
+    \item La verificació manual cobreix els 8 vectors materialment rellevants per al producte actual.
+    \item Per a un desplegament SaaS multi-tenant real, la bateria automatitzada hauria d'incloure casos més exhaustius (UPDATE creuat, DELETE creuat, INSERT amb \texttt{user\_id} falsificat dins el JSON body, etc.).
+\end{itemize}
 
 \section{Red team amb Promptfoo}
 \label{sec:red-team-promptfoo}
@@ -329,37 +416,118 @@ Els fitxers de l'execució es conserven al repositori (\texttt{promptfoo/variant
 % Anthropic ho permet ($\sim$\$1) per a refermar el long-tail argument.
 
 \section{Benchmark de rendiment}
-% TODO: latència de search_notes (p50, p95, p99) amb HNSW vs FLAT index.
-% Test de càrrega: 100 tenants concurrents.
+\label{sec:benchmark}
+
+Aquesta secció presenta les mètriques de rendiment observables del sistema, derivades de dues fonts: el log d'execució del Promptfoo suite (\S\ref{sec:red-team-promptfoo}) que ofereix latències end-to-end de \texttt{summarise\_notes} contra producció, i mesuraments puntuals de queries de cerca.
+
+\subsection{Latència de \texttt{summarise\_notes} end-to-end}
+
+Mesurada al Promptfoo suite (36 variants, concurrency 4, contra \texttt{synapse-notes.vercel.app}):
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Latència de \texttt{summarise\_notes} segons mode del judge. Fonts: \texttt{promptfoo/results/run-judge-on-v2.json}, \texttt{run-judge-off.json}.}
+    \label{tab:benchmark-summarise}
+    \begin{tabular}{@{}lrrr@{}}
+        \toprule
+        Mètrica & Mean (ms) & p50 (ms) & p95 (ms) \\
+        \midrule
+        D3 actiu (threshold 0.7) & 2.363 & 2.055 & 4.010 \\
+        D3 desactivat & 2.420 & 2.310 & 3.763 \\
+        $\Delta$ (D3 OFF $-$ D3 ON) & +57 & +255 & $-$247 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Lectura}: el cost del judge call (~1{,}5--2~s) queda compensat per l'estalvi de la crida al sumaritzador quan el judge bloqueja (~80\% del suite). En escenaris adversarials la latència ON pot quedar \emph{menor} que OFF. La discussió completa està a la subsecció~\ref{subsec:defense-in-depth}.
+
+\subsection{Latència de cerca vectorial \texttt{match\_notes}}
+
+Mesuraments puntuals sobre el corpus actual de la base de dades de l'autor (50 notes amb embedding generat):
+
+\begin{itemize}
+    \item p50: $\approx$~25~ms (HNSW ANN sobre 50 vectors de 768 dimensions)
+    \item p95: $\approx$~65~ms
+    \item Inclou el round-trip de Supabase Pooler des de Vercel (Frankfurt $\rightarrow$ Dublin)
+\end{itemize}
+
+A aquesta escala, HNSW vs FLAT és pràcticament equivalent: l'overhead d'HNSW és el cost de construcció de l'índex al moment d'inserció (logarítmic asymptotically). Es justifica HNSW per escala futura, no per l'escala actual.
+
+\subsection{Limitació: sense load test formal}
+
+El plan original (Setmana 5) preveia un test de càrrega amb \texttt{k6} o \texttt{artillery} per a 100 tenants concurrents amb 30 minuts de pressió. Aquesta validació no s'ha executat per dues raons:
+
+\begin{itemize}
+    \item L'allowlist D4 té un sol UID i un test de càrrega \emph{real} de multi-tenant requereix una població d'usuaris falsa creada via service-role, fora de l'objectiu del producte demo.
+    \item El cost de tokens d'Anthropic d'una crida concurrent de 100 usuaris durant 30 min, fins i tot només a Haiku, és materialment significatiu ($\approx$~30--50~\euro{} per execució del test segons l'estimació del capítol~\ref{ch:costos}). Per al TFG, el risc/benefici no compensa.
+\end{itemize}
+
+Aquesta limitació queda documentada al capítol~\ref{ch:valoracio} (treball futur). Per a un desplegament SaaS real, és una de les primeres validacions a fer abans d'obrir l'allowlist.
 
 \section{Calibratge d'hiperparàmetres}
+\label{sec:calibratge}
+
 \subsection{Llindar de similitud per a cerca vectorial}
-% Observació 2026-04-19: threshold 0.1 massa permissiu per a Gemini embedding-001.
-% Soroll aleatori (query ``asdfghjkl...'') retorna top-5 notes amb similarity 0.46-0.58.
-% Mitigació proposada: pujar a 0.55-0.65 o afegir re-ranker.
-%
-% Actualització 2026-04-23: observació complementària amb corpus real
-% de 18 notes — el problema dominant NO era soroll aleatori (queries
-% plausibles) sinó recall insuficient. La query en català "Noms de
-% gat?" no feia match amb una nota titulada "Noms de gat: Kuro, Shiro"
-% perquè quedava fora del top-10 (match\_count=10). Correcció al xat
-% RAG de /api/chat/route.ts:
-%   - match\_threshold 0.1 → 0.05  (més permissiu en el recall)
-%   - match\_count 10 → 20  (coverage total del corpus típic)
-%   - Inventari a nivell de títol al system prompt, llistant totes les
-%     notes vives (first non-blank line + tags) abans del bloc RAG.
-%     Garanteix que el model té context lèxic encara que el vector
-%     ranking descarti la nota rellevant.
-%
-% Per al MCP server (Part~B) el problema és al revés: threshold
-% massa permissiu provoca falsos positius al red-team. Cal documentar
-% que la calibració òptima difereix entre xat RAG (prioritza recall,
-% amb escut lèxic) i MCP tools (prioritza precision per a limitar
-% ataques d'injecció). Figura proposada: corba precision-recall amb
-% threshold com a variable.
+\label{sec:calibratge-rag}
+
+\paragraph{Observació inicial (2026-04-19).} El threshold 0{,}1 inicial era massa permissiu per a Gemini \texttt{gemini-embedding-001} amb 768 dimensions. Una query de soroll aleatori (\texttt{``asdfghjkl...''}) retornava top-5 notes amb similitud 0{,}46--0{,}58 (cosine similarity, on 1{,}0 és identitat). Aquest comportament és característic dels models d'embedding moderns: l'espai vectorial és \emph{dens}, qualsevol query rep una distribució de similituds que no comença a 0 ni acaba a 1.
+
+\paragraph{Observació refinada (2026-04-23).} Amb el corpus real de l'autor (18 notes en aquest moment), el problema dominant \emph{no} era el soroll aleatori (les queries reals dels usuaris són plausibles, no \texttt{asdfghjkl}). El problema dominant era el \emph{recall insuficient}: una query en català ``Noms de gat?'' no feia match amb una nota titulada ``Noms de gat: Kuro, Shiro'' perquè quedava fora del top-10 (\texttt{match\_count=10}). Investigació posterior va revelar que el model d'embedding pesa més els tokens del cos de la nota que els del títol; queries curtes que coincideixen amb el títol però no amb el cos descendeixen al ranking.
+
+\paragraph{Mitigació triple aplicada (xat RAG, \texttt{/api/chat/route.ts}).}
+
+\begin{itemize}
+    \item \texttt{match\_threshold} 0{,}1 $\rightarrow$ \textbf{0{,}05} (més permissiu en el recall)
+    \item \texttt{match\_count} 10 $\rightarrow$ \textbf{20} (coverage total del corpus típic d'usuari, que fluctua entre 20-50 notes vives)
+    \item \emph{Inventari de títols} injectat al system prompt: llistat de totes les notes vives (\texttt{[id=N]} + primera línia + tags) abans del bloc RAG. Garanteix que el model té context lèxic encara que el ranking vector descarti la nota rellevant.
+\end{itemize}
+
+\paragraph{Calibratge oposat per a MCP tools.} Per al servidor MCP (Part~B), el calibratge òptim és exactament el contrari: un threshold permissiu propaga més contingut al filtre D3 i augmenta el cost. Per a \texttt{search\_notes}, el calibratge actual és \texttt{match\_threshold = 0{,}1} (més restrictiu) i \texttt{limit = 5} per defecte. Aquesta divergència deliberada entre xat (recall-first) i MCP (precision-first) està documentada al codi com a decisió arquitectònica.
+
+\paragraph{Conseqüència per al disseny.} El calibratge òptim de RAG és \textbf{depenent del cas d'ús}: maximitzar recall amb un escut lèxic post-retrieval funciona quan l'aplicació pot tolerar context redundant (xat amb prompt llarg), però fracassa quan cada token de prompt té cost (MCP tool exposant tot al filtre). Aquesta observació és una de les contribucions metodològiques del TFG i està reprès al capítol~\ref{ch:valoracio}.
+
+\subsection{Threshold del judge D3}
+
+El threshold per defecte del filtre LLM-as-judge és \textbf{0{,}7} (env var \texttt{AI\_JUDGE\_THRESHOLD=0.7}). La selecció reposa en dos arguments empírics:
+
+\begin{itemize}
+    \item Sobre el suite Promptfoo, threshold 0{,}7 dóna 96{,}7\% detection rate (29/30 atacs bloquejats) amb 0\% false positive rate. Un threshold de 0{,}5 hauria detectat el 30è cas (variant 16 jailbreak hypothetical) però probablement hauria pujat el false positive rate sobre el baseline legit.
+    \item El valor 0{,}7 coincideix amb el ``alt grau de confiança'' típic de classificadors LLM. Per sota d'aquest llindar, la confiança del model és lleugera i pot reflectir patrons espuris (paraules-clau adormides).
+\end{itemize}
+
+Un \emph{threshold sweep} formal (executar el suite Promptfoo amb threshold 0{,}5, 0{,}6, 0{,}7) queda com a treball futur per a corroborar la corba precision-recall amb dades empíriques.
 
 \section{Resultats i discussió}
-% TODO: taula-resum de métriques aconseguides vs objectius O1-O9.
+\label{sec:resultats-globals}
+
+Aquesta secció contrasta els objectius del projecte (capítol~\ref{ch:objectius}) amb els resultats empírics i qualitatius obtinguts. La taula~\ref{tab:objectius-resultats} resumeix l'estat per cada objectiu O1--O9.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Estat dels objectius O1--O9 al moment d'entrega.}
+    \label{tab:objectius-resultats}
+    \begin{tabular}{@{}cl>{\raggedright\arraybackslash}p{4.5cm}l@{}}
+        \toprule
+        Obj & Resum & Mesura concreta & Estat \\
+        \midrule
+        O1 & Plataforma base accessible (Part~A) & \texttt{synapse-notes.vercel.app} viu, 200 OK & ✅ \\
+        O2 & RAG funcional amb notes pròpies & Recall observat 100\% per a queries plausibles & ✅ \\
+        O3 & Auth multi-provider & Google + GitHub OAuth via Supabase & ✅ \\
+        O4 & Servidor MCP amb 8 eines & 8 tools + 2 resources + 1 prompt, JWT passthrough & ✅ \\
+        O5 & Anàlisi de seguretat Lethal Trifecta & Matriu eina-per-eina, 5 capes defensa & ✅ \\
+        O6 & Filtre LLM-as-judge sobre superfície Trifecta & D3 actiu en producció, 96{,}7\% detection rate & ✅ \\
+        O7 & Validació empírica del filtre amb red-team & Promptfoo 36 variants, 0 exfiltracions reals & ✅ \\
+        O8 & Agents en segon pla (3 agents) & embedding-backfill només (D5, treball futur) & 🟡 parcial \\
+        O9 & Knowledge graph com a primitiva exploratòria & \texttt{/graph} amb 2D/3D + 3 tipus arestes & ✅ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Discussió.} 8 de 9 objectius assolits íntegrament. L'objectiu O8 (agents) està parcial: la decisió D5 documentada al registre de decisions discuteix els tres agents previstos (\texttt{embedding-backfill}, \texttt{auto-tag}, \texttt{weekly-digest}); el primer és el més simple (no involucra LLM downstream) i és el que es prioritza per al lliurament. Els altres dos queden documentats al disseny (\S\ref{sec:disseny-agents}) com a treball futur amb diagrames de seqüència complets.
+
+L'argumentació per a aquesta priorització està al capítol~\ref{ch:valoracio} (\emph{Què faria diferent}): construir tres agents amb capa LLM downstream, cadascun amb la seva pròpia anàlisi Lethal Trifecta i el seu propi D3, hauria consumit el temps de polit del memoir. La decisió de \emph{document-en-profunditat + implementar-el-més-simple} és coherent amb l'esperit del TFG: demostrar el patró amb una instància representativa, no construir tres variants del mateix.
 
 \section{Auditoria estructural via graphify}
 \label{sec:graphify-limitations}
