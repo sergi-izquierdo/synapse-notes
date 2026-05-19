@@ -1,13 +1,104 @@
 \chapter{Implicacions ètiques, d'igualtat i mediambientals}
 \label{ch:etica}
 
-\section{Ètica de la IA}
-% TODO: biaixos dels LLMs. Risc d'al·lucinació amb RAG. Transparència del tool calling.
-% Lethal Trifecta com a eina de mitigació de riscos.
+Aquest capítol analitza les implicacions del projecte en tres eixos no tècnics però materialment importants: ètica de l'ús d'IA (\S\ref{sec:etica-ia}), igualtat i accessibilitat (\S\ref{sec:igualtat-accessibilitat}), i impacte mediambiental (\S\ref{sec:medi-ambient}). Les seccions intenten ser concretes i quantitatives quan és possible, evitant declaracions abstractes que no es poden verificar.
+
+\section{Ètica de l'ús d'IA}
+\label{sec:etica-ia}
+
+\subsection{Biaixos del model i transparència de les inferències}
+
+Els LLMs entrenats sobre corpus massius reprodueixen els biaixos lingüístics, culturals i ideològics presents als seus dades d'entrenament. Anthropic Haiku 4.5 i Google Gemini, els dos models utilitzats al sistema, són productes comercials amb \emph{aliniació posterior} a través de RLHF i tècniques afins, però aquesta aliniació no elimina els biaixos; només els fa menys visibles en superfície.
+
+Per a Synapse Notes, on els models només operen sobre el contingut que l'usuari mateix ha escrit, el risc de propagació de biaix és relativament contingut: els models no \emph{generen} contingut nou amb opinions, sinó que \emph{resumeixen}, \emph{categoritzen} o \emph{recuperen} contingut existent. Tot i així, hi ha dos punts d'exposició:
+
+\begin{itemize}
+    \item \textbf{Tag suggestions} (\S\ref{sec:tag-suggestion}): el model proposa etiquetes per a una nota. Aquesta proposta pot reflectir biaixos lèxics (preferir certes formes d'etiquetatge sobre altres). Mitigació: l'usuari decideix sempre quina proposta accepta o rebutja, i pot crear etiquetes manualment sense passar pel model.
+    \item \textbf{Sumarització}: el resum d'una nota pot omitir o emfasitzar determinats fragments en funció de patrons del model. Mitigació: el system prompt restrictiu (D2) limita el model a sumaritzar sense fabricar contingut, però no pot prevenir biaixos d'emfasi.
+\end{itemize}
+
+\subsection{Risc d'al·lucinació}
+
+Els LLMs poden generar contingut que sembla coherent però és inventat (\emph{hallucinations}). Per a un sistema RAG com Synapse Notes, el risc principal és que el model afegeixi informació no present a les notes recuperades. Mitigacions:
+
+\begin{itemize}
+    \item \textbf{Recall-first retrieval}: el system prompt del xat (\S\ref{sec:servidor-mcp}) ofereix al model un \emph{inventari complet} de títols de notes a més del top-K RAG. Això redueix la probabilitat que el model afirmi \emph{``no tens cap nota sobre X''} quan en realitat n'hi ha una; preferim ``recall over precision'' en aquesta fase.
+    \item \textbf{System prompt explícit}: instrueix el model a citar les notes per id (\texttt{[id=N]}) quan referencia contingut, fent més verificable la resposta.
+    \item \textbf{Verificació humana al disseny}: cap funcionalitat del sistema executa decisions irreversibles basades en sortida d'LLM sense confirmació de l'usuari (D2 \emph{host confirmation}).
+\end{itemize}
+
+\subsection{Transparència del tool calling}
+
+L'usuari ha de poder saber quines accions està prenent l'IA en el seu nom. El sistema fa això a tres nivells:
+
+\begin{itemize}
+    \item \textbf{Al xat web}: cada invocació d'una eina (\texttt{getNotesByTag}, \texttt{graph\_neighbors}, \texttt{graph\_shortest\_path}) genera un missatge visible amb el nom de l'eina i els arguments. L'usuari veu què està fent el sistema mentre ho fa.
+    \item \textbf{Al servidor MCP}: les eines marcades com a \texttt{taskSupport: forbidden} obliguen el host (Claude Desktop) a demanar confirmació humana abans d'executar-les. Això inclou totes les eines mutating + sumarització.
+    \item \textbf{Al log d'audit}: \texttt{agent\_events} està dissenyat per a captar tota acció d'agent, accessible a l'usuari via SELECT amb RLS (capítol~\ref{ch:disseny}, \S\ref{sec:disseny-seguretat}).
+\end{itemize}
+
+\subsection{El Lethal Trifecta com a marc ètic}
+
+L'enfocament de seguretat del projecte (capítol~\ref{ch:disseny}, \S\ref{sec:disseny-seguretat}) parteix del marc Lethal Trifecta com a eina d'anàlisi de risc. Aquest enfocament té una dimensió ètica explícita: assumeix que els LLMs són components potencialment manipulables i que la responsabilitat de mitigar els atacs no és del model sinó del sistema que el conté. Aquesta postura contrasta amb la narrativa que confia en la ``intel·ligència'' del model per a refusar atacs i és una pressuposició honesta sobre les limitacions actuals de la tecnologia.
 
 \section{Igualtat i accessibilitat}
-% TODO: i18n (CA/ES/EN) com a decisió conscient. WCAG 2.1 AA com a objectiu.
+\label{sec:igualtat-accessibilitat}
+
+\subsection{Internacionalització nativa}
+
+El sistema suporta tres idiomes simultanis (català, espanyol, anglès) via un \texttt{LanguageProvider} basat en \texttt{localStorage}. Aquesta decisió té dues motivacions:
+
+\begin{itemize}
+    \item \textbf{Igualtat lingüística}: el català és l'idioma per defecte tant a la UI com al memoir. La Generalitat de Catalunya manté que l'oferta digital en català és un dret lingüístic, i el sistema l'honra com a usuari nadiu de la llengua. L'espanyol s'ofereix per al públic majoritari de l'estat espanyol, l'anglès per a usuaris internacionals.
+    \item \textbf{No discriminació per idioma del contingut}: el filtre D3 (\S\ref{sec:red-team-promptfoo}) inclou variants d'atac en català, espanyol, francès i italià explícitament. La validació empírica mostra detection rate del 100\% en català, demostrant que la robustesa lingüística no és anglèsofiloproblema.
+\end{itemize}
+
+\subsection{Accessibilitat WCAG 2.1}
+
+L'objectiu de disseny és el nivell \emph{AA} de les Web Content Accessibility Guidelines 2.1. Mesures concretes:
+
+\begin{itemize}
+    \item \textbf{ARIA attributes per defecte}: els components shadcn/ui que envolten Radix Primitives ja porten roles, labels i estats ARIA. Cada component d'overlay (Dialog, Sheet, Popover) gestiona el focus trap i el restore.
+    \item \textbf{Contrast cromàtic}: la paleta amber + slate + violeta s'ha triat per complir el ratio mínim de 4{,}5:1 (WCAG AA) tant en mode light com dark.
+    \item \textbf{Navegació per teclat}: tots els elements interactius són accessibles per teclat amb focus rings visibles. El diàleg de drecera de teclat (\texttt{KeyboardShortcutsDialog}) llista les combinacions disponibles.
+    \item \textbf{Detecció de plataforma}: les drecera mostren \texttt{Ctrl} o \texttt{Cmd} segons el sistema operatiu detectat via \texttt{navigator.userAgentData.platform}.
+    \item \textbf{Disseny responsive}: la UI s'adapta a viewports des de 375 px (mòbil) fins a 1440+ px (desktop), amb el sidebar del xat dins d'un \texttt{Sheet} a mòbil.
+\end{itemize}
+
+\subsection{Igualtat d'oportunitats d'accés}
+
+El sistema utilitza tiers gratuïts dels seus proveïdors externs, fet que permet a un usuari amb pressupost zero accedir a totes les funcionalitats. La limitació econòmica única és l'API d'Anthropic i Google (cap a 15~\euro{}/mes manualment configurat, vegeu capítol~\ref{ch:costos}). Aquesta limitació afecta l'escala del producte, no la igualtat d'accés per a un usuari individual.
 
 \section{Impacte mediambiental}
-% TODO: cost energètic dels LLMs. Xifres d'emissions per crida (ordre de magnitud).
-% Decisions d'eficiència: Haiku 4.5 vs Opus, embeddings cachejades, HNSW vs FLAT.
+\label{sec:medi-ambient}
+
+\subsection{Cost energètic de les inferències LLM}
+
+L'entrenament i l'execució dels LLMs té un cost energètic significatiu. Aquesta secció ofereix estimacions d'ordre de magnitud per a les operacions del sistema.
+
+\paragraph{Crida típica a Haiku 4.5.} Una crida amb 2~K tokens de prompt i 500 tokens de resposta consumeix aproximadament 0{,}5 a 1~Wh d'energia segons estimacions independents per a models de mida ``compact'' \parencite{patterson2021carbon}. Això són 0{,}25--0{,}5 g de CO\textsubscript{2} equivalent (mix elèctric mitjà UE 2024: $\approx$~500~g/kWh).
+
+\paragraph{Crida típica a Gemini embedding.} Una crida d'embedding amb $\sim$500 tokens d'input consumeix aproximadament 0{,}05--0{,}1~Wh, equivalents a 0{,}025--0{,}05 g de CO\textsubscript{2}.
+
+\paragraph{Volum total per al cas TFG.} Durant tot el desenvolupament del projecte, l'autor ha invocat l'API d'Anthropic estimadament 5.000--8.000 vegades (xat, sumarització, judge filter, tag suggestions, Promptfoo runs) i Gemini per a $\sim$200 embeddings (notes creades + actualitzacions). Cost mediambiental aproximat: \textbf{$\approx$~5--8~kg de CO\textsubscript{2} equivalent}, comparable a un viatge curt en cotxe.
+
+\subsection{Decisions d'eficiència aplicades}
+
+Diverses decisions arquitectòniques redueixen l'impacte mediambiental:
+
+\begin{itemize}
+    \item \textbf{Haiku 4.5 en lloc d'Opus o Sonnet}: el model més petit i eficient de la família Anthropic per al cas d'ús. Una crida a Opus consumiria $\sim$5 vegades més energia per la mateixa tasca.
+    \item \textbf{Embedding cache implícit}: l'embedding només es regenera quan el contingut (\texttt{title} o \texttt{content}) canvia, no a cada update (\S\ref{sec:taules-dades}). Un \emph{update} només per tags no toca el model d'embedding.
+    \item \textbf{HNSW vs FLAT search}: per a 50--500 notes, FLAT (cerca lineal) seria operacionalment equivalent però amb major cost computacional escalant. HNSW dóna logarítmic asymptotically i és la base correcta per a escalar.
+    \item \textbf{Earlier rejection del judge D3}: cada atac bloquejat per D3 estalvia la crida al sumaritzador downstream. Sobre el suite Promptfoo, aquesta optimització estalvia $\sim$80\% del cost LLM en escenaris adversarials.
+    \item \textbf{Title-level inventory en lloc de full-content RAG}: el system prompt rep títols + RAG top-20, no tot el corpus. Això redueix els tokens d'entrada substancialment respecte una estratègia ingenu.
+    \item \textbf{Streaming response}: el xat utilitza \texttt{streamText} en lloc de \texttt{generateText}, cosa que permet a l'usuari avortar respostes llargues si veu de seguida que no són útils. Una crida avortada estalvia tokens.
+\end{itemize}
+
+\subsection{Limitacions reconegudes}
+
+\paragraph{No es mesura l'impacte realment.} El sistema no instrumenta el cost energètic real de cada crida (cap proveïdor el reporta directament a l'API), només l'estima a posteriori. Una mètrica realment quantitativa requeriria col·laboració amb proveïdor o un model de càlcul propi.
+
+\paragraph{Cost d'entrenament no comptabilitzat.} Aquesta anàlisi només considera la inferència (ús), no l'entrenament dels models. L'entrenament inicial d'un LLM gran emet centenars de tones de CO\textsubscript{2}, però aquest cost es prorratea entre milions d'usuaris. Una anàlisi atribuible a un sol projecte és matemàticament petita però conceptualment qüestionable.
+
+\paragraph{Vercel i Supabase no són carbon-neutral.} Tot i que ambdós proveïdors declaren objectius de descarbonització, l'energia consumida per la infraestructura no és 100\% renovable. Aquesta dimensió queda fora de l'abast del control de l'autor.

@@ -2,17 +2,223 @@
 \label{ch:disseny}
 
 \section{Arquitectura general (C4)}
-% TODO: Context diagram (nivell 1) i Container diagram (nivell 2) del sistema complet.
-% Components: Next.js app, Supabase (Postgres+pgvector+Auth), Edge Functions (agents),
-% MCP server, clients externs (Claude Desktop).
+\label{sec:arquitectura-c4-disseny}
+
+L'arquitectura del sistema està descrita en dos nivells del model C4 \parencite{brown2018c4}: \emph{Context} (qui interactua amb el sistema) i \emph{Containers} (quins runtimes el componen). Una vista més detallada de cada container, amb mòduls interns i la seva implementació concreta, està al capítol d'implementació (\S\ref{sec:c4-containers}); aquesta secció recull només els arguments arquitectònics que sustenten cada decisió.
+
+\subsection{Vista de Context (C4 nivell 1)}
+
+Els actors externs identificats són tres:
+
+\begin{itemize}
+    \item \textbf{L'usuari humà} (autor de les notes), que interactua via navegador web amb l'aplicació Next.js i amb el xat RAG.
+    \item \textbf{Un agent extern compatible amb MCP} (típicament Claude Desktop, també PRs d'agents personalitzats), que es connecta al servidor MCP amb les credencials de l'usuari per realitzar operacions des de fora del navegador.
+    \item \textbf{Els proveïdors externs d'IA}: Anthropic per al model de xat, judge i sumarització; Google per als embeddings vectorials.
+\end{itemize}
+
+El sistema és deliberadament \emph{single-tenant a la pràctica} (vegeu \S\ref{sec:trifecta} i el capítol \ref{ch:requisits}): l'arquitectura admet múltiples usuaris via RLS, però l'allowlist actual a producció (decisió D4) limita la població autoritzada a un únic UID. Aquesta limitació és operacional, no estructural: tota la lògica de seguretat ja gestiona contextos d'autenticació separats per usuari.
+
+\subsection{Vista de Containers (C4 nivell 2)}
+
+L'arquitectura es desplega en quatre runtimes lògics:
+
+\begin{enumerate}
+    \item \textbf{Aplicació web Next.js} (Vercel, runtime Node.js): App Router amb Server Components per al render inicial, Server Actions per a mutacions, i tres rutes HTTP que escalen sota Fluid Compute: \texttt{/api/chat} (xat RAG amb streaming), \texttt{/api/mcp} (servidor MCP via JSON-RPC sobre StreamableHTTP), \texttt{/api/suggest-tags} (tagging via LLM estructurat).
+    \item \textbf{Base de dades Supabase}: PostgreSQL 15+ amb pgvector activat, Supabase Auth per a OAuth (Google + GitHub), i Supabase Edge Functions per als agents en segon pla (futurs, vegeu \S\ref{sec:disseny-agents}). RLS és el mecanisme exclusiu d'autorització de fila.
+    \item \textbf{Proveïdors d'IA}: Anthropic Haiku 4.5 i Google Gemini, accedits via el Vercel AI SDK des del costat servidor. Mai des del client per evitar exposar API keys.
+    \item \textbf{Client MCP extern} (opcional): Claude Desktop o un agent custom que es connecta al servidor MCP amb un JWT vàlid del compte d'usuari.
+\end{enumerate}
+
+Les decisions arquitectòniques majors que justifiquen aquesta partició estan al registre de decisions (\texttt{docs/tfg/00-decision-log.md}, D1 a D5). Resumim les que afecten directament la vista de containers:
+
+\paragraph{Why Next.js + Vercel.} Una única codebase per al client i el servidor (Server Components + Server Actions), tota la superfície AI gestionada al servidor (mai exposem API keys al navegador), i Fluid Compute per a respondre amb baixa latència sense gestionar contenidors. El cost operatiu inicial és zero (free tier de Vercel + Supabase) i escalable sense reescriure res.
+
+\paragraph{Why Supabase (no Prisma + Postgres self-hosted).} Auth + Postgres + Edge Functions com a un sol proveïdor evita haver de mantenir tres serveis separats. Més important: la integració d'RLS amb el JWT que el navegador envia a cada request permet eliminar tota la lògica d'autorització de l'aplicació, perquè la base de dades mateixa rebutja queries no autoritzades. És una decisió que canvia el plantejament del backend: en lloc d'\emph{aplicar} controls d'accés al codi, els \emph{declarem} a la base de dades.
+
+\paragraph{Why pgvector (no Pinecone, Qdrant, o un vector store extern).} Amb el corpus actual (50 notes / usuari) i fins als límits que es preveuen al §11 Costos, pgvector és més que suficient i té tres avantatges decisius: viu dins la mateixa instància que les dades transaccionals (els joins de RLS funcionen), no afegeix una dependència externa, i el seu HNSW index és prou ràpid per al volum del producte. Si el corpus creix tres ordres de magnitud, és el primer punt a re-avaluar.
+
+\paragraph{Why MCP (no REST API tradicional + clau d'API).} Un servidor MCP exposa les eines a agents externs de manera tipada (JSON Schema), amb \emph{host confirmation} per defecte per a mutations (decisió D2). És el patró específicament dissenyat per al cas d'ús: una eina que un agent extern (Claude Desktop) pot cridar amb les credencials del seu usuari humà sense que el servidor hagi de gestionar API keys per a cada agent. La JWT que envia el client MCP és la mateixa que el navegador hauria enviat, i RLS la valida idèntica.
+
+\subsection{Diagrames}
+
+\IfFileExists{figures/c4-context.pdf}{%
+    \begin{figure}[H]
+        \centerfloat
+        \includegraphics[width=0.85\linewidth]{c4-context.pdf}
+        \caption{Vista de Context (C4 nivell 1) del sistema Synapse Notes. Font Mermaid: \texttt{tfg/figures/c4-context.mmd}.}
+        \label{fig:c4-context-disseny}
+    \end{figure}
+}{%
+    \begin{figure}[H]
+        \centerfloat
+        \fbox{\parbox{0.5\linewidth}{\centering\small[diagrama C4 Context pendent de render]}}
+        \caption{Vista de Context (C4 nivell 1).}
+        \label{fig:c4-context-disseny}
+    \end{figure}
+}
+
+\IfFileExists{figures/c4-containers.pdf}{%
+    \begin{figure}[H]
+        \centerfloat
+        \includegraphics[width=0.95\linewidth]{c4-containers.pdf}
+        \caption{Vista de Containers (C4 nivell 2). Font Mermaid: \texttt{tfg/figures/c4-containers.mmd}.}
+        \label{fig:c4-containers-disseny}
+    \end{figure}
+}{%
+    \begin{figure}[H]
+        \centerfloat
+        \fbox{\parbox{0.5\linewidth}{\centering\small[diagrama C4 Containers pendent de render]}}
+        \caption{Vista de Containers (C4 nivell 2).}
+        \label{fig:c4-containers-disseny}
+    \end{figure}
+}
 
 \section{Model de dades}
-% TODO: ER diagram. Taules: notes, chats, messages, agent_events, tag_suggestions.
-% Index HNSW sobre embedding. Polítiques RLS per taula.
+\label{sec:model-dades}
+
+El model de dades és relacional sobre PostgreSQL, amb pgvector per a vectors d'embedding i una superfície reduïda: sis taules persistents més una vista lògica i tres funcions stored. La normalització és deliberadament conservadora: cada taula té un responsable únic, totes són filles directes d'\texttt{auth.users}, i la unicitat de propietari és materialitzada a \texttt{user\_id} per evitar joins encreuats a les polítiques RLS.
+
+\subsection{Diagrama entitat-relació}
+
+La figura~\ref{fig:er-diagram} mostra les sis taules i les seves relacions. \texttt{auth.users} és la taula que Supabase Auth manté per als comptes (no es modela aquí, només es referencia com a clau forana).
+
+\IfFileExists{figures/er-diagram.pdf}{%
+    \begin{figure}[H]
+        \centerfloat
+        \includegraphics[width=0.95\linewidth]{er-diagram.pdf}
+        \caption{Diagrama entitat-relació de Synapse Notes. Les fletxes indiquen la relació de propietat (\textit{owned-by}). Totes les FKs cap a \texttt{auth.users} són \texttt{ON DELETE CASCADE}.}
+        \label{fig:er-diagram}
+    \end{figure}
+}{%
+    \begin{figure}[H]
+        \centerfloat
+        \fbox{\parbox{0.6\linewidth}{\centering\small[diagrama ER pendent de renderitzar -- font Mermaid a \texttt{tfg/figures/er-diagram.mmd}]}}
+        \caption{Diagrama entitat-relació de Synapse Notes (pendent de render). Vegeu la descripció textual de la subsecció~\ref{sec:taules-dades}.}
+        \label{fig:er-diagram}
+    \end{figure}
+}
+
+\subsection{Taules}
+\label{sec:taules-dades}
+
+La taula~\ref{tab:schema-summary} resumeix les sis taules amb el seu propòsit i la mida típica d'una fila. Els detalls de cada columna són als migrats de \texttt{supabase/migrations/}.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Taules persistents del model de dades. Mides aproximades segons el corpus actual d'un usuari (50 notes, 20 xats).}
+    \label{tab:schema-summary}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6cm}lll@{}}
+        \toprule
+        Taula & Propòsit & PK & Owned by & Especial \\
+        \midrule
+        \texttt{notes} & Cos i metadades de cada nota d'usuari. Conté \texttt{embedding vector(768)} per a RAG, \texttt{tags text[]} per a categorització, i \texttt{position} per a ordenació manual via fractional indexing. & \texttt{bigint} & \texttt{user\_id} & HNSW index sobre \texttt{embedding}, parcial \texttt{WHERE NOT NULL} \\
+        \texttt{chats} & Sessions de xat. Una fila per conversa amb LLM, amb \texttt{title} regenerat automàticament a partir del primer missatge. & \texttt{uuid} & \texttt{user\_id} & --- \\
+        \texttt{messages} & Missatges individuals d'una conversa. \texttt{role} discrimina \texttt{user}/\texttt{assistant}. \texttt{chat\_id} amb \texttt{ON DELETE CASCADE} esborra l'historial sencer en eliminar una conversa. & \texttt{uuid} & via \texttt{chats.user\_id} & --- \\
+        \texttt{agent\_events} & Audit trail d'invocacions d'agents en segon pla i d'eines MCP. \texttt{agent} identifica la procedència (p.~ex.\ \texttt{mcp:summarise\_notes}), \texttt{payload jsonb} captura el context per a debugging. & \texttt{uuid} & \texttt{user\_id} & Append-only (no UPDATE/DELETE des de client) \\
+        \texttt{tag\_suggestions} & Cua d'human-in-the-loop per a tags proposats pels agents. \texttt{status} en {\{\texttt{pending}, \texttt{accepted}, \texttt{rejected}\}}. & \texttt{uuid} & \texttt{user\_id} & CHECK sobre \texttt{status} \\
+        \texttt{note\_links} & Arestes directionals \texttt{[[N]]} extretes del cos de notes. PK composta (\texttt{source\_id}, \texttt{target\_id}). \texttt{user\_id} denormalitzat per a RLS sense join. & composta & \texttt{user\_id} (denorm.) & CHECK anti-self-loop (\texttt{source\_id $\neq$ target\_id}) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Polítiques RLS per taula}
+
+Cada taula del model té RLS activa des de la seva migració de creació. La política base és sempre \texttt{user\_id = auth.uid()}, és a dir, l'usuari només pot llegir/modificar les seves pròpies files. Les particularitats per taula són:
+
+\begin{itemize}
+    \item \texttt{notes}: les quatre operacions (SELECT, INSERT, UPDATE, DELETE) tenen política independent. Després d'un incident reproduït amb \texttt{chats} a l'abril (el \texttt{supabase-js} retorna \texttt{error: null} amb \texttt{rowCount: 0} davant una política DELETE no definida en lloc de fallar visiblement), totes les taules noves del projecte porten les quatre polítiques per defecte. Aquest \emph{forat silenciós} està documentat al capítol~\ref{ch:valoracio} com a lliçó apresa.
+    \item \texttt{messages}: la política llegeix \texttt{chat\_id} i ho creua amb \texttt{chats.user\_id} per delegar la propietat al pare. És l'única taula del model que no porta \texttt{user\_id} directe; el cost d'un join al SELECT és acceptable perquè els missatges ja s'accedeixen sempre per \texttt{chat\_id}.
+    \item \texttt{agent\_events}: només té política SELECT (\texttt{FOR SELECT USING user\_id = auth.uid()}). L'append és deliberadament restringit a service-role per evitar que un client pugui falsificar audit logs.
+    \item \texttt{note\_links}: les polítiques (SELECT, INSERT, UPDATE, DELETE) llegeixen \texttt{user\_id} denormalitzat per evitar el join cap a \texttt{notes}, perquè les operacions de graph fan moltíssimes lectures de \texttt{note\_links} i un join per cada una seria un coll d'ampolla.
+\end{itemize}
+
+\subsection{Índexs}
+
+\paragraph{Índex vectorial.} El més important és \texttt{notes\_user\_embedding\_idx}, un HNSW (Hierarchical Navigable Small World) sobre \texttt{notes.embedding} amb operador \texttt{vector\_cosine\_ops}. És \emph{parcial} (\texttt{WHERE embedding IS NOT NULL}) per evitar entrar a l'índex notes acabades de crear que encara no tenen embedding generat. La justificació d'HNSW sobre IVFFlat: HNSW és més car de construir però retorna resultats sense necessitat de tuning d'\texttt{nprobe}, cosa que simplifica el desplegament en un context single-tenant on no calen perfils diferenciats.
+
+\paragraph{Índexs B-tree compostos.} Cada taula porta com a mínim un índex compost (\texttt{user\_id}, \texttt{created\_at DESC}) per a queries del tipus \emph{darreres N notes/xats/events d'aquest usuari}, que són les queries més freqüents al producte. \texttt{tag\_suggestions} té un segon índex per \texttt{(user\_id, status)} per a la query del dashboard que filtra propostes pendents.
+
+\paragraph{Índex de cerca textual.} \texttt{notes.title} té un índex GIN \texttt{lower(title)} amb \texttt{trgm\_ops} per a la cerca \texttt{ILIKE} de l'autocomplete de backlinks (\texttt{[[}, \texttt{@}, \texttt{\#}). El GIN combinat amb pg\_trgm dóna fuzzy matching ràpid sense necessitat d'un FTS Postgres complet, que seria excessiu per al volum del producte.
+
+\subsection{Funcions stored}
+
+Tres funcions amb \texttt{SECURITY INVOKER} (executen amb els permisos del cridador, no del propietari) i \texttt{search\_path} explícit:
+
+\begin{itemize}
+    \item \texttt{match\_notes(query\_embedding, match\_threshold, match\_count)}: cerca per similitud cosinus sobre l'HNSW, escau-da a l'usuari via RLS. És la base del RAG i de la cerca semàntica.
+    \item \texttt{sync\_note\_links(p\_source\_id, p\_target\_ids[])}: substitueix completament el set d'outgoing edges d'una nota. Patró \emph{replace} en lloc d'incremental per simplificar la consistència; cada save de nota recalcula els \texttt{[[N]]} del seu text i fa una sola crida.
+    \item \texttt{get\_note\_graph()}: retorna el graph complet de l'usuari en un sol round-trip, amb arestes de tres tipus: \texttt{tag}, \texttt{embed}, \texttt{link}. Construeix els primers dos via Jaccard sobre tags i cosinus sobre embeddings, i el tercer és una projecció directa de \texttt{note\_links}.
+\end{itemize}
+
+Una observació de seguretat documentada a la valoració personal (capítol~\ref{ch:valoracio}): la primera versió de \texttt{get\_note\_graph} portava \texttt{set search\_path = 'public, pg\_catalog'} \emph{amb cometes al voltant de tota la llista}, cosa que Postgres interpreta com \emph{un sol identificador de schema} (\texttt{"public, pg\_catalog"}, que no existeix) en lloc d'una llista. L'efecte: la funció no resolia l'operador \texttt{<=>} de pgvector en runtime. La sintaxi correcta és sense cometes (\texttt{set search\_path = public, pg\_catalog}) i això està rectificat des de la migració \texttt{20260425200000\_get\_note\_graph\_search\_path.sql}.
 
 \section{Disseny del servidor MCP}
-% TODO: 6 eines (search_notes, get_note, create_note, update_note, tag_notes, summarise_notes).
-% Autenticació OAuth 2.1 (JWT passthrough a Supabase RLS).
+\label{sec:disseny-mcp}
+
+Aquesta secció recull les decisions de disseny del servidor MCP (Model Context Protocol \parencite{anthropic2024mcp}) sense reproduir el detall d'implementació, que viu al capítol~\ref{ch:implementacio}, \S\ref{sec:servidor-mcp}. Aquí justifiquem què s'exposa, què no s'exposa, i per què el model d'autenticació adopta JWT passthrough en lloc d'una API key tradicional.
+
+\subsection{Catàleg d'eines}
+
+El servidor exposa 8 eines, 2 resources, i 1 prompt. La selecció és el resultat d'un exercici deliberat de \emph{contenció}: cada eina addicional augmenta la superfície d'atac (vegeu \S\ref{sec:trifecta-matrix}) i el cost de manteniment. La taula~\ref{tab:catàleg-tools} resumeix la decisió.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Catàleg d'eines del servidor MCP, agrupades per propòsit. \texttt{read-only} = retorna sense modificar; \texttt{mutating} = pot escriure al model de dades; \texttt{generative} = invoca un LLM downstream.}
+    \label{tab:catàleg-tools}
+    \begin{tabular}{@{}lll>{\raggedright\arraybackslash}p{6cm}@{}}
+        \toprule
+        Eina & Propòsit & Categoria & Justificació \\
+        \midrule
+        \texttt{search\_notes} & Cerca semàntica per query & read-only & RAG via pgvector cosinus + RLS \\
+        \texttt{get\_note} & Lectura per id & read-only & accés directe a una nota concreta \\
+        \texttt{create\_note} & Crear nota & mutating & permet agents externs guardar resultats al magatzem \\
+        \texttt{update\_note} & Modificar nota & mutating & partial-update; embedding regenera només si title o content canvien \\
+        \texttt{tag\_notes} & Aplicar tags a múltiples notes & mutating & set-semantics (add/remove idempotents) \\
+        \texttt{summarise\_notes} & Resum de N notes & generative & \textbf{únic vector Lethal Trifecta} (vegeu \S\ref{sec:trifecta-matrix}) \\
+        \texttt{graph\_neighbors} & Veïns 1-hop d'una nota & read-only & retorna estructura, no contingut \\
+        \texttt{graph\_shortest\_path} & Camí més curt entre dues notes & read-only & retorna chain, no contingut \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Les dues \emph{resources} (\texttt{notes://recent} i \texttt{notes://tag/\{tag\}}) ofereixen vistes paginades de notes per a hosts que volen el llistat sencer, no només per cerca. El \emph{prompt} \texttt{daily-review} és una plantilla parametritzable per data que pulla les notes recents i les retorna amb una estructura de 3 seccions (highlights, action items, open threads); es presenta com a prompt MCP perquè el host MCP el suggereixi a l'usuari al començar la sessió.
+
+\subsection{Eines descartades}
+
+Algunes eines aparentment òbvies no s'exposen, amb justificació explícita:
+
+\begin{itemize}
+    \item \textbf{\texttt{delete\_note}}: no exposat. Esborrar una nota és una acció irrecuperable. El host MCP no ha d'invocar-la mai com a part d'un flux automatitzat. La UI web ja en proporciona via Server Action, sempre amb confirmació humana.
+    \item \textbf{\texttt{export\_all\_notes}} (que bolcaria tot el corpus): no exposat. Aquesta funció és exactament el patró d'exfiltració que el filtre D3 vol prevenir, executat amb intenció.
+    \item \textbf{\texttt{set\_user\_preferences}}: no exposat. L'estat de configuració (idioma, tema, agents activats) és prerrogativa de l'usuari, no d'un agent.
+    \item \textbf{\texttt{chat\_with\_self}} (que activaria el xat RAG des de l'MCP): no exposat. El xat ja existeix com a producte primari; replicar-lo a l'MCP només duplicaria el codi sense aportar valor.
+\end{itemize}
+
+Aquesta llista de descartes és intencional i defensable: el catàleg de 8 eines és el resultat d'una resta deliberada des d'un superconjunt més gran.
+
+\subsection{Autenticació: JWT passthrough en lloc d'API keys}
+
+\paragraph{Decisió.} El servidor MCP no genera ni gestiona API keys per agent. Cada client (Claude Desktop, agent custom, etc.) presenta el JWT de Supabase Auth del seu propietari humà al header \texttt{Authorization: Bearer <jwt>}. El servidor el valida contra Supabase Auth en cada request i el reusa per a tota la sessió MCP.
+
+\paragraph{Per què.} Una API key tradicional (com Stripe, OpenAI o GitHub) crea un tercer principal (la "service account" de l'agent) que cal gestionar separadament: rotar-la, vincular-la a permisos, auditar-la per separat de l'usuari humà. Aquest model afegeix complexitat sense aportar res al cas d'ús personal d'aquest projecte. El JWT de Supabase ja existeix, ja està signat per l'IdP de confiança, ja porta el \texttt{user\_id} que RLS necessita, i té expiració curta (1 h per defecte). Reutilitzar-lo elimina la categoria sencera d'"agent credentials".
+
+\paragraph{Implicació crítica per al disseny.} L'agent (Claude Desktop) actua com a \emph{delegat} de l'usuari humà amb les mateixes credencials. Si l'agent és compromès, l'atacant té les credencials de l'usuari per a totes les eines exposades (vuit) durant el TTL del JWT. La mitigació per a aquest risc residual és D2 \emph{host confirmation}: cada invocació d'una eina mutating al host MCP genera un prompt visible per a l'usuari humà abans de l'execució. La cadena de responsabilitat queda intacta: \textbf{l'agent proposa, l'usuari confirma, el servidor executa}.
+
+\subsection{Transport: StreamableHTTP en lloc de stdio}
+
+\paragraph{Decisió.} El servidor exposa el protocol MCP via HTTP amb el transport \texttt{WebStandardStreamableHTTPServerTransport} del SDK oficial, sobre la ruta \texttt{/api/mcp}. Es descarta el transport \texttt{stdio} (procés local).
+
+\paragraph{Per què.} El servidor és remot per disseny (no es vol que cada usuari instal·li i mantingui un binari Node local). HTTP permet l'allowlist D4 a nivell de ruta, el deploy via Vercel Fluid Compute, i la inspecció via DevTools del navegador per a depurar (\S\ref{sec:red-team-promptfoo} ho explota per a auth manual). La penalització és la complexitat de l'autenticació, que ja queda resolta per la decisió JWT passthrough anterior.
+
+\paragraph{Implicació per al disseny.} El transport StreamableHTTP del SDK requereix que el client envii el header \texttt{Accept: application/json, text/event-stream} per a permetre tant respostes síncrones com streaming. Aquest detall és visible al client (és el primer obstacle que apareix al fer testing manual via DevTools fetch) i s'ha documentat al capítol d'avaluació (\S\ref{sec:red-team-promptfoo}) com a part del protocol del red-team Promptfoo.
+
+\subsection{Mecanisme de confirmation per a mutacions (D2)}
+
+Les eines de categoria \texttt{mutating} (\texttt{create\_note}, \texttt{update\_note}, \texttt{tag\_notes}) i la generativa \texttt{summarise\_notes} estan marcades a la seva \texttt{toolDefinition} amb la convenció \texttt{taskSupport: "forbidden"} reconeguda pels hosts MCP compliants (Claude Desktop l'aplica). Això instrueix el host que ha de demanar confirmació humana per a aquesta crida, fins i tot dins una conversa contínua. \texttt{search\_notes}, \texttt{get\_note} i les eines de graph queden marcades com a \texttt{read-only}-safe i no requereixen confirmació.
+
+Aquest disseny és la línia de defensa explícita davant un atac d'encadenament (l'atacant aconsegueix que \texttt{summarise\_notes} retorni text amb instruccions ocultes; el host les interpretaria i intentaria cridar \texttt{create\_note} per exfiltrar). La confirmation interromp aquesta cadena al pas de mutació.
 
 \section{Disseny dels agents}
 \label{sec:disseny-agents}
@@ -118,7 +324,55 @@ Aquest disseny no resol tres classes d'atac que queden documentades com a trebal
 \textbf{Honestedat metodològica}: aquest disseny no és un panaceu i no s'auto-presenta com a tal. La secció~\ref{sec:red-team-promptfoo} de l'avaluació documenta explícitament que en el suite de 30 atacs, el guany marginal de D3 sobre D2 sol és 0\%. La defensa de D3 reposa en quatre arguments operatius (signatura estructurada auditable, earlier rejection, resilència a regressions del model upstream, mostra petita amb long tail no explorat) i no en una afirmació de millora absoluta de la seguretat. Aquesta postura és intencional: vol evitar les promeses de "AI security" que no s'aguanten quan són examinades quantitativament.
 
 \section{Disseny de la interfície}
-% TODO: mockups/screenshots. Drawer d'activitat d'agents amb botons accept/reject.
+\label{sec:disseny-interficie}
+
+El disseny d'interfície de Synapse Notes prioritza la \emph{visibilitat de l'estat} i la \emph{reversibilitat de les accions destructives}. Aquesta secció documenta els principis aplicats, la jerarquia visual, i les superfícies UI principals; la implementació concreta de cada component està al capítol~\ref{ch:implementacio}.
+
+\subsection{Principis de disseny}
+
+\paragraph{Optimisme amb fallback honest.} Les mutacions sobre notes (star, archive, delete, restore, duplicate) es renderitzen \emph{immediatament} a la UI via \texttt{useOptimistic} de React 19 abans que el servidor confirmi el resultat. Si la Server Action falla, l'estat optimista es reverteix automàticament. Aquest patró està descrit al detall a la secció~\ref{sec:optimistic-ui}, però la decisió de disseny és prèvia: \emph{el lag de xarxa no ha de ser perceptible per l'usuari per a operacions que tenen una probabilitat de fallada $<$1\%}.
+
+\paragraph{Reversibilitat de l'arxivat.} La columna \texttt{notes.archived\_at} és una \emph{soft delete}: l'usuari pot recuperar una nota arxivada en un sol clic des de la vista d'arxiu. Cap operació de la UI principal causa pèrdua irrecuperable de dades. L'única operació de \emph{hard delete} és l'eliminació definitiva, sempre amb confirmació via \texttt{AlertDialog} (component shadcn).
+
+\paragraph{Llibreria visual coherent.} Tot l'inventari de primitives UI ve de shadcn/ui sobre Radix Primitives, amb tema personalitzat (paleta amber + slate + violeta per als backlinks). La decisió de no incorporar Material UI ni Chakra elimina una capa de dependència de bundle considerable; shadcn copia les implementacions al projecte (no és un \emph{npm package}) i això permet personalitzar-les sense conflictes d'upgrade.
+
+\paragraph{Accessibilitat com a defecte, no com a opcional.} Cada component Radix porta ARIA attributes correctes per defecte; el tema custom respecta el contrast WCAG 2.1 AA tant en mode light com dark. Les drecera de teclat (vegeu \texttt{KeyboardShortcutsDialog}) inclouen la deteció de plataforma per a pintar correctament \texttt{Ctrl} (Win/Linux) vs \texttt{Cmd} (macOS).
+
+\paragraph{Internacionalització nativa.} Tres idiomes simultanis (català, espanyol, anglès) amb un \texttt{LanguageProvider} basat en \texttt{localStorage}. La selecció no recarrega la pàgina, només re-renderitza les strings traduïdes. El català és l'idioma per defecte i el que s'utilitza al memoir.
+
+\subsection{Jerarquia visual}
+
+La pàgina principal (\texttt{/}) està dividida en quatre zones, d'esquerra a dreta:
+
+\begin{enumerate}
+    \item \textbf{Sidebar del xat} (esquerra, 280 px): llistat d'històries de conversa amb el LLM, amb bulk-delete via mode de selecció. Mòbil: amagada per defecte, accessible via \texttt{Sheet}.
+    \item \textbf{Zona principal} (centre): header amb logo + selectors d'idioma/tema, \emph{Today's Brain card} (vegeu \S\ref{sec:disseny-todays-brain} a la subsecció següent), \emph{ComposeZone} per a crear notes, i \emph{NoteGrid} amb filtres per tag.
+    \item \textbf{Background animat} (capa inferior): \emph{BackgroundPaths} amb framer-motion, decoratiu i sense interacció.
+    \item \textbf{Xat assistant flotant} (cantonada inferior-dreta a mòbil, integrat al sidebar a desktop): obre una conversa amb el RAG en context complet.
+\end{enumerate}
+
+La pàgina \texttt{/graph} té una jerarquia diferent: el canvas del graph viewer ocupa tota la pantalla, amb un side panel de 320 px a la dreta amb cerca + stats + legend + inspector del node seleccionat.
+
+\subsection{Superfícies d'interacció principals}
+
+\paragraph{ComposeZone (creació de notes).} Input de títol + textarea de cos + \emph{TagSelector} amb autocomplete + \emph{TagSuggestionRow} amb propostes via Haiku 4.5. La textarea (component \texttt{BacklinkTextarea}, vegeu \S\ref{sec:title-and-autocomplete}) detecta tres sigils a mesura que l'usuari escriu: \texttt{[[} obre l'autocomplete de notes, \texttt{@} fa mention-style, \texttt{\#} filtra tags existents. La popover es renderitza via \texttt{createPortal} amb posicionament caret-relatiu.
+
+\paragraph{NoteGrid (vista principal).} Cards de 340 px d'alçada fixa amb \texttt{flex-1 min-h-0} al cos per a contingut variable. La capa optimista de \texttt{useOptimistic} fa que el reorder per star sigui instantani amb una animació via \texttt{motion.div layout}.
+
+\paragraph{Graph Viewer.} \texttt{ForceGraph2D} sobre canvas amb força física custom estil Obsidian (vegeu \S\ref{sec:graph-physics}). Quan l'usuari fa hover sobre un node, el seu veïnatge 1-hop manté la brillantor original mentre la resta del graph s'opaca a 15-25\% (focus visual). Hover focus + cerca textual es composen multiplicativament: un node és \emph{actiu} si passa les dues filtros alhora. Toggle 2D/3D al cantó superior dret del side panel.
+
+\paragraph{EditNoteDialog.} \texttt{Dialog} de shadcn que obre amb deep-link \texttt{/?note=N} (consumit pel \texttt{NoteGrid} via \texttt{useSearchParams} + \texttt{router.replace} per netejar la URL). Conté el mateix \texttt{BacklinkTextarea} de la zona de creació més el \texttt{TagManagerDialog} accessible des d'un gear icon.
+
+\subsection{Today's Brain (decisió de disseny específica)}
+\label{sec:disseny-todays-brain}
+
+La \emph{Today's Brain card}, al cim del dashboard, és un experiment de disseny que demostra l'aprofitament del corpus per a generar valor proactiu. Cada vegada que l'usuari obre la pàgina principal, una crida server-side a Haiku 4.5 (gated per Suspense per a no bloquejar el render) genera tres bullets resumint què ha escrit en els últims 7 dies, més top 3 tags actius i un sparkline d'activitat dels últims 14 dies. La card és l'única superfície on l'usuari no ha d'invocar manualment l'IA: ve donada.
+
+Aquesta decisió contradiu lleugerament el principi de \emph{IA com a eina, no com a sistema}: en aquest cas l'IA s'executa sense petició explícita. Es justifica perquè (a) el cost és reduït (una sola crida Haiku per pageload, ~\$0.003), (b) la informació generada és resum de dades que l'usuari ja té (no en cap inferència nova), i (c) el resultat és \emph{informatiu i no executable}: la card mostra text, mai dispara accions. És el patró \emph{ambient AI} aplicat amb restricció.
+
+\subsection{Drawer d'agents (disseny pendent d'implementació)}
+
+El plan original (vegeu \S\ref{sec:disseny-agents}) preveu un \emph{ActivityDrawer} accessible des del header, que mostra els últims events de \texttt{agent\_events} amb timeline. Per a propostes d'auto-tag, una variant del drawer mostra cards d'acceptació/rebuig amb la nota afectada i el tag proposat. La implementació concreta queda al capítol d'implementació quan la decisió D5 es resolgui.
 
 \section{Validació estructural del disseny via graphify}
 % Referència creuada a l'auditoria estructural documentada al capítol

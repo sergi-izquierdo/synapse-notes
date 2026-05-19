@@ -1,14 +1,123 @@
 \chapter{Legislació i protecció de dades}
 \label{ch:legislacio}
 
+Aquest capítol analitza el compliment del projecte amb el marc legal europeu i espanyol de protecció de dades, comerç electrònic i seguretat de la informació. Les seccions corresponen a les tres normes principals: RGPD i LOPDGDD (\S\ref{sec:rgpd}), Llei de Serveis de la Societat de la Informació (\S\ref{sec:lssi}) i articles específics aplicables (\S\ref{sec:articles-specific}). El capítol tanca amb una declaració honesta de les limitacions actuals (\S\ref{sec:legislacio-limitacions}).
+
 \section{RGPD i LOPDGDD}
-% TODO: mesures aplicades. Dret d'accés/supressió. Consentiment. Base legal.
+\label{sec:rgpd}
 
-\section{Tractament de dades personals}
-% TODO: quines dades es recullen (email, notes del user), amb quina base legal, temps de retenció.
+El Reglament General de Protecció de Dades (Reglament UE 2016/679, \emph{RGPD}) i la seva transposició a l'ordenament espanyol via la Llei Orgànica 3/2018 de Protecció de Dades Personals i garantia dels drets digitals (\emph{LOPDGDD}) constitueixen el marc principal aplicable a Synapse Notes. El sistema processa dades personals (correu electrònic identificador, contingut de notes que pot incloure informació personal de l'usuari) i, per tant, està sotmès íntegrament a aquesta normativa.
 
-\section{Processadors de dades}
-% TODO: Supabase (UE), Anthropic (US), Google (US). Clàusules SCC. Transferències internacionals.
+\subsection{Base legal del tractament (RGPD art.~6)}
 
-\section{Limitacions i treball futur}
-% TODO: no hi ha encryption at rest extrem a extrem (E2EE). Documentar com a limitació honesta.
+La base legal aplicable és el \textbf{consentiment explícit} de l'usuari (RGPD art.~6.1.a), expressat mitjançant el flux d'OAuth amb Google o GitHub. En autenticar-se, l'usuari accepta tàcitament els termes d'ús del servei. Aquesta base és apropiada perquè:
+
+\begin{itemize}
+    \item L'usuari pot retirar el consentiment en qualsevol moment eliminant el seu compte (els cascades \texttt{ON DELETE CASCADE} en totes les FKs eliminen totes les seves dades de manera atòmica).
+    \item No s'utilitza la base d'interès legítim, que requeriria un balancing test més complex i ofereix menys garanties a l'usuari.
+\end{itemize}
+
+\subsection{Dades personals tractades (RGPD art.~5 --- minimització)}
+
+El sistema processa el conjunt mínim de dades necessàries per a la funcionalitat:
+
+\begin{itemize}
+    \item \textbf{Identificadors d'autenticació}: \texttt{user\_id} (UUID assignat per Supabase Auth), correu electrònic de l'IdP (Google/GitHub), token JWT vigent. Tots gestionats per Supabase Auth, no per codi de l'aplicació.
+    \item \textbf{Contingut generat per l'usuari}: text de les notes, tags assignats, missatges del xat. Aquestes dades són voluntàriament aportades per l'usuari i poden contenir informació personal segons el seu criteri.
+    \item \textbf{Vectors d'embedding}: representacions de 768 dimensions del contingut de cada nota, generades amb Google Gemini i emmagatzemades a la columna \texttt{notes.embedding}. \emph{Tècnicament reversibles}: la literatura recent ha documentat atacs d'\emph{embedding inversion} que poden reconstruir text aproximat a partir d'embeddings d'alta dimensió. Aquesta limitació està documentada com a risc residual al capítol~\ref{ch:disseny} (\S\ref{sec:security-limitations}).
+\end{itemize}
+
+\subsection{Drets dels usuaris (RGPD art.~12--22)}
+
+El sistema implementa les vies pràctiques per a l'exercici dels següents drets:
+
+\begin{itemize}
+    \item \textbf{Dret d'accés (art.~15)}: l'usuari pot exportar totes les seves dades en format JSON via l'API REST de Supabase amb el seu propi JWT. La UI no exposa encara aquesta funcionalitat com a botó dedicat (limitació identificada).
+    \item \textbf{Dret de rectificació (art.~16)}: directe via la UI de l'aplicació (editar qualsevol nota, modificar perfil).
+    \item \textbf{Dret de supressió / oblit (art.~17)}: directe via Supabase Auth UI per a esborrar el compte sencer. El cascade SQL garanteix l'eliminació de totes les dades associades.
+    \item \textbf{Dret a la portabilitat (art.~20)}: les notes són accessibles en format estructurat (JSON via Supabase API). Aquest format compleix el requeriment de \emph{format estructurat, d'ús comú i lectura mecànica}.
+    \item \textbf{Dret a oposar-se al tractament automatitzat (art.~22)}: el filtre D3 LLM-as-judge i la generació automàtica de propostes de tag són processaments automàtics. L'usuari pot desactivar-los via el kill-switch D4 (\texttt{AI\_ENABLED=false}), tot i que aquesta funcionalitat està a nivell de sistema i no per usuari. Limitació identificada.
+\end{itemize}
+
+\subsection{Mesures de seguretat (RGPD art.~32)}
+
+L'article 32 exigeix \emph{mesures tècniques i organitzatives apropiades} per a garantir la seguretat. Les mesures implementades són:
+
+\begin{itemize}
+    \item \textbf{Xifrat en repòs}: gestionat per Supabase com a part del seu servei (AES-256 als discs de Postgres). El xifrat extrem a extrem (E2EE) no està implementat al projecte i és una limitació reconeguda (\S\ref{sec:legislacio-limitacions}).
+    \item \textbf{Xifrat en trànsit}: HTTPS obligatori a tot el sistema. Vercel imposa TLS 1.3 automàticament a tots els dominis \texttt{*.vercel.app}.
+    \item \textbf{Control d'accés}: Row-Level Security (RLS) de PostgreSQL com a mecanisme principal d'autorització. L'autenticació es delega a Supabase Auth amb proveïdors OAuth de confiança (Google, GitHub). Detall complet al capítol~\ref{ch:disseny} (\S\ref{sec:disseny-seguretat}).
+    \item \textbf{Detecció d'incidents}: el filtre D3 (\S\ref{sec:red-team-promptfoo}) detecta intents d'exfiltració via prompt injection. El sistema d'audit trail \texttt{agent\_events} està dissenyat per a registrar accions d'agents amb \emph{append-only} (no UPDATE/DELETE des de client).
+    \item \textbf{Validació de capacitats vs principi de minimització}: les eines MCP estan restringides al catàleg mínim (vegeu \S\ref{sec:disseny-mcp}); funcionalitats com \texttt{delete\_note} o \texttt{export\_all\_notes} no s'exposen perquè violarien el principi de proporcionalitat.
+\end{itemize}
+
+\section{Tractament de dades personals i processadors}
+\label{sec:processadors}
+
+Tres processadors de dades són rellevants per al sistema, dos amb seu fora de la UE. La taula~\ref{tab:processadors} en resumeix les implicacions de transferència internacional.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Processadors de dades i transferències internacionals (RGPD art.~44--49).}
+    \label{tab:processadors}
+    \begin{tabular}{@{}lll>{\raggedright\arraybackslash}p{4.5cm}@{}}
+        \toprule
+        Processador & Seu & Dades transferides & Marc legal \\
+        \midrule
+        Supabase & Irlanda (\texttt{eu-west-1}) & Tots els registres (Postgres) & RGPD aplicació directa (UE) \\
+        Anthropic & EUA & Contingut de notes en moment de crida & Standard Contractual Clauses (SCC) 2021 + política zero data retention \\
+        Google AI & EUA & Contingut de notes per a embedding & SCC 2021 + política no-training default \\
+        Vercel & EUA / global & Logs HTTP i mètriques de routing & SCC 2021 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+L'usuari està informat d'aquestes transferències pels termes del servei en autenticar-se. Cap dada es transfereix a països sense decisió d'adequació ni SCC vigents.
+
+\subsection{Política d'Anthropic: zero data retention}
+
+Anthropic ofereix una política de \emph{zero data retention} per defecte a la seva API empresarial: el contingut dels prompts i les respostes no es persisteix més enllà del temps necessari per a processar la sol·licitud (típicament minuts), i no s'utilitza per a entrenar models futurs. Aquesta política és essencial per al cas d'ús d'aquest projecte, on les notes poden contenir informació personal sensible.
+
+\subsection{Política de Google AI Studio: no-training default}
+
+Google AI Studio per defecte no entrena els seus models amb les dades enviades via API. Aquesta política es pot consultar via la consola de Google AI Studio. La regió de processament d'embeddings no és configurable a l'API gratuïta (utilitza el global pool).
+
+\section{Llei de Serveis de la Societat de la Informació (LSSI-CE)}
+\label{sec:lssi}
+
+La Llei 34/2002 de Serveis de la Societat de la Informació i Comerç Electrònic (\emph{LSSI-CE}) regula la prestació de serveis electrònics a Espanya. Aplica perquè Synapse Notes és un servei electrònic accessible des d'Espanya.
+
+\subsection{Obligacions d'informació (art.~10)}
+
+L'article 10 exigeix proporcionar als usuaris informació identificativa del prestador. En context TFG aquesta obligació es relaxa (no és producte comercial), però en cas de desplegament SaaS s'hauria de complir incloent: dades del titular, NIF, domicili, adreça de contacte, i si correspon, dades del Registre Mercantil.
+
+\subsection{Cookies i consentiment (art.~22.2)}
+
+El sistema utilitza cookies HttpOnly per a l'autenticació (gestionades per Supabase Auth). Aquestes cookies són \emph{tècnicament necessàries} segons l'art.~22.2 de la LSSI-CE i, per tant, no requereixen banner de consentiment. No s'utilitzen cookies de tercers per a analytics ni publicitat (vegeu \S\ref{sec:legislacio-limitacions}: això canviaria si en algun moment s'afegeix PostHog o similar).
+
+\section{Articles aplicables específicament al cas LLM}
+\label{sec:articles-specific}
+
+L'ús d'LLMs en sistemes que processen dades personals té implicacions legals específiques que la normativa actual aborda parcialment:
+
+\begin{itemize}
+    \item \textbf{AI Act europeu (Reglament UE 2024/1689)}: aplicable des de febrer de 2025 amb implementació gradual fins 2027. Synapse Notes és un sistema d'IA de \emph{risc limitat} segons la classificació de l'AI Act (no decideix sobre crèdit, ocupació, justícia, etc.). L'obligació principal és la \emph{transparència}: l'usuari ha de saber que interactua amb un LLM. La UI fa això explícit al xat (avatar identificatiu) i als components de tag suggestion (icona \emph{sparkles}).
+    \item \textbf{RGPD art.~22 (decisions automatitzades)}: el filtre D3 LLM-as-judge pren decisions automatitzades amb efectes per a l'usuari (bloquejar o permetre el resum d'una nota). Tot i que l'impacte és baix (el pitjor cas és no rebre un resum), s'ofereix la possibilitat de \emph{salt humà} via el tag \texttt{redteam-archived} (vegeu \S\ref{sec:risk-residual}).
+    \item \textbf{Drets d'autor i contingut generat per IA}: els resums i propostes de tags generats per Anthropic Haiku queden al perímetre de l'usuari (la nota original és seva, el resum derivat també). No s'utilitza contingut amb drets d'autor de tercers per al \emph{prompting} del sistema, només contingut generat pels propis usuaris.
+\end{itemize}
+
+\section{Limitacions actuals i treball futur legal}
+\label{sec:legislacio-limitacions}
+
+Aquesta secció documenta honestament les limitacions actuals del compliment legal del sistema:
+
+\paragraph{Sense E2EE.} Les notes són emmagatzemades en clar a Supabase (amb xifrat en repòs del proveïdor, però no extrem a extrem). Un compromís de Supabase exposaria tot el contingut. Mitigació plantejada: oferir l'opció de \emph{self-hosting} de Supabase per a usuaris amb requisits més estrictes.
+
+\paragraph{Sense política de privacitat formal.} El sistema no publica encara una política de privacitat o termes d'ús a l'estil que la LOPDGDD exigiria a un servei comercial. En context TFG és acceptable; per a un desplegament real seria obligatori (RGPD art.~13).
+
+\paragraph{Sense formulari de DPO ni canal de reclamacions.} La LOPDGDD obliga els tractaments amb risc a designar un Delegat de Protecció de Dades. Synapse Notes en estat actual no arriba al volum que ho obligaria, però una versió SaaS hauria de proveir aquest canal.
+
+\paragraph{Sense logs d'accés exportables.} L'audit trail \texttt{agent\_events} només registra accions d'agents. Els accessos directes via UI o API no es loguegen específicament. Per a compliment ple del dret d'accés (\emph{ofereix un registre detallat dels accessos al tractament de les teves dades}), caldria afegir-hi una taula d'audit més general.
+
+\paragraph{Limitació de la base ``consentiment'' per a entrenament d'LLMs.} Si en el futur s'utilitzés contingut dels usuaris per a fine-tunejar models propis, caldria una base legal nova o un consentiment explícit addicional. La política actual no contempla aquest ús i caldria revisar-la abans de canviar-la.

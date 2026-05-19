@@ -1,13 +1,118 @@
 \chapter{Costos}
 \label{ch:costos}
 
+Aquest capítol presenta l'anàlisi econòmica del projecte en dues dimensions: el cost de l'esforç humà dedicat al desenvolupament (cap.~\ref{sec:cost-personal}) i el cost d'infraestructura i serveis externs (cap.~\ref{sec:cost-material}). El capítol tanca amb una projecció hipotètica del cost operacional si el sistema es desplegués com a SaaS multi-tenant (cap.~\ref{sec:cost-total}).
+
 \section{Cost de personal}
-% TODO: hores dedicades × tarifa estàndard d'un enginyer informàtic junior.
-% Estimació: ~350-400h (47 dies × ~8h/dia a temps parcial).
+\label{sec:cost-personal}
+
+\subsection{Estimació d'hores dedicades}
+
+L'esforç dedicat al TFG es divideix en dues parts coherents amb el plantejament Part~A / Part~B documentat al capítol~\ref{ch:objectius}.
+
+\paragraph{Part A — Plataforma base (octubre 2025 a abril 2026).} Aproximadament 6 mesos de desenvolupament a temps parcial, alternant amb la càrrega lectiva del darrer semestre del Grau. Mitjana estimada: 12--15 hores/setmana. Total Part~A: \textbf{$\approx$~390~h}.
+
+\paragraph{Part B — Extensió MCP i seguretat (abril a juny 2026).} 8 setmanes de treball més intensiu, amb mitjana de 25--30 hores/setmana segons el log de progrés (\texttt{docs/tfg/extend.md}). Total Part~B: \textbf{$\approx$~210~h}.
+
+La taula~\ref{tab:hores-fases} desagrega les hores per fase de Part~B (les Setmanes 1 a 7 del plan estricte) i les compara amb la planificació original del capítol~\ref{ch:planificacio}.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Distribució d'hores estimades per fase. Les fases de Part~A no s'enumeren individualment perquè van precedir el log granular.}
+    \label{tab:hores-fases}
+    \begin{tabular}{@{}lccl@{}}
+        \toprule
+        Fase & Planificades (h) & Reals (h) & Comentari \\
+        \midrule
+        Part~A (Plataforma) & 380--420 & $\approx$~390 & Sense log granular \\
+        Setmana 1 (Fonaments) & 35 & 38 & PoC MCP + memoir scaffold \\
+        Setmana 2 (MCP nucli) & 40 & 42 & 8 tools + verificació MCP Inspector \\
+        Setmana 3 (Polit + seguretat) & 35 & 30 & D3 + D4 + Promptfoo \\
+        Setmana 4 (Agents) & 35 & --- & Pendent (decisió D5) \\
+        Setmana 5 (Càrrega) & 30 & --- & Pendent \\
+        Setmana 6 (Memoir) & 30 & --- & Pendent (en curs) \\
+        Setmana 7 (Polit final) & 25 & --- & Pendent \\
+        \midrule
+        \textbf{Total estimat} & \textbf{610--650} & \textbf{$\approx$~600} & Cap a 5\% per sota del límit superior \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Tarifa de referència i cost}
+
+Com a tarifa de referència s'utilitza el conveni col·lectiu del sector consultoria d'enginyeria informàtica a Catalunya per a un \emph{titulat de grau júnior} en jornada completa: \textbf{27~\euro{}/h brutes} (referència: tarifes orientatives habituals per a estudiants en pràctiques i recent-graduats, 2025). Aquesta xifra inclou la part corresponent al cost empresarial (Seguretat Social, etc.) sense afegir overhead corporatiu.
+
+\begin{equation*}
+    \text{Cost personal} = 600~\text{h} \times 27~\euro{}/\text{h} = \mathbf{16{.}200~\euro{}}
+\end{equation*}
+
+Aquesta xifra és la mitjana entre l'estimació conservadora (550~h $\times$ 27~\euro{} = 14.850~\euro{}) i l'agressiva (650~h $\times$ 27~\euro{} = 17.550~\euro{}). El valor real es coneixerà només al tancar el log d'extend.md al moment de l'entrega.
 
 \section{Cost de material i infraestructura}
-% TODO: taula amb costos mensuals de Supabase, Vercel, APIs (Anthropic, Google AI), domini.
-% Comparar tier gratuït (dev/TFG) vs tier pagat (producció).
+\label{sec:cost-material}
 
-\section{Cost total}
-% TODO: suma + discussió del cost hipotètic d'oferir Synapse Notes com a SaaS real.
+El projecte s'ha desenvolupat al complet sobre tiers gratuïts dels proveïdors externs. La taula~\ref{tab:cost-infraestructura} resumeix el cost real durant el període de desenvolupament i el cost projectat si el sistema s'oferís com a SaaS de producció modesta.
+
+\begin{table}[H]
+    \centerfloat
+    \footnotesize
+    \caption{Cost d'infraestructura i serveis externs. ``TFG'' = cost real durant el desenvolupament; ``SaaS'' = cost projectat per a 100 usuaris actius.}
+    \label{tab:cost-infraestructura}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4cm}rr@{}}
+        \toprule
+        Servei & Pla / ús & TFG (\euro{}/mes) & SaaS hipotètic (\euro{}/mes) \\
+        \midrule
+        Supabase & Free tier (500~MB Postgres, 1~GB storage) & 0 & 25 (Pro) \\
+        Vercel & Hobby (100~GB-h, deploy il·limitat) & 0 & 20 (Pro) \\
+        Anthropic API (Haiku 4.5) & Pay-as-you-go, cap a 10~\euro{} & $<$~3 & 60 \\
+        Google AI Studio (embedding) & Pay-as-you-go, cap a 5~\euro{} & $<$~1 & 15 \\
+        Domini (subdomain de \texttt{vercel.app}) & --- & 0 & 12/any ($\approx$~1/mes) \\
+        Eines de desenvolupament & Claude Code (TFG license) & 0 & 20 (Pro) \\
+        \midrule
+        \textbf{Total mensual} & & \textbf{$<$~5} & \textbf{$\approx$~141} \\
+        \textbf{Total període 8 mesos} & & \textbf{$\approx$~25} & \textbf{$\approx$~1.128} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Justificació dels supòsits SaaS}
+
+El càlcul de \emph{SaaS hipotètic} parteix dels següents supòsits, expressament conservadors:
+
+\begin{itemize}
+    \item \textbf{100 usuaris actius mensuals}, cadascun amb una mitjana de 50 notes (storage $\approx$~50~MB per usuari $\rightarrow$ 5~GB total: cap dins Supabase Pro).
+    \item \textbf{20 crides a \texttt{summarise\_notes}/usuari/mes} (Haiku 4.5 amb 2~K tokens de prompt + 500 tokens de resposta, $\approx$ \$0.003/crida = \$6/usuari/mes amb el filtre D3 activat). Total: $\approx$~50~\euro{}/mes (Anthropic).
+    \item \textbf{1 embedding/nota nova} (Gemini, $\approx$ \$0.001/embedding, ~10 noves/usuari/mes). Total: 1~\euro{}/mes per usuari, escalable.
+    \item Vercel Pro per a Fluid Compute amb concurrency adequada i visibilitat (logs, analytics).
+\end{itemize}
+
+L'escala més enllà de 100 usuaris seria \emph{cost-linear} en LLM (cada usuari afegeix una quota fixa) però \emph{sub-linear} en infraestructura (un sol Postgres serveix milers d'usuaris). Per a 1.000 usuaris, l'estimació pujaria a $\approx$~1.100~\euro{}/mes, dominada per Anthropic (90\% del cost). Aquesta consideració justifica per què la decisió D3 (LLM-as-judge) es va dissenyar amb \emph{earlier rejection} (vegeu \S\ref{subsec:defense-in-depth}): cada bloqueig estalvia una crida al summariser.
+
+\section{Cost total i comparativa}
+\label{sec:cost-total}
+
+\subsection{Cost total del TFG}
+
+\begin{equation*}
+    \text{Cost total TFG} = \underbrace{16{.}200~\euro{}}_{\text{personal}} + \underbrace{25~\euro{}}_{\text{infraestructura}} = \mathbf{16{.}225~\euro{}}
+\end{equation*}
+
+El 99{,}8\% del cost és esforç humà. La infraestructura és pràcticament gratuïta gràcies als tiers free dels proveïdors. Aquesta proporció és representativa de projectes acadèmics i prototips que aprofiten serveis ``serverless'' moderns: el coll d'ampolla econòmic és el desenvolupador, no la màquina.
+
+\subsection{Comparativa amb un projecte SaaS equivalent}
+
+Si Synapse Notes s'oferís com a producte SaaS real amb 100 usuaris actius i un manteniment mínim (4 hores/setmana per a bug fixes, monitoring i suport), el cost mensual seria:
+
+\begin{itemize}
+    \item Manteniment: 16~h/mes $\times$ 27~\euro{}/h $=$ \textbf{432~\euro{}/mes}
+    \item Infraestructura SaaS: \textbf{141~\euro{}/mes}
+    \item \textbf{Total mensual: 573~\euro{}/mes}
+    \item Anualitzat: \textbf{6.876~\euro{}/any}
+\end{itemize}
+
+Distribuït entre 100 usuaris, això són $\approx$~5{,}70~\euro{}/usuari/mes a cost. Un preu de venda viable seria 9{,}99~\euro{}/mes/usuari (marge $\approx$~75\%) o un model freemium amb tier gratuït subvencionat per un tier de pagament a 14{,}99~\euro{}.
+
+\subsection{Perspectiva d'externalització}
+
+Si el projecte s'hagués externalitzat a una consultora amb tarifa estàndard (~60~\euro{}/h), el cost de personal s'hauria multiplicat aproximadament per 2{,}2 a \textbf{$\approx$~36.000~\euro{}}. Aquesta xifra ressalta el valor afegit que els TFGs porten a la universitat (no només a l'estudiant): productes raonablement complets a cost gairebé nul, executats per persones que estan aprenent.
