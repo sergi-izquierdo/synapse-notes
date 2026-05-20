@@ -29,11 +29,11 @@ amb Supabase com a única superfície de persistència. La pila és:
         \texttt{embedding-001} (Google AI) per als embeddings.
         L'elecció és pràctica: Anthropic dóna latències baixes a
         Haiku 4.5 amb cost competitiu per al volum esperat
-        (subsecció \S\ref{sec:costos}); Gemini ofereix embeddings
+        (capítol~\ref{ch:costos}); Gemini ofereix embeddings
         de 768~dims gratuïts dins els límits de l'API i amb una
         qualitat suficient per a la mida de corpus d'usuari (1k--5k
         notes). Es discuteixen alternatives a la valoració personal
-        \S\ref{ch:valoracio-personal}.
+        (capítol~\ref{ch:valoracio}).
     \item \textbf{Vercel AI SDK 6}: capa d'abstracció sobre els
         proveïdors LLM. Permet \texttt{streamText} per al xat i
         \texttt{generateObject} per a les sortides estructurades

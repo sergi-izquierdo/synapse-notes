@@ -1,0 +1,63 @@
+%%{init: {'theme': 'neutral'}}%%
+erDiagram
+    AUTH_USERS ||--o{ NOTES : "owns"
+    AUTH_USERS ||--o{ CHATS : "owns"
+    AUTH_USERS ||--o{ AGENT_EVENTS : "owns"
+    AUTH_USERS ||--o{ TAG_SUGGESTIONS : "owns"
+    AUTH_USERS ||--o{ NOTE_LINKS : "owns (denorm.)"
+    CHATS ||--o{ MESSAGES : "contains"
+    NOTES ||--o{ NOTE_LINKS : "source"
+    NOTES ||--o{ NOTE_LINKS : "target"
+    NOTES ||--o{ TAG_SUGGESTIONS : "proposed for"
+
+    AUTH_USERS {
+        uuid id PK
+        text email
+        jsonb app_metadata
+    }
+    NOTES {
+        bigint id PK
+        uuid user_id FK
+        text title
+        text content
+        text-arr tags
+        vector-768 embedding "HNSW partial idx"
+        bool starred
+        timestamptz archived_at
+        timestamptz created_at
+    }
+    CHATS {
+        uuid id PK
+        uuid user_id FK
+        text title
+        timestamptz created_at
+    }
+    MESSAGES {
+        uuid id PK
+        uuid chat_id FK
+        text role "user|assistant"
+        text content
+        timestamptz created_at
+    }
+    AGENT_EVENTS {
+        uuid id PK
+        uuid user_id FK
+        text agent "auto-tag|backfill|digest|mcp:tool"
+        text action
+        jsonb payload
+        timestamptz created_at
+    }
+    TAG_SUGGESTIONS {
+        uuid id PK
+        uuid user_id FK
+        bigint note_id FK
+        text tag
+        text status "pending|accepted|rejected"
+        timestamptz created_at
+    }
+    NOTE_LINKS {
+        bigint source_id PK,FK
+        bigint target_id PK,FK
+        uuid user_id FK "denormalised"
+        timestamptz created_at
+    }

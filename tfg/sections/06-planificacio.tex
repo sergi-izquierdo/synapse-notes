@@ -45,10 +45,11 @@ El TFG es divideix en cinc fases. La cinquena és opcional i cau fora del
 temps d'entrega però dins del calendari de la defensa.
 
 \begin{table}[htbp]
-  \centering
+  \centerfloat
+  \footnotesize
   \caption{Fases del TFG amb dates i focus principal.}
   \label{tab:fases}
-  \begin{tabular}{cllcl}
+  \begin{tabular}{@{}cllc>{\raggedright\arraybackslash}p{5.5cm}@{}}
     \toprule
     \# & Fase & Dates & Durada & Focus \\
     \midrule
@@ -97,22 +98,23 @@ dels períodes d'avaluació.
 \section{Diagrama de Gantt}
 \label{sec:gantt}
 
-El diagrama de Gantt (figura~\ref{fig:gantt}) resumeix la distribució
-temporal de les fases. El detall dia a dia de la fase~7 (entrega) és
-crític: dilluns 1 de juny relectura completa, dimecres 3 enviament
-d'esborrany a revisor, divendres 5 entrega oficial via el portal de la
-URV.
+La distribució temporal de les fases del projecte queda resumida a la
+taula~\ref{tab:fases} de la secció anterior. El detall dia a dia de la
+fase~7 (entrega) és crític: dilluns 1 de juny relectura completa,
+dimecres 3 enviament d'esborrany a revisor, divendres 5 entrega
+oficial via el portal de la URV.
 
-% TODO(setmana 1): exportar el Gantt real des de Mermaid o draw.io a figures/gantt.pdf
-% i descomentar el \begin{figure} següent. De moment, la taula de fases de la secció
-% anterior serveix com a representació textual.
-%
-% \begin{figure}[htbp]
-%   \centering
-%   \includegraphics[width=\textwidth]{gantt.pdf}
-%   \caption{Diagrama de Gantt del TFG.}
-%   \label{fig:gantt}
-% \end{figure}
+\IfFileExists{figures/gantt.pdf}{%
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=\textwidth]{gantt.pdf}
+        \caption{Diagrama de Gantt del TFG.}
+        \label{fig:gantt}
+    \end{figure}
+}{%
+    \par\noindent\emph{Diagrama de Gantt visual pendent d'export
+    (la taula~\ref{tab:fases} en cobreix el contingut textual).}
+}
 
 \section{Riscos i pla de contingència}
 \label{sec:riscos}

@@ -33,7 +33,7 @@
 \usepgfplotslibrary{statistics}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage{csquotes}
+\usepackage[autostyle=false, style=spanish]{csquotes}  % csquotes no porta style catalan; fallback a spanish (cometes baixes "...") que és la convenció més pròxima
 \usepackage{amsmath}      % equation*, \text in math mode, etc. (used in ch:costos)
 \usepackage{eurosym}      % \euro{} symbol (used in ch:costos)
 
@@ -72,3 +72,12 @@
 \chapterstyle{veelo}
 \setsecnumdepth{subsubsection}
 \settocdepth{subsection}
+
+% ---- Line-breaking tolerance ----
+% Permet a TeX estirar més els espais entre paraules abans de declarar
+% overflow. 3em absorbeix els overfull <50pt típics de paràgrafs amb
+% \texttt{} de tool names que no parteix. Els paràgrafs amb >50pt
+% queden visibles al log per a inspecció manual.
+\emergencystretch=5em
+\tolerance=1500
+\hbadness=2000      % silencia underfull warnings cosmètics
