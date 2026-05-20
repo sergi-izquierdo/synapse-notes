@@ -1,0 +1,32 @@
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+---
+flowchart TB
+    subgraph trifecta["⚠️ Lethal Trifecta (Willison 2024)"]
+        direction LR
+        UC["📥 Untrusted content<br/><i>contingut de notes</i>"]
+        PD["🔒 Private data accessible<br/><i>files de l'usuari via RLS</i>"]
+        EC["📤 External comms channel<br/><i>resposta del LLM al host MCP</i>"]
+    end
+
+    SN["<b>summarise_notes</b><br/>satisfà <b>les 3 potes</b><br/>↓<br/>vector canònic"]:::vuln
+
+    OTHER["search_notes · get_note ·<br/>graph_neighbors · graph_shortest_path<br/>↓<br/>retornen estructura, no text generat"]:::partial
+
+    SAFE["create_note · update_note · tag_notes<br/>↓<br/>no llegeixen abans d'escriure"]:::safe
+
+    UC --> SN
+    PD --> SN
+    EC --> SN
+
+    UC -.partial.-> OTHER
+    PD -.partial.-> OTHER
+
+    PD -.only access.-> SAFE
+
+    classDef vuln fill:#ffebee,stroke:#c62828,stroke-width:3px,color:#000;
+    classDef partial fill:#fff8e1,stroke:#f57c00,stroke-width:2px,color:#000;
+    classDef safe fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000;

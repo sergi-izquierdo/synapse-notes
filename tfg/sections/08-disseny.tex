@@ -42,15 +42,15 @@ Les decisions arquitectòniques majors que justifiquen aquesta partició estan a
 \subsection{Diagrames}
 
 \IfFileExists{figures/c4-context.pdf}{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \includegraphics[width=0.85\linewidth]{c4-context.pdf}
         \caption{Vista de Context (C4 nivell 1) del sistema Synapse Notes. Font Mermaid: \texttt{tfg/figures/c4-context.mmd}.}
         \label{fig:c4-context-disseny}
     \end{figure}
 }{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \fbox{\parbox{0.5\linewidth}{\centering\small[diagrama C4 Context pendent de render]}}
         \caption{Vista de Context (C4 nivell 1).}
         \label{fig:c4-context-disseny}
@@ -58,15 +58,15 @@ Les decisions arquitectòniques majors que justifiquen aquesta partició estan a
 }
 
 \IfFileExists{figures/c4-containers.pdf}{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \includegraphics[width=0.95\linewidth]{c4-containers.pdf}
         \caption{Vista de Containers (C4 nivell 2). Font Mermaid: \texttt{tfg/figures/c4-containers.mmd}.}
         \label{fig:c4-containers-disseny}
     \end{figure}
 }{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \fbox{\parbox{0.5\linewidth}{\centering\small[diagrama C4 Containers pendent de render]}}
         \caption{Vista de Containers (C4 nivell 2).}
         \label{fig:c4-containers-disseny}
@@ -83,15 +83,15 @@ El model de dades és relacional sobre PostgreSQL, amb pgvector per a vectors d'
 La figura~\ref{fig:er-diagram} mostra les sis taules i les seves relacions. \texttt{auth.users} és la taula que Supabase Auth manté per als comptes (no es modela aquí, només es referencia com a clau forana).
 
 \IfFileExists{figures/er-diagram.pdf}{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \includegraphics[width=0.95\linewidth]{er-diagram.pdf}
         \caption{Diagrama entitat-relació de Synapse Notes. Les fletxes indiquen la relació de propietat (\textit{owned-by}). Totes les FKs cap a \texttt{auth.users} són \texttt{ON DELETE CASCADE}.}
         \label{fig:er-diagram}
     \end{figure}
 }{%
-    \begin{figure}[H]
-        \centerfloat
+    \begin{figure}[htbp]
+        \centering
         \fbox{\parbox{0.6\linewidth}{\centering\small[diagrama ER pendent de renderitzar -- font Mermaid a \texttt{tfg/figures/er-diagram.mmd}]}}
         \caption{Diagrama entitat-relació de Synapse Notes (pendent de render). Vegeu la descripció textual de la subsecció~\ref{sec:taules-dades}.}
         \label{fig:er-diagram}
@@ -108,7 +108,7 @@ La taula~\ref{tab:schema-summary} resumeix les sis taules amb el seu propòsit i
     \footnotesize
     \caption{Taules persistents del model de dades. Mides aproximades segons el corpus actual d'un usuari (50 notes, 20 xats).}
     \label{tab:schema-summary}
-    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6cm}lll@{}}
+    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.3cm}l>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{3.4cm}@{}}
         \toprule
         Taula & Propòsit & PK & Owned by & Especial \\
         \midrule
@@ -246,6 +246,17 @@ L'arquitectura de Synapse Notes és exposada precisament a aquesta intersecció:
 
 Willison documenta diversos incidents públics el 2023-2025 com a instàncies estructuralment idèntiques d'aquest patró \parencite{willison2025trifecta}, entre ells filtracions a Microsoft Copilot via documents Office, exposicions a Slack AI via missatges directes i un XSS via comentaris d'issues a GitLab Duo. Cada cas és diferent en superfície (correu, missatges, comentaris) però estructuralment idèntic: contingut hostil entra al context, dada privada accessible, i un canal de sortida que el converteix en exfil real.
 
+La figura~\ref{fig:lethal-trifecta} visualitza la convergència de les tres potes al servidor MCP de Synapse Notes: la única eina del catàleg que satisfà totes tres és \texttt{summarise\_notes}, justificant la concentració del filtre D3 sobre aquesta eina sola.
+
+\IfFileExists{figures/lethal-trifecta.pdf}{%
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.95\linewidth]{lethal-trifecta.pdf}
+        \caption{Aplicació del Lethal Trifecta al catàleg d'eines MCP. \texttt{summarise\_notes} satisfà les tres potes simultàniament (vector canònic). Les eines de cerca/graph en satisfan dues però retornen estructura no-text. Les CRUD només accedeixen a dades privades sense les altres dues potes.}
+        \label{fig:lethal-trifecta}
+    \end{figure}
+}{}
+
 \subsection{Matriu eina-per-eina}
 \label{sec:trifecta-matrix}
 
@@ -298,6 +309,17 @@ La taula~\ref{tab:defense-layers} resumeix les cinc capes que componen la defens
         \bottomrule
     \end{tabular}
 \end{table}
+
+La figura~\ref{fig:defense-in-depth} representa visualment el flux d'un atac descendint per les cinc capes. Els nombres específics de detecció a les capes 3 i 4 venen del suite Promptfoo documentat al capítol~\ref{ch:avaluacio} (\S\ref{sec:red-team-promptfoo}).
+
+\IfFileExists{figures/defense-in-depth.pdf}{%
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.95\linewidth]{defense-in-depth.pdf}
+        \caption{Descens d'un atac per les cinc capes de defensa. El filtre D3 captura el 96{,}7\% al MCP layer; el 3{,}3\% restant (variant 16 \emph{jailbreak hypothetical}) cau a D2.}
+        \label{fig:defense-in-depth}
+    \end{figure}
+}{}
 
 \subsection{Anàlisi de risc residual per eina}
 \label{sec:risk-residual}

@@ -1,4 +1,9 @@
-%%{init: {'theme': 'neutral'}}%%
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+---
 erDiagram
     AUTH_USERS ||--o{ NOTES : "owns"
     AUTH_USERS ||--o{ CHATS : "owns"
@@ -6,8 +11,7 @@ erDiagram
     AUTH_USERS ||--o{ TAG_SUGGESTIONS : "owns"
     AUTH_USERS ||--o{ NOTE_LINKS : "owns (denorm.)"
     CHATS ||--o{ MESSAGES : "contains"
-    NOTES ||--o{ NOTE_LINKS : "source"
-    NOTES ||--o{ NOTE_LINKS : "target"
+    NOTES ||--o{ NOTE_LINKS : "src/tgt"
     NOTES ||--o{ TAG_SUGGESTIONS : "proposed for"
 
     AUTH_USERS {

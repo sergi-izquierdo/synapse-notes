@@ -1,0 +1,28 @@
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+---
+flowchart TB
+    Q["Pregunta de l'usuari<br/><i>(p.ex. 'Noms de gat?')</i>"]:::input
+
+    Q --> EMB["Gemini embedding-001<br/>768 dimensions"]:::ai
+    Q --> INV["Inventari de TOTES les notes vives<br/><i>SELECT id, title, tags FROM notes<br/>WHERE archived_at IS NULL</i>"]:::db
+
+    EMB --> ANN["pgvector match_notes RPC<br/><i>cosine, threshold=0.05, top-K=20</i><br/>+ RLS auth.uid()"]:::db
+
+    ANN --> TOP["📊 Top-20 notes per similitud<br/><i>amb contingut complet</i>"]:::data
+    INV --> ALL["📋 Llistat de títols + tags<br/><i>de tot el corpus de l'usuari</i>"]:::data
+
+    TOP --> MERGE(["🔀 System prompt"]):::merge
+    ALL --> MERGE
+
+    MERGE --> HAIKU["Anthropic Haiku 4.5<br/><i>streamText amb tools</i>"]:::ai
+    HAIKU --> R["Resposta a l'usuari"]:::input
+
+    classDef input fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000;
+    classDef ai fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000;
+    classDef db fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000;
+    classDef data fill:#f1f8e9,stroke:#558b2f,stroke-width:1px,color:#000;
+    classDef merge fill:#fffde7,stroke:#f9a825,stroke-width:3px,color:#000;

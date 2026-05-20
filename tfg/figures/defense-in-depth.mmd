@@ -1,0 +1,24 @@
+---
+config:
+  theme: neutral
+  layout: elk
+  look: classic
+---
+flowchart LR
+    A["🎯 Atac entrant<br/><i>(nota amb<br/>prompt injection)</i>"]:::attack
+
+    A --> L1["<b>Capa 1</b><br/>D4 cost guards<br/><i>DoS, abusos</i>"]:::layer
+    L1 --> L2["<b>Capa 2</b><br/>Auth + RLS<br/><i>cross-tenant</i>"]:::layer
+    L2 --> L3["<b>Capa 3</b><br/>D3 LLM-as-judge<br/><i>injection</i>"]:::layer
+    L3 --> L4["<b>Capa 4</b><br/>D2 system prompt<br/><i>override</i>"]:::layer
+    L4 --> L5["<b>Capa 5</b><br/>Plain-text out<br/><i>side-effects</i>"]:::layer
+
+    L5 --> R["✅ Resposta<br/>segura"]:::safe
+
+    L3 -.96,7%.-> X1["❌ JudgeBlocked"]:::blocked
+    L4 -.3,3%.-> X2["❌ D2 refusa"]:::blocked
+
+    classDef attack fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px,color:#000;
+    classDef layer fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000;
+    classDef safe fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000;
+    classDef blocked fill:#fff9c4,stroke:#f57f17,stroke-width:1px,color:#000;

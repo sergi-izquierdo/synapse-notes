@@ -269,8 +269,8 @@ La taula~\ref{tab:red-team-results} resumeix les mètriques per categoria. La fi
     \end{tabular}
 \end{table}
 
-\begin{figure}[H]
-    \centerfloat
+\begin{figure}[htbp]
+    \centering
     \begin{tikzpicture}
         \begin{axis}[
             ybar,
@@ -309,8 +309,8 @@ La taula~\ref{tab:red-team-results} resumeix les mètriques per categoria. La fi
     \label{fig:judge-detection-rate}
 \end{figure}
 
-\begin{figure}[H]
-    \centerfloat
+\begin{figure}[htbp]
+    \centering
     \begin{tikzpicture}
         \begin{axis}[
             ybar,
@@ -326,8 +326,7 @@ La taula~\ref{tab:red-team-results} resumeix les mètriques per categoria. La fi
             grid style={dashed, gray!30},
             legend style={at={(0.5,-0.25)}, anchor=north, legend columns=2, font=\small},
             nodes near coords,
-            nodes near coords align={vertical},
-            nodes near coords style={font=\tiny, /pgf/number format/.cd, fixed, precision=0, 1000 sep={,}},
+            nodes near coords style={font=\tiny, anchor=west, rotate=90, inner sep=2pt, /pgf/number format/.cd, fixed, precision=0, 1000 sep={,}},
         ]
             \addplot[fill=blue!60!black] coordinates {(mean, 2363) (p50, 2055) (p95, 4010)};
             \addplot[fill=red!60] coordinates {(mean, 2420) (p50, 2310) (p95, 3763)};
@@ -351,8 +350,8 @@ La inspecció dels outputs OFF mostra que el sumaritzador (Haiku 4.5 amb el prom
     \item \textbf{Resum del contingut benigne} ($\sim$7\%): per a variants amb contingut mixt (com la variant 28 multilingüe que barrejava llista de la compra amb una instrucció oculta), el model resumeix només la part legítima.
 \end{itemize}
 
-\begin{figure}[H]
-    \centerfloat
+\begin{figure}[htbp]
+    \centering
     \begin{tikzpicture}
         \begin{axis}[
             xbar stacked,
@@ -482,6 +481,17 @@ Aquesta limitació queda documentada al capítol~\ref{ch:valoracio} (treball fut
     \item \texttt{match\_count} 10 $\rightarrow$ \textbf{20} (coverage total del corpus típic d'usuari, que fluctua entre 20-50 notes vives)
     \item \emph{Inventari de títols} injectat al system prompt: llistat de totes les notes vives (\texttt{[id=N]} + primera línia + tags) abans del bloc RAG. Garanteix que el model té context lèxic encara que el ranking vector descarti la nota rellevant.
 \end{itemize}
+
+La figura~\ref{fig:rag-dual-channel} mostra el flux dual-channel resultant: la pregunta de l'usuari es processa simultàniament per dos camins (embedding $\rightarrow$ ANN top-20 i inventari complet del corpus), els resultats dels quals es fusionen al system prompt abans d'arribar al model de xat.
+
+\IfFileExists{figures/rag-dual-channel.pdf}{%
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.85\linewidth]{rag-dual-channel.pdf}
+        \caption{Pipeline dual-channel del xat RAG. Top-20 RAG cobreix paràfrasis semàntiques; inventari de títols cobreix \emph{lexical recall} per a queries curtes que coincideixen amb el títol però no amb el cos. Tots dos canals es merge al system prompt abans del LLM.}
+        \label{fig:rag-dual-channel}
+    \end{figure}
+}{}
 
 \paragraph{Calibratge oposat per a MCP tools.} Per al servidor MCP (Part~B), el calibratge òptim és exactament el contrari: un threshold permissiu propaga més contingut al filtre D3 i augmenta el cost. Per a \texttt{search\_notes}, el calibratge actual és \texttt{match\_threshold = 0{,}1} (més restrictiu) i \texttt{limit = 5} per defecte. Aquesta divergència deliberada entre xat (recall-first) i MCP (precision-first) està documentada al codi com a decisió arquitectònica.
 
