@@ -672,11 +672,76 @@
 
 ---
 
+## Sprint final 2026-05-24 a 2026-06-04 (post-reunió Marc 2026-05-21)
+
+Aquest pla **substitueix** les seccions "Setmana 5/6/7" originals perquè el scope va canviar a la reunió del Marc del 21/05:
+
+- Drop `embedding-backfill` (irrellevant al volum de l'app).
+- Implementar només **`auto-tag`** + **`weekly-digest`**.
+- **Nou deliverable Marc-requested:** avaluació quantitativa del `auto-tag` amb precision, recall, F1, accuracy, error categories, positional recall.
+- Promptfoo: 36 variants n'hi ha de sobra, no ampliar.
+- Risc real: presentació al tribunal, no contingut.
+
+**Target entrega:** dijous 2026-06-04 (un dia abans del deadline). 11 dies disponibles des d'avui.
+
+| Dia | Tasca principal | Estat |
+|---|---|---|
+| 24 dg | Esquelet `auto-tag` Edge Function + curar 30-50 notes ground-truth | 🟡 in progress |
+| 25 dl | Acabar `auto-tag` + pg_cron + activity-drawer UI per `agent_events` | ⚪ |
+| 26 dm | Executar eval auto-tag, calcular precision/recall/F1, escriure nova subsecció a §10 | ⚪ |
+| 27 dc | `weekly-digest` agent + escriure §8.5 Disseny dels agents | ⚪ |
+| 28 dj | §9 implementació TODOs (migració MCP + Edge Functions + 5-10 decisions tècniques no òbvies) | ⚪ |
+| 29 dv | §14 Valoració personal sencera (incloent meta-reflexió sobre Claude Code com a primary source) | ⚪ |
+| 30 ds | TODOs residuals (§7, §8) + §10 TODOs antics + revisar bibliografia APA7 | ⚪ |
+| 31 dg | Demo video: guió + gravar 5 fluxos principals + edició | ⚪ |
+| 1 dl | Deck defensa: estructura completa + slides pedagògics (Lethal Trifecta, MCP, RAG, red-teaming des de zero) | ⚪ |
+| 2 dm | Deck defensa: assaig amb cronòmetre + polir narratives | ⚪ |
+| 3 dc | Compilat final + creuades + APA7 + revisió tipogràfica | ⚪ |
+| **4 dj** | **ENTREGA target** | ⚪ |
+| 5 dv | Deadline dur (només si alguna cosa falla el 4) | ⚪ |
+
+### Codi pendent (Sprint final)
+
+- [ ] `auto-tag` Edge Function (Supabase Edge + Deno) — Haiku-based, escriu a `tag_suggestions`
+- [ ] `auto-tag` schedule via `pg_cron` cada hora
+- [ ] `weekly-digest` Edge Function — diumenge nit, agrega activitat setmanal a una taula nova
+- [ ] Activity drawer UI llegint `agent_events` (timeline lateral per usuari)
+- [ ] Ground-truth set: 30-50 notes etiquetades manualment (export JSON)
+- [ ] Script d'avaluació: run auto-tag contra el ground truth + compute metrics
+- [ ] Cleanup: `embedding-backfill` documentat a §14 com a treball futur (sense codi)
+
+### Memòria pendent (Sprint final)
+
+- [ ] §8.5 Disseny dels agents (auto-tag + weekly-digest, no embedding-backfill)
+- [ ] §9 — migració `20260419120000_mcp_tfg.sql` explicada (taules agent_events, tag_suggestions, índex HNSW)
+- [ ] §9 — Edge Functions, pg_cron, audit via agent_events
+- [ ] §9 — 5-10 decisions tècniques no òbvies amb raonament (decision log → prosa)
+- [ ] §10 — nova subsecció "Avaluació quantitativa del auto-tag" (precision, recall, F1, accuracy, errors, positional recall) **Marc-requested**
+- [ ] §10 — TODOs antics (verificació funcional Part A + tests RLS + calibratge restant)
+- [ ] §14 — tota: dificultats reals, decisions reculades, treball futur (incl. embedding-backfill), meta-reflexió Claude Code
+- [ ] §7, §8 — polits dels TODOs petits restants
+
+### Defensa (Sprint final)
+
+- [ ] Deck amb pedagogia explícita: Lethal Trifecta, què és MCP, què és RAG, què és red-teaming (no donar res per sabut)
+- [ ] Demo video 5-7 min: login OAuth → CRUD notes → xat RAG → MCP via Claude Desktop → activity drawer agents
+- [ ] Backup plan si la demo en viu falla durant la defensa (slides amb screenshots)
+
+### Criteris de sortida Sprint final
+
+- [ ] PDF entregat al portal URV abans del divendres 2026-06-05
+- [ ] Commit tag `v1.0-tfg-entrega` al repo
+- [ ] Demo video pujat (YouTube privat) i enllaç a l'annex
+- [ ] Confirmació de recepció URV
+
+---
+
 ## Pla B. Si alguna cosa falla
 
-- **Si la setmana 5 Promptfoo no arriba al 80%:** reduir l'objectiu mesurable a "reducció del 50% respecte a baseline" i documentar-ho a la memòria com a limitació honesta (no és un fracàs).
-- **Si no arribem al 2026-06-05:** presentar a la 2a convocatòria (2026-09-02). No implica penalització a l'ETSE.
-- **Si un component es complica (p. ex. OAuth MCP):** degradar a autenticació per API key documentada com a MVP, amb OAuth a "treball futur".
+- **Si l'eval del auto-tag no és prou robust (n=30-50 ground truth):** documentar honestament la limitació de mostra i acompanyar amb categorització qualitativa d'errors. Marc valora honestedat tècnica.
+- **Si `weekly-digest` agent es complica:** thin agent (només aggregate query + escriure a taula nova) — no necessita LLM si es complica.
+- **Si no arribem al 2026-06-04 target:** entrega divendres 2026-06-05 (deadline real). Ja no hi ha pla 2a convocatòria perquè Marc va validar el scope a "1/4 ja n'hi ha".
+- **Promptfoo:** 36 variants és la mostra final, no ampliar.
 
 ---
 

@@ -115,18 +115,31 @@ La guia ETSE demana reflexió personal honesta. Tinc dificultats per a decidir e
 
 ---
 
-## Notes per a després de la reunió
+## Notes per a després de la reunió (2026-05-21)
 
-(Omplir durant o just després de la reunió, no abans.)
+### Valoració global del Marc
+
+"Amb 1/4 de tot el que has fet ja valdria per a un TFG complet." El contingut, l'arquitectura i l'angle de seguretat estan més que coberts. La preocupació real no és el què sinó **el com presentar-ho** al tribunal el dia de la defensa.
+
+Justificació: el TFG toca moltes potes (Next.js + RAG + MCP + agents + red-teaming LLM) en un terreny molt nou. Molts professors del tribunal poden no estar familiaritzats amb LLMs, MCP o red-teaming, per la qual cosa la presentació ha de fer pedagogia, no donar res per sabut.
 
 ### Decisions preses
 
--
+1. **Scope agents (D5):** dropar `embedding-backfill` (irrellevant al volum de l'app). Implementar només **`auto-tag`** i **`weekly-digest`**.
+2. **Promptfoo:** 36 atacs n'hi ha de sobra, no ampliar. Limitació de mostra es cita honestament.
+3. **§14 Valoració personal:** sense restriccions, escriure-ho directe al PDF final. La meta-reflexió sobre Claude Code com a primary source de desenvolupament té sentit.
 
 ### Action items (deadline)
 
--
+- [ ] **Avaluació quantitativa de `auto-tag`** (nou): % d'encerts del LLM, mètriques clàssiques (precision, recall, F1), score, errors. Necessita ground truth manual sobre N notes (probablement 30-50 amb tags reals). Va a §10 Avaluació.
+- [ ] **Implementar `auto-tag` + `weekly-digest`** com a Edge Functions amb pg_cron, audit trail a `agent_events`, UI activity-drawer. Documentar `embedding-backfill` com a treball futur.
+- [ ] **Preparar el deck de defensa** amb pedagogia explícita: Lethal Trifecta des de zero, què és MCP, què és red-teaming, què és RAG. No donar res per sabut.
+- [ ] Decidir si convidem el Marc com a revisor pre-entrega (dimecres 03/06) - pendent de confirmació formal.
 
 ### Coses que Marc vol veure específicament
 
--
+- Mètriques duríssimes del auto-tag (és la sub-evaluació principal que demana).
+
+### Oportunitat post-TFG
+
+Si pel **setembre 2026** no hi ha res de feina concret, contactar el Marc: té **fons europeus per a posicions de becari** en aquest perfil (IA, LLMs, MCP). Pot ser molt interessant donat l'alineament amb el que ja estic fent al TFG.

@@ -95,3 +95,12 @@ tfg/figures/*.svg
 # Promptfoo eval artifacts (HTML reports + result JSON)
 promptfoo/results/
 promptfoo/.created-notes.jsonl
+
+# Auto-tag eval ground truth + results — contain real user notes,
+# local only. Aggregate metrics get reproduced in TFG §10; the raw
+# data stays out of the public repo.
+scripts/eval/ground-truth.json
+scripts/eval/results-*.json
+scripts/eval/results-*/
+main.log
+texput.log

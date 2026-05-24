@@ -38,3 +38,21 @@ export interface ChatRequestMessage {
   content?: string;
   parts?: Array<{ type: string; text?: string }>;
 }
+
+export interface TagSuggestion {
+  id: string;
+  user_id: string;
+  note_id: number;
+  tag: string;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+}
+
+export interface AgentEvent {
+  id: string;
+  user_id: string;
+  agent: string;
+  action: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
