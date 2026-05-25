@@ -13,9 +13,18 @@ async function handle(req: Request): Promise<Response> {
     } catch (err) {
         const status = err instanceof McpAuthError ? err.status : 500;
         const message = err instanceof Error ? err.message : "Internal error";
+        const headers: Record<string, string> = {
+            "content-type": "application/json",
+        };
+        // RFC 9728: point MCP clients to the OAuth discovery endpoint
+        if (status === 401) {
+            const origin = new URL(req.url).origin;
+            headers["WWW-Authenticate"] =
+                `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
+        }
         return new Response(JSON.stringify({ error: message }), {
             status,
-            headers: { "content-type": "application/json" },
+            headers,
         });
     }
 
