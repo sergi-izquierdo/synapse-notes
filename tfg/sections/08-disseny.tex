@@ -222,7 +222,50 @@ Aquest disseny és la línia de defensa explícita davant un atac d'encadenament
 
 \section{Disseny dels agents}
 \label{sec:disseny-agents}
-% TODO: embedding-backfill, auto-tag, weekly-digest. Desplegament en Supabase Edge Functions + pg_cron.
+
+El sistema contempla tres agents en segon pla que operen sobre el corpus de notes de l'usuari sense intervenció directa. La decisió D5 del registre de decisions (reunió de tutoria 2026-05-21) va reduir l'scope a dos agents implementats i un tercer documentat com a treball futur.
+
+\subsection{Agent \texttt{auto-tag}}
+
+\paragraph{Objectiu.} Proposar etiquetes per a notes que no en tenen (o que en tenen poques) consultant un LLM amb el contingut de la nota i la biblioteca d'etiquetes de l'usuari.
+
+\paragraph{Disseny.} L'agent s'invoca via un cron job diari (Vercel Cron, \texttt{0 3 * * *}). Per a cada usuari de la llista D4, el cron:
+
+\begin{enumerate}
+    \item Consulta les notes sense etiquetes (\texttt{tags = \{\}} o \texttt{NULL}), ordenades per \texttt{updated\_at DESC}, limitades a 10 per execució.
+    \item Recull la biblioteca d'etiquetes agregant tots els \texttt{tags} únics de les notes vives.
+    \item Per a cada nota candidata, crida \texttt{generateObject} amb Haiku 4.5 i un schema Zod que retorna fins a 3 etiquetes existents i opcionalment 1 etiqueta nova en kebab-case.
+    \item Escriu les propostes a \texttt{tag\_suggestions} amb estat \texttt{pending}.
+    \item Registra un event a \texttt{agent\_events} (agent = \texttt{auto-tag}, action = \texttt{tag.proposed}).
+\end{enumerate}
+
+\paragraph{Human-in-the-loop.} L'agent \emph{mai} escriu directament a \texttt{notes.tags}. Les propostes romanen en estat \texttt{pending} fins que l'usuari les accepta o les rebutja des de la UI. Aquesta decisió és deliberada: evita que un LLM amb hallucinations corrompi la taxonomia de l'usuari sense supervisió.
+
+\paragraph{Avaluació.} La secció~\ref{sec:eval-auto-tag} presenta els resultats quantitatius: precision 81{,}3\%, recall 76{,}5\%, F1 78{,}8\% sobre un corpus de 62 notes amb 4 categories.
+
+\subsection{Agent \texttt{weekly-digest}}
+
+\paragraph{Objectiu.} Generar un resum setmanal de l'activitat de l'usuari: notes noves, notes actualitzades, distribució d'etiquetes. El digest es materialitza com una nota més al corpus (etiquetada \texttt{weekly-digest}) per facilitar-ne la consulta posterior.
+
+\paragraph{Disseny.} L'agent s'invoca via un cron job diumenge a les 3 AM UTC (\texttt{0 3 * * 0}). Per a cada usuari:
+
+\begin{enumerate}
+    \item Consulta notes amb \texttt{created\_at} dins els últims 7 dies.
+    \item Consulta notes amb \texttt{updated\_at} dins els últims 7 dies i \texttt{created\_at} anterior (actualitzacions, no creacions).
+    \item Agrega els tags de totes les notes tocades i els ordena per freqüència (top 5).
+    \item Formata el digest en Markdown amb seccions: resum numèric, tags actius, llistes de notes noves i actualitzades (amb backlinks \texttt{[[id]]}).
+    \item Insereix el digest com a nota nova i registra un event a \texttt{agent\_events}.
+\end{enumerate}
+
+\paragraph{Sense LLM.} A diferència de l'auto-tag, el weekly-digest és un agregador pur (SQL + format). No involucra cap crida a LLM, per la qual cosa no necessita filtre D3 ni avaluació de classificació.
+
+\subsection{Agent descartat: \texttt{embedding-backfill}}
+
+L'agent original \texttt{embedding-backfill} hauria recorregut periòdicament les notes amb \texttt{embedding IS NULL} i generat els embeddings via l'API de Gemini. Amb el volum actual (60-70 notes per usuari), els embeddings es generen inline al \texttt{createNote} en temps acceptable ($\sim$1{,}5s) i l'agent no aporta valor operacional. Queda documentat per a corpora 10$\times$ més grans (\S\ref{ch:valoracio}, treball futur).
+
+\subsection{Decisions d'arquitectura de desplegament}
+
+El pla original preveia Supabase Edge Functions amb \texttt{pg\_cron} com a scheduler. La implementació final usa Vercel Cron amb rutes Next.js protegides per un \texttt{CRON\_SECRET} compartit. La decisió és pragmàtica: el prototip TFG opera amb un sol usuari allowlisted (D4) i la infraestructura de cron de Vercel ja existeix. Per a un desplegament multi-tenant, la migració a Edge Functions o a un scheduler extern (Inngest, Trigger.dev) seria el primer canvi a avaluar, perquè el cron de Vercel Hobby limita a execucions diàries.
 
 \section{Disseny de seguretat}
 \label{sec:disseny-seguretat}

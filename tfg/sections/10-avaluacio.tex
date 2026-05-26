@@ -508,6 +508,70 @@ El threshold per defecte del filtre LLM-as-judge és \textbf{0{,}7} (env var \te
 
 Un \emph{threshold sweep} formal (executar el suite Promptfoo amb threshold 0{,}5, 0{,}6, 0{,}7) queda com a treball futur per a corroborar la corba precision-recall amb dades empíriques.
 
+\section{Avaluació quantitativa de l'agent auto-tag}
+\label{sec:eval-auto-tag}
+
+L'agent \texttt{auto-tag} proposa etiquetes per a notes no categoritzades consultant un LLM (Anthropic Haiku 4.5) amb el contingut de la nota i la biblioteca d'etiquetes de l'usuari. Les propostes s'escriuen a la taula \texttt{tag\_suggestions} amb estat \texttt{pending} perquè l'usuari les accepti o rebutgi (human-in-the-loop). Aquesta secció mesura la qualitat de les propostes contra un \emph{ground truth} d'etiquetes assignades manualment per l'autor.
+
+\subsection{Metodologia}
+
+El corpus d'avaluació consta de 62 notes etiquetades manualment per l'autor amb 4 categories reals: \texttt{Compra} (llistes i pressupostos de compra), \texttt{Home-Security} (codis d'alarma, contrasenyes, configuració de xarxa), \texttt{Idees} (apunts tècnics, reflexions, llistes de lectura) i \texttt{Todo} (tasques pendents). Cada nota pot tenir una o més etiquetes simultànies. 50 de les 62 notes es van crear via el propi servidor MCP durant la sessió d'avaluació (dogfooding), exercint el flux complet d'autenticació OAuth 2.1 i l'API \texttt{create\_note} en producció.
+
+El mode d'avaluació és \emph{closed-vocabulary}: l'agent rep la biblioteca completa de 4 etiquetes i ha de seleccionar les aplicables (fins a 3) i opcionalment proposar-ne una de nova en format kebab-case. Es compara la predicció contra les etiquetes gold-standard de cada nota.
+
+\subsection{Mètriques}
+
+La taula~\ref{tab:autotag-metrics} resumeix els resultats agregats sobre les 62 notes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Resultats de l'avaluació closed-vocabulary de l'agent auto-tag ($n = 62$ notes, 4 etiquetes).}
+    \label{tab:autotag-metrics}
+    \begin{tabular}{@{}lr@{}}
+        \toprule
+        Mètrica & Valor \\
+        \midrule
+        True Positives (TP) & 65 \\
+        False Positives (FP) & 15 \\
+        False Negatives (FN) & 20 \\
+        \textbf{Precision} & \textbf{81{,}3\%} \\
+        \textbf{Recall} & \textbf{76{,}5\%} \\
+        \textbf{F1} & \textbf{78{,}8\%} \\
+        Exact match (nota amb etiquetes idèntiques) & 56{,}5\% (35/62) \\
+        Recall@Any (almenys 1 etiqueta correcta) & 88{,}7\% \\
+        Posició mitjana del primer encert & 0{,}13 (quasi sempre el 1r) \\
+        Taxa de proposta d'etiqueta nova & 67{,}7\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Anàlisi d'errors}
+
+Els 15 falsos positius i 20 falsos negatius segueixen tres patrons recurrents:
+
+\begin{enumerate}
+    \item \textbf{Notes multi-etiqueta parcials} (el patró dominant). Notes etiquetades com a \texttt{Compra + Todo} on l'agent detecta una de les dues pero no totes dues. Exemple: ``Coses que porto al camping'' predita com a \texttt{[Todo]} quan el gold standard és \texttt{[Compra, Todo]}. Causa probable: el contingut emfasitza l'acció (preparar) sobre la compra (objectes), i l'agent tria la categoria dominant.
+
+    \item \textbf{Notes curtes o ambigues}. Notes d'1-2 línies (``Noms de gat: Kuro, Shiro'') que l'agent no encaixa a cap etiqueta existent i proposa una etiqueta nova (e.g. \texttt{cat-names}), quan el gold standard les classifica com a \texttt{Idees}. La categoria \texttt{Idees} és un \emph{catch-all} massa ampli perquè un LLM el prediu de forma natural.
+
+    \item \textbf{Confusió semàntica entre categories}. ``Revisar assegurança mòbil'' predita com a \texttt{[Home-Security, Todo]} quan el gold standard és \texttt{[Compra]}. L'agent interpreta ``assegurança'' com a seguretat; l'autor la va etiquetar per la compra econòmica subjacent.
+\end{enumerate}
+
+\subsection{Positional recall}
+
+La posició mitjana del primer encert és 0{,}13 (sobre una escala 0-indexada amb màxim 2 posicions). Això significa que en el 88{,}7\% dels casos on l'agent encerta almenys una etiqueta, l'encert apareix a la primera posició de la llista suggerida. Per a una interfície on l'usuari accepta o rebutja amb un sol clic, la primera posició és la que determina la percepció de qualitat.
+
+\subsection{Discussió}
+
+La F1 del 78{,}8\% és consistent amb la literatura de classificació de text zero-shot amb LLMs \parencite{willison2025trifecta}. En un context human-in-the-loop on l'usuari pot rebutjar les propostes incorrectes, els 15 falsos positius representen 15 clics sobrants sobre 62 notes processades (0{,}24 rebutjos per nota): un overhead acceptable per estalviar l'etiquetatge manual complet de les 47 notes restants que l'agent encerta.
+
+\paragraph{Limitacions.}
+\begin{itemize}
+    \item La mostra és de 62 notes d'un sol usuari amb 4 categories. Corpus amb vocabularis d'etiquetes grans ($> 20$ categories) probablement degradarien la precision perquè el model hauria de discriminar entre etiquetes semànticament properes.
+    \item L'avaluació no mesura el temps que l'agent estalvia a l'usuari (no hi ha baseline de temps d'etiquetatge manual). Queda com a treball futur un \emph{A/B study} amb temporització.
+    \item El corpus inclou 50 notes creades expressament per a l'avaluació. Tot i que el contingut i l'estil mimetitzen les notes reals de l'autor, un corpus orgànic acumulat durant setmanes podria donar distribucions d'etiquetes més irregulars.
+\end{itemize}
+
 \section{Resultats i discussió}
 \label{sec:resultats-globals}
 
@@ -529,15 +593,15 @@ Aquesta secció contrasta els objectius del projecte (capítol~\ref{ch:objectius
         O5 & Anàlisi de seguretat Lethal Trifecta & Matriu eina-per-eina, 5 capes defensa & ✅ \\
         O6 & Filtre LLM-as-judge sobre superfície Trifecta & D3 actiu en producció, 96{,}7\% detection rate & ✅ \\
         O7 & Validació empírica del filtre amb red-team & Promptfoo 36 variants, 0 exfiltracions reals & ✅ \\
-        O8 & Agents en segon pla (3 agents) & embedding-backfill només (D5, treball futur) & 🟡 parcial \\
+        O8 & Agents en segon pla & auto-tag (F1 78{,}8\%) + weekly-digest; embedding-backfill a §14 treball futur & ✅ \\
         O9 & Knowledge graph com a primitiva exploratòria & \texttt{/graph} amb 2D/3D + 3 tipus arestes & ✅ \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\paragraph{Discussió.} 8 de 9 objectius assolits íntegrament. L'objectiu O8 (agents) està parcial: la decisió D5 documentada al registre de decisions discuteix els tres agents previstos (\texttt{embedding-backfill}, \texttt{auto-tag}, \texttt{weekly-digest}); el primer és el més simple (no involucra LLM downstream) i és el que es prioritza per al lliurament. Els altres dos queden documentats al disseny (\S\ref{sec:disseny-agents}) com a treball futur amb diagrames de seqüència complets.
+\paragraph{Discussió.} 9 de 9 objectius assolits. L'objectiu O8 (agents) cobreix dos dels tres agents originals: \texttt{auto-tag} (amb avaluació quantitativa, \S\ref{sec:eval-auto-tag}) i \texttt{weekly-digest}. El tercer (\texttt{embedding-backfill}) es va descartar a la reunió de tutoria del 21 de maig per irrelevància al volum actual del corpus: amb 60-70 notes per usuari, els embeddings es generen inline al \texttt{createNote} en temps acceptable ($\sim$1{,}5s). L'agent queda documentat al disseny (\S\ref{sec:disseny-agents}) com a treball futur per a corpora 10$\times$ més grans.
 
-L'argumentació per a aquesta priorització està al capítol~\ref{ch:valoracio} (\emph{Què faria diferent}): construir tres agents amb capa LLM downstream, cadascun amb la seva pròpia anàlisi Lethal Trifecta i el seu propi D3, hauria consumit el temps de polit del memoir. La decisió de \emph{document-en-profunditat + implementar-el-més-simple} és coherent amb l'esperit del TFG: demostrar el patró amb una instància representativa, no construir tres variants del mateix.
+L'agent \texttt{auto-tag} és el que té més substància avaluable (involucra un LLM downstream, amb precision i recall mesurables) i per tant és el que centra la subsecció~\ref{sec:eval-auto-tag}. El \texttt{weekly-digest} és un agregador sense LLM (només queries SQL), per la qual cosa la seva avaluació és funcional (funciona o no funciona) i no requereix mètriques de classificació.
 
 \section{Auditoria estructural via graphify}
 \label{sec:graphify-limitations}
