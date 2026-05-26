@@ -1,47 +1,64 @@
 \chapter{Valoració personal}
 \label{ch:valoracio}
 
-% Tot aquest capítol ha de ser reflexiu i personal (tret distintiu del TFG segons guia URV).
-% No es valora filler; millor una pàgina honesta que cinc pàgines de retòrica.
-
 \section{Què m'ha aportat el projecte}
 
+Synapse Notes és el primer projecte on he hagut de prendre decisions arquitectòniques amb conseqüències reals: un error d'RLS no és un test que falla, és una filtració de dades d'un altre usuari. Aquesta pressió m'ha obligat a pensar en seguretat no com un checklist al final, sinó com una restricció que afecta cada línia de codi des del primer dia.
+
+El contacte amb el Model Context Protocol (MCP) ha estat el descobriment tècnic més rellevant del projecte. Quan vaig començar la Part~B, MCP no existia als meus referents: el meu model mental d'integrar un agent extern era ``REST API amb clau d'API''. Implementar un servidor MCP amb eines tipades, resources navegables i un flux d'autorització OAuth~2.1 m'ha canviat la perspectiva sobre com haurien d'interactuar les eines d'IA amb les aplicacions existents. El patró ``mateixa lògica, múltiples interfícies'' (server action, route handler, tool MCP) és un principi que aplicaré en projectes futurs.
+
+Finalment, l'exercici de redactar una memòria tècnica de 100+ pàgines en paral·lel al desenvolupament ha estat formador. Escriure m'ha obligat a justificar decisions que en el moment de codificar semblaven ``intuïtives'' i que, un cop analitzades, tenien febleses. La subsecció~\ref{sec:decisions-tecniques} és un producte directe d'aquest exercici: cap d'aquelles 7 decisions s'hauria documentat si no fos per la disciplina del TFG.
+
 \section{Dificultats trobades i com les he resolt}
-% TODO: problemes reals. Exemples: uuid vs bigint a la migració, Vercel multi-compte,
-% calibratge de threshold d'embeddings, decisió entre Next.js route handler vs Edge Function.
+
+\paragraph{Silenciositat de les RLS al mode 0-rows-affected.} El bug més insidiós del projecte: Supabase retorna \texttt{error: null} quan una operació DELETE o UPDATE topa amb una política RLS que no la permet, simplement retorna zero files afectades. El botó ``Regenerate'' del xat duplicava respostes perquè el DELETE de la resposta antiga passava silenciosament sense esborrar res, i la nova resposta s'inseria al damunt. Vaig trigar dues sessions a diagnosticar-ho perquè la meva assumpció era que \texttt{error: null} implicava èxit. Lliçó: totes les server actions haurien de fer \texttt{.select()} després de mutar i comprovar \texttt{data.length > 0}.
+
+\paragraph{Incompatibilitat memoir 3.8.4b amb el kernel LaTeX 2025.} El paquet \texttt{memoir} defineix hooks sobre comandes internes amb \texttt{@} que el kernel LaTeX 2025-11-01 rebutja si no estan pre-declarats. L'error apareixia a la primera compilació amb un missatge críptic sobre \texttt{cmd/@makecaption/before}. Workaround: \texttt{\textbackslash NewHook\{cmd/@makecaption/before|after\}} al top del preàmbul, dins \texttt{\textbackslash makeatletter}. No vaig trobar documentació d'aquest conflicte; la solució va sortir d'inspeccionar el codi font de memoir.
+
+\paragraph{Anthropic rebutja constraints numèriques al JSON Schema.} El schema Zod del content judge (D3) portava \texttt{z.number().min(0).max(1)} per a la confiança del veredicte. Anthropic retorna un error de validació opac (``property maximum is not supported''). Vaig trigar una hora a diagnosticar-ho perquè l'error quedava engolit pel catch block del wrapper MCP. Solució: substituir les constraints per \texttt{.describe()} hints i clampar al consumer. Patró replicable: sempre crear un script de prova directe (\texttt{scripts/probe-judge.mjs}) que crida l'API sense wrappers per veure l'error real.
+
+\paragraph{Instàncies serverless sense estat compartit.} El primer deploy de l'OAuth MCP a Vercel va fallar perquè el registre de clients DCR era un \texttt{Map} en memòria: la instància que processava el POST de registre era diferent de la que servia el GET d'autorització. La solució (xifrar les dades dins el propi \texttt{client\_id}) es va trobar en 20 minuts, pero el diagnòstic des del client (``Unknown Client'') va costar una hora de debugging en producció.
+
+\paragraph{Calibratge del threshold d'embeddings.} El valor per defecte del \texttt{match\_threshold} (0{,}1) era massa permissiu per als embeddings de Gemini: queries absurdes retornaven matches amb similituds de 0{,}5. La solució dual-channel (\S\ref{sec:calibratge-rag}) no era la primera opció: primer vaig intentar pujar el threshold a 0{,}3, que millorava la precisió pero matava el recall per a queries curtes en català. La lliçó és que el calibratge d'embeddings és depenent del corpus i la llengua, no hi ha un valor universal.
 
 \section{Què faria diferent}
 
-\section{Treball futur}
-% TODO: OAuth 2.1 complet al MCP, Voyage AI embeddings, E2EE, SSO enterprise, audit trail immutable.
+Si tornés a començar el projecte, canviaria tres coses:
 
-\section{Meta-reflexió: graph-RAG sobre el propi TFG}
-% Una observació que apareix tard al procés però que val la pena
-% documentar per la seva coherència interna. La tesi de Part~B
-% proposa que un servidor MCP ha de retornar estructura navegable
-% (entitats, arestes, superfícies de navegació) en comptes de dumps
-% de text, tant per minimitzar la superfície d'injecció de prompt
-% com per permetre a agents autonoms operar de forma acotada.
-%
-% Durant la fase de documentació post-merge (2026-04-24) es va
-% aplicar exactament aquest patró --- un pipeline graph-RAG,
-% graphify, basat en AST + LLM inference + community detection ---
-% al repositori complet del TFG per auditar si el disseny descrit
-% al capítol \S\ref{ch:disseny} es manté a la implementació. Les
-% troballes, documentades a \S\ref{sec:graphify-audit} i
-% \S\ref{sec:graphify-limitations}, van informar el redactat final
-% i van afegir mètriques quantificables a la defensa.
-%
-% Hi ha una simetria que mereix explicitar-se: el problema que
-% estudia aquesta tesi (agents que han de operar sobre coneixement
-% estructurat de forma segura i auditable) és exactament el patró
-% que hem aplicat per navegar i auditar el propi repositori. Les
-% limitacions que detectem al mètode graph-RAG (fals positiu
-% `Select()`, extracció fallida de PDFs amb imatges grans) són les
-% mateixes classes d'error que un agent haurà de poder detectar
-% i auditar al seu propi treball.
-%
-% No és una conclusió que es pugui defensar com a "novel·la
-% científica" però sí com a aplicació conscient del propi objecte
-% d'estudi als seus propis artefactes, la qual cosa considero un
-% tret distintiu del treball.
+\begin{enumerate}
+    \item \textbf{Tests E2E des del primer dia.} La bateria actual és unitària (58 tests de servei i guards). No hi ha Playwright E2E que cobreixin el flux OAuth $\rightarrow$ crear nota $\rightarrow$ buscar $\rightarrow$ xat RAG. Els bugs d'integració (RLS 0-rows, calibratge RAG) es van detectar manualment. Amb un smoke test E2E per cada milestone, s'haurien detectat abans.
+
+    \item \textbf{Congelar scope a la setmana 2.} La Part~B va créixer orgànicament: el graph viewer, els backlinks \texttt{[[N]]}, l'autocomplete de tres sigils, les optimistic updates, i el tag manager no estaven al pla original. Cada feature afegia valor real, pero el conjunt va comprimir el temps de polit del memoir. La reunió de tutoria del 21 de maig va validar l'scope (``amb 1/4 ja n'hi ha''), pero hauria preferit sentir-ho a la setmana 2, no a la setmana 5.
+
+    \item \textbf{Edge Functions en lloc de Vercel Cron per als agents.} La decisió pragmàtica de Vercel Cron va ser correcta per al prototip, pero limita l'agent auto-tag a una execució diària (Hobby plan). Un desplegament a Supabase Edge Functions amb \texttt{pg\_cron} hauria permès execucions horàries i una latència menor (el codi corre dins la mateixa infraestructura que la BD).
+\end{enumerate}
+
+\section{Treball futur}
+
+\begin{itemize}
+    \item \textbf{Agent \texttt{embedding-backfill}}: per a corpora $>$500 notes, un agent que regeneri embeddings en segon pla quan la quota de l'API d'embeddings es restaura (Supabase Edge Function + \texttt{pg\_cron}).
+    \item \textbf{Voyage AI embeddings}: els embeddings de Gemini \texttt{embedding-001} (768 dimensions) tenen un rang de similitud comprimit que dificulta el calibratge. Voyage AI ofereix models optimitzats per a retrieval amb distribucions de similitud més discriminatives.
+    \item \textbf{E2E encryption}: xifrat de notes al client amb clau derivada de la contrasenya de l'usuari (libsodium). Incompatible amb RAG (els embeddings s'haurien de generar al client) pero necessari per a un producte de notes amb dades sensibles.
+    \item \textbf{SSO enterprise}: SAML~2.0 / OIDC per a equips. Supabase Auth el suporta, pero la lògica d'account linking i provisioning requereix treball addicional.
+    \item \textbf{Audit trail immutable}: les files d'\texttt{agent\_events} ara es poden esborrar per l'admin. Un disseny auditorialment robust usaria una taula append-only amb trigger que impedeixi UPDATEs i DELETEs, o un log extern (AWS CloudTrail, Supabase Logflare).
+    \item \textbf{Threshold sweep formal}: executar el suite Promptfoo amb thresholds 0{,}5 / 0{,}6 / 0{,}7 i reportar la corba precision-recall amb intervals de confiança.
+    \item \textbf{Avaluació A/B del auto-tag}: mesurar el temps d'etiquetatge manual vs. temps amb l'agent (accept/reject) per quantificar l'estalvi real.
+\end{itemize}
+
+\section{Meta-reflexió: eines d'IA durant el desenvolupament}
+
+Una observació que val la pena explicitar per la seva coherència interna amb el tema del TFG.
+
+El projecte Synapse Notes tracta sobre com agents LLM interactuen de forma segura amb dades d'usuari. Durant tot el desenvolupament, he treballat amb un agent LLM (Claude Code) com a eina primària: planificant arquitectures, escrivint codi, depurant bugs, i redactant seccions d'aquesta memòria. L'agent operava sobre el repositori exactament com un agent MCP operaria sobre les notes de l'usuari: amb accés al codi font, capacitat d'escriptura, i un canal de sortida (el terminal, el commit, el deploy).
+
+Aquesta simetria no és casual. Les limitacions que he observat com a \emph{usuari} de l'agent de desenvolupament són les mateixes que he hagut de \emph{prevenir} com a \emph{desenvolupador} del servidor MCP:
+
+\begin{itemize}
+    \item L'agent ocasionalment generava codi amb patrons que no coincidien amb els de la codebase existent (equivalent a un agent MCP que proposa tags incoherents amb la taxonomia de l'usuari).
+    \item L'agent podia executar comandes destructives sense confirmació si no es configurava correctament (equivalent al ``host confirmation'' de D2 al MCP).
+    \item Les respostes de l'agent contenien ocasionalment informació fabricada que semblava plausible (equivalent a les hallucinations que el filtre D3 intenta detectar al summariser).
+\end{itemize}
+
+La lliçó pràctica: la seguretat d'un sistema agent no es pot avaluar des de fora; cal haver \emph{treballat sota} un agent per entendre les classes d'error que un framework de seguretat ha de cobrir. Aquesta experiència de primera mà, acumulada durant 7 setmanes de treball diari, és una contribució no-acadèmica pero defensable del TFG.
+
+L'auditoria estructural via graphify (\S\ref{sec:graphify-audit}) és una manifestació concreta d'aquesta reflexió: vaig aplicar un pipeline graph-RAG al meu propi repositori per validar si el disseny descrit en aquesta memòria es corresponia amb la implementació real. Les troballes (separació Part~A/Part~B verificada, 4 hyperedges redescoberts, fals positiu \texttt{Select()}) van informar directament el redactat final. El problema que estudia la tesi (agents que operen sobre coneixement estructurat de forma segura) és exactament el patró que vaig usar per auditar el meu propi treball.
