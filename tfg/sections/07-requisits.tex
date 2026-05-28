@@ -274,14 +274,20 @@ reentrants.
 \section{Diagrama de casos d'ús}
 \label{sec:casos-us}
 
-% TODO(setmana 2): exportar el diagrama UML de casos d'ús des de draw.io a
-% figures/use-cases.pdf (3 actors: usuari, agent, servidor d'autorització;
-% 15 casos d'ús agrupats com a la taxonomia de la secció 7.1). De moment
-% la descripció textual dels 15 RF serveix com a primera versió.
-%
-% \begin{figure}[htbp]
-%   \centering
-%   \includegraphics[width=\textwidth]{use-cases.pdf}
-%   \caption{Diagrama UML de casos d'ús.}
-%   \label{fig:casos-us}
-% \end{figure}
+La figura~\ref{fig:casos-us} sintetitza els 15 requisits funcionals com a casos d'ús agrupats per la dicotomia Part~A (plataforma base) / Part~B (MCP + agents). Els tres actors identificats són: l'usuari humà (autor de les notes), un agent MCP extern (Claude Code, Claude Desktop, o agents personalitzats), i el servidor d'autorització Supabase Auth.
+
+\IfFileExists{figures/use-cases.pdf}{%
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.95\linewidth]{use-cases.pdf}
+        \caption{Casos d'ús del sistema. Part~A cobreix els fluxos del navegador; Part~B exposa el mateix domini a agents externs sota OAuth~2.1 i amb \textit{host confirmation} per a mutacions. Font Mermaid: \texttt{tfg/figures/use-cases.mmd}.}
+        \label{fig:casos-us}
+    \end{figure}
+}{%
+    \begin{figure}[htbp]
+        \centering
+        \fbox{\parbox{0.5\linewidth}{\centering\small[diagrama UML de casos d'ús pendent de render]}}
+        \caption{Diagrama UML de casos d'ús (pendent de render).}
+        \label{fig:casos-us}
+    \end{figure}
+}

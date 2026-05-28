@@ -109,7 +109,7 @@ class WeeklyDigestService {
     lines.push(`- **Notes actualitzades:** ${result.notesUpdated}`);
 
     if (result.topTags.length > 0) {
-      lines.push(`\n### Tags mes actius`);
+      lines.push(`\n### Tags més actius`);
       for (const { tag, count } of result.topTags) {
         lines.push(`- \`${tag}\`: ${count} notes`);
       }
@@ -122,7 +122,7 @@ class WeeklyDigestService {
         lines.push(`- [[${note.id}]] ${label}`);
       }
       if (created.length > 10) {
-        lines.push(`- ...i ${created.length - 10} mes`);
+        lines.push(`- ...i ${created.length - 10} més`);
       }
     }
 
@@ -133,7 +133,7 @@ class WeeklyDigestService {
         lines.push(`- [[${note.id}]] ${label}`);
       }
       if (updated.length > 10) {
-        lines.push(`- ...i ${updated.length - 10} mes`);
+        lines.push(`- ...i ${updated.length - 10} més`);
       }
     }
 
