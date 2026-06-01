@@ -1,13 +1,13 @@
 \chapter{Avaluació}
 \label{ch:avaluacio}
 
-\section{Verificació funcional de la plataforma base (Part~A)}
+%% \section{Verificació funcional de la plataforma base (Part~A)} % DISABLED (prose commented out)
 % TODO: tests E2E amb Playwright del flux d'alta (OAuth Google/GitHub),
 % CRUD de notes, xat RAG amb recuperació correcta de context i canvi
 % d'idioma. Mesura: % d'escenaris passing. Captures de pantalla dels 5
 % fluxos principals als annexos.
 
-\subsection{Desplegament i superfície funcional (abril 2026)}
+%% \subsection{Desplegament i superfície funcional (abril 2026)} % DISABLED (prose commented out)
 % A documentar al redactat final: la Part~A es va desplegar a
 % production (https://synapse-notes.vercel.app) durant la sessió
 % 2026-04-23 amb el merge de la branca feat/ui-refresh (40 commits,
@@ -26,7 +26,7 @@
 %   - Temps fins a First Contentful Paint amb xarxa 3G emulada
 %   - % de compliance amb WCAG AA (axe-core)
 
-\subsection{Bugs detectats i resolts en acceptació (2026-04-23)}
+%% \subsection{Bugs detectats i resolts en acceptació (2026-04-23)} % DISABLED (prose commented out)
 % El cicle de revisió post-merge va destapar dos bugs de fons que
 % mereixen menció al redactat final perquè il·lustren problemes
 % clàssics d'arquitectura:
@@ -53,14 +53,14 @@
 %    tingui sempre coneixement lèxic de què hi ha al sistema encara
 %    que la RAG no retorni el vector.
 
-\subsection{Verificació accessibilitat de Radix Dialog}
+%% \subsection{Verificació accessibilitat de Radix Dialog} % DISABLED (prose commented out)
 % Durant la sessió es van detectar i corregir warnings d'a11y del
 % Radix Dialog ("Missing Description or aria-describedby") als
 % bottom sheets del compose i del chat mòbil. SheetDescription
 % afegida (visually-hidden al chat, visible al compose). Documentar
 % com a exemple d'iteració en directe sobre requisits d'accessibilitat.
 
-\subsection{Percepció de latència i actualitzacions optimistes (2026-04-24)}
+%% \subsection{Percepció de latència i actualitzacions optimistes (2026-04-24)} % DISABLED (prose commented out)
 % En acceptació el Sergi va observar que el toggle d'estrella
 % (i, per extensió, archive/delete) trigava 1-2 segons a reflectir-se
 % al grid. Causa estructural: el pipeline server action ->
@@ -89,7 +89,7 @@
 % freqüents al grid (star 3, archive 4, delete 5 usos per sessió
 % mitjana).
 
-\subsection{Gestió d'historial del xat (2026-04-24)}
+%% \subsection{Gestió d'historial del xat (2026-04-24)} % DISABLED (prose commented out)
 % Afegit a la Part~A:
 %   - Delete individual per xat: icona de paperera hover-revelat
 %     (always-visible a mòbil) a cada fila de l'historial.
@@ -593,7 +593,7 @@ Aquesta secció contrasta els objectius del projecte (capítol~\ref{ch:objectius
         O5 & Anàlisi de seguretat Lethal Trifecta & Matriu eina-per-eina, 5 capes defensa & ✅ \\
         O6 & Filtre LLM-as-judge sobre superfície Trifecta & D3 actiu en producció, 96{,}7\% detection rate & ✅ \\
         O7 & Validació empírica del filtre amb red-team & Promptfoo 36 variants, 0 exfiltracions reals & ✅ \\
-        O8 & Agents en segon pla & auto-tag (F1 78{,}8\%) + weekly-digest; embedding-backfill a §14 treball futur & ✅ \\
+        O8 & Agents en segon pla & auto-tag (F1 78{,}8\%) + weekly-digest; embedding-backfill a \S\ref{ch:valoracio} treball futur & ✅ \\
         O9 & Knowledge graph com a primitiva exploratòria & \texttt{/graph} amb 2D/3D + 3 tipus arestes & ✅ \\
         \bottomrule
     \end{tabular}
@@ -603,7 +603,7 @@ Aquesta secció contrasta els objectius del projecte (capítol~\ref{ch:objectius
 
 L'agent \texttt{auto-tag} és el que té més substància avaluable (involucra un LLM downstream, amb precision i recall mesurables) i per tant és el que centra la subsecció~\ref{sec:eval-auto-tag}. El \texttt{weekly-digest} és un agregador sense LLM (només queries SQL), per la qual cosa la seva avaluació és funcional (funciona o no funciona) i no requereix mètriques de classificació.
 
-\section{Auditoria estructural via graphify}
+%% \section{Auditoria estructural via graphify} % DISABLED (prose commented out)
 \label{sec:graphify-limitations}
 
 % graphify (pipeline graph-RAG: AST + LLM-inference + Louvain clustering)
@@ -613,7 +613,7 @@ L'agent \texttt{auto-tag} és el que té més substància avaluable (involucra u
 % \S\ref{sec:graphify-audit}; aquest capítol documenta l'avaluació
 % quantitativa i les limitacions.
 
-\subsection{Reducció de context via retrieval sobre la graph}
+%% \subsection{Reducció de context via retrieval sobre la graph} % DISABLED (prose commented out)
 % Corpus: 90.365 mots -> ~120.486 tokens (estimació naïu a 0.75
 % tokens/paraula). Una query sobre la graph amb BFS fins a depth 3
 % retorna ~251 tokens mitjans. Reducció: 480x.
@@ -639,7 +639,7 @@ L'agent \texttt{auto-tag} és el que té més substància avaluable (involucra u
 %   Arestes graph    | 427
 %   Comunitats       | 77 (15 denses, 62 single/double)
 
-\subsection{Correspondència disseny <-> implementació}
+%% \subsection{Correspondència disseny <-> implementació} % DISABLED (prose commented out)
 % El clustering no-supervisat va re-derivar les 15 agrupacions
 % modulars intencionals del disseny (vegeu \S\ref{sec:graphify-audit}
 % per detall). Això és una evidència quantificable del principi
@@ -647,7 +647,7 @@ L'agent \texttt{auto-tag} és el que té més substància avaluable (involucra u
 % demanar al tribunal una inspecció manual del repositori. Entrada
 % candidata per a la taula d'avaluació Q\/A de la defensa.
 
-\subsection{Limitacions detectades de l'extractor AST+LLM}
+%% \subsection{Limitacions detectades de l'extractor AST+LLM} % DISABLED (prose commented out)
 % El node amb més centralitat bruta (degree 21) és un fals positiu:
 % l'LLM confon la cadena `supabase.from(...).select(...)` amb
 % trucades a `<Select>` (shadcn/ui) per coincidència léxica.

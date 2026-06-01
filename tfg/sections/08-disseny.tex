@@ -24,7 +24,7 @@ L'arquitectura es desplega en quatre runtimes lògics:
 
 \begin{enumerate}
     \item \textbf{Aplicació web Next.js} (Vercel, runtime Node.js): App Router amb Server Components per al render inicial, Server Actions per a mutacions, i tres rutes HTTP que escalen sota Fluid Compute: \texttt{/api/chat} (xat RAG amb streaming), \texttt{/api/mcp} (servidor MCP via JSON-RPC sobre StreamableHTTP), \texttt{/api/suggest-tags} (tagging via LLM estructurat).
-    \item \textbf{Base de dades Supabase}: PostgreSQL 15+ amb pgvector activat, Supabase Auth per a OAuth (Google + GitHub), i Supabase Edge Functions per als agents en segon pla (futurs, vegeu \S\ref{sec:disseny-agents}). RLS és el mecanisme exclusiu d'autorització de fila.
+    \item \textbf{Base de dades Supabase}: PostgreSQL 15+ amb pgvector activat i Supabase Auth per a OAuth (Google + GitHub). RLS és el mecanisme exclusiu d'autorització de fila. Els agents en segon pla viuen al runtime Vercel via rutes cron (\S\ref{sec:disseny-agents}), no a Edge Functions de Supabase.
     \item \textbf{Proveïdors d'IA}: Anthropic Haiku 4.5 i Google Gemini, accedits via el Vercel AI SDK des del costat servidor. Mai des del client per evitar exposar API keys.
     \item \textbf{Client MCP extern} (opcional): Claude Desktop o un agent custom que es connecta al servidor MCP amb un JWT vàlid del compte d'usuari.
 \end{enumerate}
@@ -373,7 +373,7 @@ La figura~\ref{fig:defense-in-depth} representa visualment el flux d'un atac des
 
 \paragraph{create\_note, update\_note, tag\_notes (risc baix, mitigat).} Aquestes eines escriuen però no llegeixen abans d'escriure. No hi ha contingut downstream que un LLM resumeixi com a part de la mateixa traça. La mitigació primària és D2 \emph{host confirmation}: el host MCP (Claude Desktop) ha de demanar permís a l'usuari abans d'invocar cap d'aquestes eines, perquè podrien ser encadenades després d'una resposta de \texttt{summarise\_notes} comprometuda. La seqüència d'atac defensable és: (1) atacant amaga instrucció a una nota; (2) usuari demana resum; (3) sumaritzador retorna text amb instruccions ocultes per al host; (4) host crida \texttt{create\_note} per exfiltrar a una nota nova. D2 trenca el pas (4).
 
-\paragraph{Resta d'agents (Setmana 4, encara pendents).} Els agents en segon pla descrits a la secció~\ref{sec:disseny-agents} (\texttt{embedding-backfill}, \texttt{auto-tag}, \texttt{weekly-digest}) tindran la mateixa anàlisi quan estiguin implementats. La capa més rellevant per a ells serà D4 (cost guards), perquè un agent que s'executa per pg\_cron en background pot consumir quota sense interacció humana. El plan inicial és que cada agent escriu a \texttt{agent\_events} amb el seu action + payload (vegeu \S\ref{sec:disseny-agents}), de manera que un atac que el comprometés deixarà signatura auditable.
+\paragraph{Agents implementats.} Els dos agents en segon pla descrits a \S\ref{sec:disseny-agents} (\texttt{auto-tag} i \texttt{weekly-digest}) operen sota la mateixa anàlisi Lethal Trifecta. \texttt{auto-tag} crida Haiku~4.5 però no exposa el resultat directament: les propostes s'escriuen a \texttt{tag\_suggestions} amb estat \texttt{pending} per a aprovació humana (mateix patró D2 \emph{host confirmation} traslladat a la UI). \texttt{weekly-digest} no involucra cap LLM (només queries SQL). La capa més rellevant per a tots dos és D4 (cost guards): l'execució via Vercel Cron protegida per \texttt{CRON\_SECRET} + verificació de la D4 allowlist evita que un endpoint exposat consumeixi quota sense control. Cada agent escriu a \texttt{agent\_events} amb el seu action + payload, deixant signatura auditable de qualsevol invocació.
 
 \subsection{Limitacions del disseny}
 \label{sec:security-limitations}
@@ -437,9 +437,9 @@ Aquesta decisió contradiu lleugerament el principi de \emph{IA com a eina, no c
 
 \subsection{Drawer d'agents (disseny pendent d'implementació)}
 
-El plan original (vegeu \S\ref{sec:disseny-agents}) preveu un \emph{ActivityDrawer} accessible des del header, que mostra els últims events de \texttt{agent\_events} amb timeline. Per a propostes d'auto-tag, una variant del drawer mostra cards d'acceptació/rebuig amb la nota afectada i el tag proposat. La implementació concreta queda al capítol d'implementació quan la decisió D5 es resolgui.
+El plan original (vegeu \S\ref{sec:disseny-agents}) preveu un \emph{ActivityDrawer} accessible des del header, que mostra els últims events de \texttt{agent\_events} amb timeline. Per a propostes d'auto-tag, una variant del drawer mostra cards d'acceptació/rebuig amb la nota afectada i el tag proposat. La UI del drawer queda documentada a \S\ref{ch:valoracio} com a punt de polit post-entrega; els agents ja escriuen els events i el corpus d'inputs està disponible per a consulta directa a la BD.
 
-\section{Validació estructural del disseny via graphify}
+%% \section{Validació estructural del disseny via graphify} % DISABLED (prose commented out)
 % Referència creuada a l'auditoria estructural documentada al capítol
 % d'implementació (\S\ref{sec:graphify-audit}) i al capítol d'avaluació
 % (\S\ref{sec:graphify-limitations}). Resum d'interès per a aquest

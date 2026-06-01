@@ -4,52 +4,25 @@ config:
   layout: elk
   look: classic
 ---
-flowchart LR
+flowchart TB
     User(["👤 Usuari humà"]):::actor
-    Agent(["🤖 Agent MCP extern<br/>(Claude Code, Claude Desktop)"]):::actor
-    OAuth(["🔐 Servidor d'autorització<br/>(Supabase Auth)"]):::actor
+    Agent(["🤖 Agent MCP<br/>(Claude Code, Desktop)"]):::actor
+    OAuth(["🔐 Supabase Auth"]):::actor
 
-    subgraph A["A. Plataforma base (Part A)"]
+    subgraph A["Part A · Plataforma base"]
         direction TB
-        UC1[["UC1: Autenticar amb OAuth<br/>(Google / GitHub)"]]
-        UC2[["UC2: Crear / editar nota"]]
-        UC3[["UC3: Cercar notes amb RAG"]]
-        UC4[["UC4: Conversar amb el xat"]]
-        UC5[["UC5: Gestionar tags"]]
-        UC6[["UC6: Navegar el knowledge graph"]]
-        UC7[["UC7: Canviar idioma (CA/ES/EN)"]]
+        UCA["UC1 Autenticar OAuth<br/>UC2 CRUD notes<br/>UC3 Cercar amb RAG<br/>UC4 Xat contextual<br/>UC5 Gestionar tags<br/>UC6 Navegar graph<br/>UC7 Canvi idioma"]
     end
 
-    subgraph B["B. MCP + agents (Part B)"]
+    subgraph B["Part B · MCP + agents"]
         direction TB
-        UC8[["UC8: Autoritzar client MCP<br/>(OAuth 2.1 + DCR)"]]
-        UC9[["UC9: Cridar tools MCP<br/>(8 tools tipades)"]]
-        UC10[["UC10: Llegir resources MCP"]]
-        UC11[["UC11: Confirmar mutacions<br/>(host confirmation, D2)"]]
-        UC12[["UC12: Rebre digest setmanal"]]
-        UC13[["UC13: Revisar suggeriments de tag<br/>(human-in-the-loop)"]]
-        UC14[["UC14: Veure activity log<br/>(agent_events)"]]
-        UC15[["UC15: Authoritzar / revocar accés"]]
+        UCB["UC8 Autoritzar MCP (OAuth 2.1 + DCR)<br/>UC9 Cridar tools tipades<br/>UC10 Llegir resources<br/>UC11 Host confirmation (D2)<br/>UC12 Rebre digest setmanal<br/>UC13 Revisar tag suggestions<br/>UC14 Veure agent_events<br/>UC15 Autoritzar/revocar accés"]
     end
 
-    User --> UC1
-    User --> UC2
-    User --> UC3
-    User --> UC4
-    User --> UC5
-    User --> UC6
-    User --> UC7
-    User --> UC11
-    User --> UC12
-    User --> UC13
-    User --> UC14
-    User --> UC15
-
-    Agent --> UC8
-    Agent --> UC9
-    Agent --> UC10
-
-    OAuth --> UC1
-    OAuth --> UC8
+    User --> A
+    User --> B
+    Agent --> B
+    OAuth --> A
+    OAuth --> B
 
     classDef actor fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000;

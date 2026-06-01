@@ -344,11 +344,14 @@ El servidor aplica defenses en capes:
         host és consistent amb el principi MCP de "el client
         controla la UX d'aprovació".
     \item \textbf{Filtre LLM-as-judge sobre \texttt{summarise\_notes}}
-        (D3): planificat per Setmana 5 \S\ref{sec:trifecta}.
-        Aquesta eina és l'única vector clàssic de la \textit{Lethal
-        Trifecta} (untrusted content + private data + external
-        comms). Fins que arribi el filtre, els defenses són les
-        descrites a \S\ref{sec:trifecta}.
+        (D3): implementat i en producció (vegeu
+        \texttt{src/lib/ai/content-judge.ts} i la verificació empírica
+        a \S\ref{sec:red-team-promptfoo}, on s'obté 96{,}7\% detection
+        rate sobre 30 atacs categorítzats). Aquesta eina és l'única
+        vector clàssic de la \textit{Lethal Trifecta} (untrusted
+        content + private data + external comms). El filtre s'aplica
+        com a primera capa abans d'invocar el sumaritzador
+        downstream.
 \end{enumerate}
 
 \section{Agents en segon pla}
@@ -520,7 +523,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % produir-ne un amb errors *detectables* que una inspecció manual
 % pot filtrar.
 
-\section{UI optimista amb React 19 (useOptimistic + useTransition)}
+%% \section{UI optimista amb React 19 (useOptimistic + useTransition)} % DISABLED (prose commented out)
 \label{sec:optimistic-ui}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -610,7 +613,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % a memòria persistent del workflow
 % (\texttt{feedback\_optimistic\_ui\_default.md}).
 
-\section{Gestió de xats amb mode bulk-select}
+%% \section{Gestió de xats amb mode bulk-select} % DISABLED (prose commented out)
 \label{sec:bulk-delete-chats}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -653,7 +656,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % historial. Es confirma a nivell aplicatiu: la UI no intenta
 % esborrar els missatges explícitament, delega a Postgres.
 
-\section{Reordenació manual amb fractional indexing}
+%% \section{Reordenació manual amb fractional indexing} % DISABLED (prose commented out)
 \label{sec:drag-fractional}
 % Subsecció per al redactat final. Afegit 2026-04-25.
 %
@@ -696,7 +699,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 %   `DragOverlay` portal + `invisible` / outlined placeholder al
 %   slot d'origen.
 
-\section{Visualitzador de graph neural}
+%% \section{Visualitzador de graph neural} % DISABLED (prose commented out)
 \label{sec:neural-graph}
 % Subsecció per al redactat final. Afegit 2026-04-25.
 %
@@ -753,7 +756,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % al \S\ref{sec:graphify-audit} (480×). És la mateixa propietat
 % aplicada al domini d'usuari en lloc del domini de codi.
 
-\section{Física del graph: tethering estil Obsidian}
+%% \section{Física del graph: tethering estil Obsidian} % DISABLED (prose commented out)
 \label{sec:graph-physics}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -814,7 +817,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % com a lliçó per a qualsevol integració futura amb
 % \texttt{next/dynamic}.
 
-\section{Suggeriment automàtic d'etiquetes amb LLM estructurat}
+%% \section{Suggeriment automàtic d'etiquetes amb LLM estructurat} % DISABLED (prose commented out)
 \label{sec:tag-suggestion}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -873,7 +876,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % la tesi defensa per a eines MCP: la intel·ligència ha
 % d'estar al wrapper, no només al model.
 
-\section{Gestió d'etiquetes atòmica amb RLS}
+%% \section{Gestió d'etiquetes atòmica amb RLS} % DISABLED (prose commented out)
 \label{sec:tag-management}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -928,7 +931,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % les files visibles --- un usuari anònim o un usuari diferent
 % veu zero files i per tant la \texttt{UPDATE} afecta zero files.
 
-\section{Eines MCP per exploració del graph (exposició externa)}
+%% \section{Eines MCP per exploració del graph (exposició externa)} % DISABLED (prose commented out)
 \label{sec:mcp-graph-tools}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -984,7 +987,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 %     separada manté la separació de privilegis.
 % \end{itemize}
 
-\section{Backlinks \texttt{[[N]]}: l'aresta EXTRACTED al graph de notes}
+%% \section{Backlinks 	exttt{[[N]]}: l'aresta EXTRACTED al graph de notes} % DISABLED (prose commented out)
 \label{sec:backlinks}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -1102,7 +1105,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 %     contingut, pot canviar-se a qualsevol edit).
 % \end{itemize}
 
-\section{Polit del graph viewer: clusters, favourites i focus}
+%% \section{Polit del graph viewer: clusters, favourites i focus} % DISABLED (prose commented out)
 \label{sec:graph-polish}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -1197,7 +1200,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % el zoom-out no els pot amagar. El label del node hovered té
 % font una mica més gran (12 vs 11~px) i opacitat plena.
 
-\section{Autocomplete de backlinks i camp títol explícit}
+%% \section{Autocomplete de backlinks i camp títol explícit} % DISABLED (prose commented out)
 \label{sec:title-and-autocomplete}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %
@@ -1414,7 +1417,7 @@ El disseny original preveia Edge Functions amb Deno + \texttt{pg\_cron}. El prot
 % \texttt{prose-sm} default està calibrat per a columnes
 % d'article, no per a cards de $\sim 300\text{px}$ d'alçada.
 
-\section{Bug defensable: \texttt{search\_path} a funcions Postgres}
+%% \section{Bug defensable: 	exttt{search\_path} a funcions Postgres} % DISABLED (prose commented out)
 \label{sec:search-path-bug}
 % Subsecció per al redactat final. Afegida 2026-04-24.
 %

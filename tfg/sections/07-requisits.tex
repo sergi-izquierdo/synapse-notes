@@ -14,9 +14,10 @@ Els actors del sistema són:
   \item \textbf{Usuari final}. Propietari d'un compte a Synapse Notes.
     Interactua amb la plataforma via UI web o via un client MCP
     (Claude Desktop, Cursor).
-  \item \textbf{Agent de segon pla}. Procés automatitzat sobre
-    Edge Functions de Supabase amb \texttt{pg\_cron}. Opera sobre el
-    subconjunt de dades del seu tenant.
+  \item \textbf{Agent de segon pla}. Procés automatitzat sobre rutes
+    Vercel Cron protegides per \texttt{CRON\_SECRET}. Opera sobre el
+    subconjunt de dades del seu tenant via admin client amb filtre
+    explícit per \texttt{user\_id} de la D4 allowlist.
   \item \textbf{Servidor d'autorització}. Supabase Auth, que emet JWTs
     OAuth 2.1 per tenant.
 \end{itemize}
@@ -26,8 +27,9 @@ Els actors del sistema són:
 
 Els casos d'ús es divideixen en cinc blocs: funcionalitats de la
 plataforma base Part~A (RF-A1--RF-A4), operacions sobre eines MCP
-(RF01--RF06), operacions d'agents en segon pla (RF07--RF09), fluxos
-d'autorització (RF10--RF12) i interfície d'activitat (RF13--RF15).
+(RF01--RF08), operacions d'agents en segon pla (RF08--RF09), fluxos
+d'autorització OAuth~2.1 (RF10--RF12) i interfície d'activitat
+(RF13--RF15).
 
 \subsection{Plataforma base (Part~A)}
 
@@ -129,13 +131,15 @@ retorna.
 
 \subsection{Agents en segon pla}
 
-\paragraph{RF07. Omplir embeddings pendents.}
-\textbf{Actor:} agent \texttt{embedding-backfill}.
-\textbf{Precondició:} existeixen notes amb \texttt{embedding IS NULL}.
-\textbf{Flux principal:} cada 15~min, l'agent localitza notes sense
-embedding, en genera un per cada, les desa i registra l'acció a
-\texttt{agent\_events}.
-\textbf{Postcondició:} totes les notes del tenant tenen embedding.
+\paragraph{RF07. Navegar el knowledge graph via MCP.}
+\textbf{Actor:} usuari via client MCP.
+\textbf{Precondició:} JWT vàlid, notes amb embeddings i/o backlinks.
+\textbf{Flux principal:} les eines \texttt{graph\_neighbors(id, depth)}
+i \texttt{graph\_shortest\_path(from, to)} retornen estructura
+(\texttt{ids}, \texttt{kinds}, \texttt{weights}) sense exposar text
+generat per LLM. Tot opera sota RLS amb \texttt{auth.uid()}.
+\textbf{Postcondició:} el client rep arestes navegables; no es
+genera contingut nou.
 
 \paragraph{RF08. Proposar etiquetes automàtiques.}
 \textbf{Actor:} agent \texttt{auto-tag}.

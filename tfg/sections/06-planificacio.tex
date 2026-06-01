@@ -55,8 +55,8 @@ temps d'entrega però dins del calendari de la defensa.
     \midrule
     0 & Plataforma base (Part~A) & 10/25--04/26 & $\sim$180 d & Auth OAuth, model de dades RLS, xat RAG, UI i18n, deploy Vercel \\
     1 & Fonaments (Part~B) & 19/04--26/04 & 8 d & Recerca MCP, scaffold, PoC MCP, seccions 1--8 memòria \\
-    2 & Nucli MCP & 27/04--10/05 & 14 d & 6 eines MCP, OAuth 2.1, desplegament \\
-    3 & Agents i seguretat & 11/05--24/05 & 14 d & 3 agents en segon pla, Lethal Trifecta, Promptfoo \\
+    2 & Nucli MCP & 27/04--10/05 & 14 d & 8 eines MCP, JWT passthrough, desplegament \\
+    3 & Agents i seguretat & 11/05--24/05 & 14 d & 2 agents en segon pla, Lethal Trifecta, Promptfoo \\
     4 & Avaluació i memòria & 25/05--05/06 & 12 d & Tests, benchmarks, seccions 9--17, entrega \\
     5 & Defensa & 06/06--14/06 & 9 d & Presentació, guió de demo, assajos \\
     \bottomrule
@@ -83,9 +83,9 @@ dels períodes d'avaluació.
     Setmana & Entregables principals & Hores \\
     \midrule
     1 & Scaffold + PoC MCP + memòria \S1--\S8  & 25 \\
-    2 & 6 eines MCP + tests + \S9.1, \S9.3    & 28 \\
+    2 & 8 eines MCP + tests + \S9.1, \S9.3    & 28 \\
     3 & Aïllament RLS + Promptfoo + \S9.2, \S9.4 & 28 \\
-    4 & 3 agents + UI + \S10                   & 28 \\
+    4 & 2 agents + OAuth + UI + \S10           & 28 \\
     5 & Hardening + load test + \S11, \S12     & 30 \\
     6 & Memòria \S13--\S17 + bibliografia      & 30 \\
     7 & Relectura + entrega                    & 20 \\
@@ -108,7 +108,7 @@ oficial via el portal de la URV.
     \begin{figure}[htbp]
         \centering
         \includegraphics[width=\textwidth]{gantt.pdf}
-        \caption{Diagrama de Gantt del TFG.}
+        \caption{Diagrama de Gantt del TFG amb fases Part~A, Part~B, redacció de la memòria i defensa. Font Mermaid: \texttt{tfg/figures/gantt.mmd}.}
         \label{fig:gantt}
     \end{figure}
 }{%
@@ -135,7 +135,7 @@ redactar a la setmana~1 i congelar l'abast al final de la setmana~1.
     Risc & Prob. & Imp. & Mitigació \\
     \midrule
     Canvi incompatible a l'especificació MCP & Baixa & Alt & Fixar versió SDK; anotar versió d'especificació a la memòria \\
-    Saturar límits d'Edge Functions a tests & Mitjana & Mitjà & Projecte Supabase aïllat; càrrega amb Supabase local \\
+    Saturar límits de Vercel Cron Hobby (1 exec/dia) & Mitjana & Mitjà & Programació diària per auto-tag, weekly per digest \\
     Tall de Gemini durant la demo & Baixa & Mitjà & Vídeo alternatiu; mode fallback manual \\
     Memòria infravalorada, \emph{crunch} de temps & Alta & Alt & Redacció des de setmana~1; no deixar-ho a setmana~6 \\
     Tutor no respon al canvi d'abast & Baixa & Baix & Llibertat oberta acordada a la reunió inicial; cada canvi es comunica i es documenta amb data i justificació \\

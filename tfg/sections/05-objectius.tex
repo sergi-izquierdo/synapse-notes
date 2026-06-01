@@ -53,24 +53,29 @@ Els objectius específics són mesurables i verificables:
     \emph{Verificació:} URL pública accessible i vídeo de demo de la
     Part~A cobrint els 5 fluxos.
 
-  \item[O2.] Implementar un servidor MCP amb 6 eines de CRUD i cerca
-    sobre les notes, exposades via transport Streamable HTTP amb
-    autenticació OAuth 2.1. Les eines són \texttt{search\_notes},
+  \item[O2.] Implementar un servidor MCP amb 8 eines de CRUD, cerca i
+    navegació de graph sobre les notes, exposades via transport
+    Streamable HTTP amb autenticació OAuth~2.1 (PKCE + Dynamic Client
+    Registration). Les eines són \texttt{search\_notes},
     \texttt{get\_note}, \texttt{create\_note}, \texttt{update\_note},
-    \texttt{tag\_notes} i \texttt{summarise\_notes}.
-    \emph{Verificació:} les 6 eines s'invoquen correctament des de MCP
-    Inspector i des de Claude Desktop com a client MCP remot.
+    \texttt{tag\_notes}, \texttt{summarise\_notes},
+    \texttt{graph\_neighbors} i \texttt{graph\_shortest\_path}.
+    \emph{Verificació:} les 8 eines s'invoquen correctament des de MCP
+    Inspector i des de Claude Code com a client MCP remot amb OAuth.
 
-  \item[O3.] Implementar 3 agents en segon pla
-    (\texttt{embedding-backfill}, \texttt{auto-tag},
-    \texttt{weekly-digest}) sobre Edge Functions de Supabase amb
-    \texttt{pg\_cron}.
-    \emph{Verificació:} els 3 agents s'executen segons la seva
-    programació i escriuen traces a la taula \texttt{agent\_events}.
+  \item[O3.] Implementar 2 agents en segon pla (\texttt{auto-tag}
+    i \texttt{weekly-digest}) com a rutes Vercel Cron protegides per
+    \texttt{CRON\_SECRET}. Un tercer agent
+    (\texttt{embedding-backfill}) queda documentat com a treball futur
+    per a corpora 10$\times$ més grans.
+    \emph{Verificació:} els 2 agents s'executen segons la seva
+    programació i escriuen traces a la taula \texttt{agent\_events};
+    l'agent \texttt{auto-tag} té avaluació quantitativa amb precision,
+    recall, F1 i analisi d'errors (\S\ref{sec:eval-auto-tag}).
 
   \item[O4.] Definir un model d'amenaces explícit per eina aplicant el
-    marc de la Lethal Trifecta i documentar-lo amb una taula de 6 files
-    (una per eina).
+    marc de la Lethal Trifecta i documentar-lo amb una taula
+    (una fila per eina).
     \emph{Verificació:} secció del capítol~de disseny de seguretat amb
     la taula, arbre d'atacs de l'eina més exposada
     (\texttt{summarise\_notes}) i justificació de cada classificació.

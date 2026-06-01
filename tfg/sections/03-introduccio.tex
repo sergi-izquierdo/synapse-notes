@@ -57,8 +57,9 @@ entregables i criteris de verificació:
   \item \textbf{Part~B. Extensió crítica per a agents d'IA}
     (abril -- juny~2026). Aportació de recerca i seguretat del
     treball: servidor \textbf{MCP multi-tenant} amb OAuth~2.1 sobre
-    Supabase Auth, 3~agents en segon pla sobre Edge Functions de
-    Supabase amb \texttt{pg\_cron}, i un model d'amenaces formal
+    Supabase Auth, dos agents en segon pla
+    (\texttt{auto-tag} i \texttt{weekly-digest}) desplegats com a
+    Vercel Cron, i un model d'amenaces formal
     basat en la \emph{Lethal Trifecta}
     \autocite{willison2025trifecta} amb avaluació empírica de les
     mitigacions. Des d'abril de 2026, el model de xat passa a
@@ -139,12 +140,11 @@ d'IA. Els tres fluxos d'ús esperats són:
     rep un JWT per tenant i invoca eines com \texttt{search\_notes} o
     \texttt{summarise\_notes}.
 
-  \item \textbf{Agents en segon pla} (Part~B). Tres agents
-    (\texttt{embedding-backfill}, \texttt{auto-tag},
-    \texttt{weekly-digest}) operen sense intervenció de l'usuari, sota
-    \texttt{pg\_cron} a Supabase, i escriuen els seus resultats a
-    taules auditables
-    \autocite{supabase2026cron,supabase2026largejobs}.
+  \item \textbf{Agents en segon pla} (Part~B). Dos agents
+    (\texttt{auto-tag} i \texttt{weekly-digest}) operen sense
+    intervenció de l'usuari, programats via Vercel Cron, i
+    escriuen els seus resultats a taules auditables
+    (\texttt{tag\_suggestions}, \texttt{agent\_events}).
 \end{itemize}
 
 \section{Abast del treball}
@@ -175,16 +175,19 @@ a abril~2026):
 intensiu del 19~d'abril al 5~de juny de 2026):
 
 \begin{enumerate}
-  \item Un servidor \textbf{MCP multi-tenant} amb 6 eines
+  \item Un servidor \textbf{MCP multi-tenant} amb 8 eines
     (\texttt{search\_notes}, \texttt{get\_note}, \texttt{create\_note},
     \texttt{update\_note}, \texttt{tag\_notes},
-    \texttt{summarise\_notes}), transport Streamable HTTP i
-    autenticació OAuth 2.1 sobre Supabase Auth.
+    \texttt{summarise\_notes}, \texttt{graph\_neighbors},
+    \texttt{graph\_shortest\_path}), transport Streamable HTTP i
+    autenticació OAuth~2.1 amb PKCE i Dynamic Client Registration.
 
-  \item \textbf{3 agents en segon pla} desplegats com a Edge Functions
-    de Supabase amb \texttt{pg\_cron}: \texttt{embedding-backfill}
-    (cada 15~min), \texttt{auto-tag} (horària) i \texttt{weekly-digest}
-    (dominical).
+  \item \textbf{2 agents en segon pla} desplegats com a rutes
+    Vercel Cron protegides per \texttt{CRON\_SECRET}:
+    \texttt{auto-tag} (proposta d'etiquetes via Haiku~4.5) i
+    \texttt{weekly-digest} (agregació setmanal d'activitat). Un
+    tercer agent (\texttt{embedding-backfill}) queda documentat com
+    a treball futur per a corpora 10$\times$ més grans.
 
   \item Un \textbf{model d'amenaces formal} basat en la Lethal
     Trifecta, aplicat eina a eina, amb mitigacions implementades
@@ -216,18 +219,18 @@ La memòria segueix l'estàndard ADA de la URV, amb 17 seccions:
   \item \textbf{Capítol~\ref{ch:requisits}} (requisits). 19 casos
     d'ús funcionals (4 de Part~A + 15 de Part~B) i 11 requisits
     no funcionals.
-  \item \textbf{Capítol~8 (disseny)}. Arquitectura C4, disseny de BD
+  \item \textbf{Capítol~\ref{ch:disseny}} (disseny). Arquitectura C4, disseny de BD
     amb polítiques RLS, disseny del servidor MCP i \emph{disseny de
     seguretat} (contribució principal, Lethal Trifecta eina a eina).
-  \item \textbf{Capítol~9 (implementació)}. Justificació tecnològica,
+  \item \textbf{Capítol~\ref{ch:implementacio}} (implementació). Justificació tecnològica,
     fragments de patrons clau i problemes reals trobats.
   \item \textbf{Capítol~\ref{ch:avaluacio}} (avaluació). Tests
-    funcionals, aïllament RLS, red-team Promptfoo, benchmarks i cas
-    d'estudi amb Claude Desktop.
-  \item \textbf{Capítols~11--13} (costos, legislació, ètica). Costos
+    funcionals, aïllament RLS, red-team Promptfoo, benchmarks i
+    avaluació quantitativa de l'agent auto-tag.
+  \item \textbf{Capítols~\ref{ch:costos}--\ref{ch:etica}} (costos, legislació, ètica). Costos
     de personal i cloud, anàlisi RGPD/LOPDGDD/LSSI i implicacions
     ètiques.
-  \item \textbf{Capítols~14 i annexos.} Valoració personal,
+  \item \textbf{Capítol~\ref{ch:valoracio} i annexos.} Valoració personal,
     bibliografia APA~7 i annexos tècnics (instal·lació, ús, schemes
     d'eina, YAML de Promptfoo).
 \end{itemize}

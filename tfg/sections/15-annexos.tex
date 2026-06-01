@@ -110,59 +110,46 @@ Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'auten
     \item La cerca textual filtra el graph en temps real, dimming els nodes no coincidents.
 \end{enumerate}
 
-\chapter{Configuració del servidor MCP per a Claude Desktop}
+\chapter{Connexió al servidor MCP via OAuth 2.1}
 \label{ch:annex-mcp}
 
-Aquest annex descriu com configurar Claude Desktop perquè es connecti al servidor MCP remot de Synapse Notes. Aquesta configuració permet a l'usuari invocar les eines des de fora del navegador, dins una sessió de xat amb Claude.
+Aquest annex descriu com connectar un client MCP (Claude Code, Claude Desktop, o qualsevol agent compatible amb la especificació MCP) al servidor de Synapse Notes. El flux és OAuth~2.1 amb PKCE i Dynamic Client Registration (RFC~7591), sense necessitat d'extreure manualment cap token.
 
-\section*{Pas 1: Obtenir un JWT de Supabase}
+\section*{Pas 1: Registrar el servidor MCP al client}
 
-El servidor MCP requereix autenticació via JWT de Supabase al header \texttt{Authorization: Bearer <token>}. El JWT es pot extreure de la sessió web autenticada:
-
-\begin{enumerate}
-    \item Autenticar-se a \url{https://synapse-notes.vercel.app}.
-    \item Obrir DevTools del navegador (\texttt{F12}).
-    \item Anar a la pestanya \emph{Application} (Chrome) o \emph{Storage} (Firefox).
-    \item Sota \emph{Cookies}, buscar les entrades \texttt{sb-*-auth-token}. Pot ser-hi una sola o estar partida en \texttt{.0}, \texttt{.1}, etc.
-    \item Concatenar els valors, fer base64-decode si comencen amb \texttt{base64-}, i parsejar com a JSON. El camp \texttt{access\_token} és el JWT.
-\end{enumerate}
-
-\section*{Pas 2: Configurar \texttt{claude\_desktop\_config.json}}
-
-A Claude Desktop, editar el fitxer de configuració (la seva ubicació depèn del sistema operatiu; vegeu la documentació oficial d'Anthropic):
+A la terminal, executar:
 
 \begin{verbatim}
-{
-  "mcpServers": {
-    "synapse-notes": {
-      "url": "https://synapse-notes.vercel.app/api/mcp",
-      "transport": "http",
-      "headers": {
-        "Authorization": "Bearer <token-aqui>",
-        "Accept": "application/json, text/event-stream"
-      }
-    }
-  }
-}
+claude mcp add synapse-notes \
+  --transport http \
+  https://synapse-notes.vercel.app/api/mcp
 \end{verbatim}
 
-\textbf{Important}: el JWT té una durada limitada (1 hora per defecte). Cal renovar-lo refrescant la sessió web i actualitzant el fitxer de configuració.
+Per a Claude Desktop, afegir l'entrada equivalent a \texttt{claude\_desktop\_config.json} amb \texttt{transport: "http"} i la mateixa URL. El client detecta automàticament que el servidor requereix OAuth (rep un \texttt{401} amb \texttt{WWW-Authenticate} que apunta a \texttt{/.well-known/oauth-protected-resource}).
+
+\section*{Pas 2: Autoritzar via navegador}
+
+El client obre automàticament el navegador a la pàgina de consentiment \texttt{/mcp-authorize}. La pàgina:
+
+\begin{enumerate}
+    \item Verifica que l'usuari té sessió activa a Synapse Notes (si no, redirigeix al login OAuth Google/GitHub).
+    \item Mostra el nom del client sol·licitant i els permisos demanats (read/write de notes, gestió de tags, sumarització).
+    \item Presenta els botons \emph{Authorize} / \emph{Deny}.
+\end{enumerate}
+
+Al clicar \emph{Authorize}, el servidor genera un codi d'autorització xifrat (AES-256-GCM, TTL de 5~minuts) que encapsula els tokens Supabase de la sessió. El client el rep via redirect i l'intercanvia per un \texttt{access\_token} + \texttt{refresh\_token} contra l'endpoint \texttt{/api/oauth/token}, verificant PKCE~S256.
 
 \section*{Pas 3: Verificar la connexió}
 
-A Claude Desktop, iniciar una nova conversa i preguntar:
-
-\begin{quote}
-``Quines eines tens disponibles del servidor synapse-notes?''
-\end{quote}
-
-Claude hauria de respondre amb la llista de les 8 eines exposades. Provar una crida senzilla:
+A Claude Code, executar \texttt{/mcp} i comprovar que \texttt{synapse-notes} apareix com a \emph{authenticated}. Provar una crida:
 
 \begin{quote}
 ``Cerca a les meves notes la paraula \emph{tutorial}.''
 \end{quote}
 
-Claude invocarà \texttt{search\_notes} via MCP, retornarà els resultats i els resumirà.
+El client invocarà \texttt{search\_notes} via MCP, retornarà els resultats i els resumirà. La renovació del token quan caduca és transparent: el client crida \texttt{/api/oauth/token} amb \texttt{grant\_type=refresh\_token} i Supabase emet un nou \texttt{access\_token} sense intervenció de l'usuari.
+
+\paragraph{Diferència amb el flux manual original.} La versió inicial del servidor MCP requeria extreure manualment el JWT de Supabase del cookie del navegador i enganxar-lo a la configuració. Aquesta solució tenia tres problemes: el token quedava en clar al disc del client, caducava en 1~hora sense renovació automàtica, i donava accés complet a la sessió de l'usuari sense scope. El flux OAuth~2.1 d'aquest annex resol els tres problemes seguint l'estàndard MCP-spec (vegeu \S\ref{sec:impl-oauth-mcp} per a la implementació detallada).
 
 \chapter{Repositori i artefactes del projecte}
 \label{ch:annex-repo}
