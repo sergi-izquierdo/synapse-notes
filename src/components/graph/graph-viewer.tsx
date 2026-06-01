@@ -223,6 +223,25 @@ export function GraphViewer() {
         return () => ro.disconnect();
     }, []);
 
+    // Per-node degree count used to soften the spring strength on
+    // high-connectivity hubs. Without this, dragging a degree-20 hub
+    // recruits 20 stiff springs at full strength and the neighbours
+    // visibly oscillate ("convulse") for several seconds before the
+    // simulation cools. Scaling link strength by 1/sqrt(max degree)
+    // keeps low-degree connections taut while loosening hubs.
+    const degreeMap = useMemo(() => {
+        const m = new Map<number, number>();
+        if (!data) return m;
+        for (const n of data.nodes) m.set(n.id, 0);
+        for (const l of data.links) {
+            const s = typeof l.source === "object" ? l.source.id : l.source;
+            const t = typeof l.target === "object" ? l.target.id : l.target;
+            m.set(s, (m.get(s) ?? 0) + 1);
+            m.set(t, (m.get(t) ?? 0) + 1);
+        }
+        return m;
+    }, [data]);
+
     // Obsidian-style physics: per-node gravitational pull toward the
     // origin gives every node a virtual "home" position. Combined
     // with short-range repulsion (distanceMax-capped charge), the
@@ -233,28 +252,26 @@ export function GraphViewer() {
     // The pull is LINEAR in distance (forceX/forceY), so a node
     // dragged 500 px away feels ~6x the restoring force of one 80 px
     // out — that's what gives the "tethered" feel on release.
-    //
-    // Strength 0.25 + velocityDecay 0.5 means a node released from
-    // 500 px returns to the cluster in ~1s. Going much lower than
-    // that produces the "drifts but never arrives" feel (the
-    // simulation cools before it can close the gap).
     useEffect(() => {
         if (!fgInstance || !data) return;
-        // Three forces balance here:
+        // Four forces balance here:
         //
         //   1. charge  — long-range repulsion so truly-orphan nodes
         //      (zero edges) feel the cluster pushing them outward.
-        //      Previously capped at 260 px, which meant once an
-        //      orphan drifted inside that radius it felt no pushback
-        //      at all and gravity happily slid it through the
-        //      cluster centre. Raised cap to 500 px (≈ canvas width)
-        //      and softened strength so the ripple from a drag still
-        //      dies off quickly.
+        //      Cap at 500 px (≈ canvas width) so the ripple from a
+        //      drag still dies off quickly.
         //
-        //   2. gravity (forceX/Y) — per-node pull toward origin so
+        //   2. link (springs) — distance 60 px, strength scaled by
+        //      1/sqrt(max degree of endpoints). On a hub with 20
+        //      neighbours, each spring runs at ~0.5/sqrt(20) ≈ 0.11
+        //      instead of the previous flat 0.8. Equilibrium settles
+        //      in ~half the time and dragging the hub no longer
+        //      yanks its neighbours into oscillation.
+        //
+        //   3. gravity (forceX/Y) — per-node pull toward origin so
         //      nothing drifts to infinity; releases tethered.
         //
-        //   3. collide — hard geometric disc-disc resolution so
+        //   4. collide — hard geometric disc-disc resolution so
         //      orphans literally can't share pixels with cluster
         //      nodes. 38 px is generous: node radii are 4-6 px, but
         //      the drawn label often extends ~30-40 px below, so
@@ -266,14 +283,21 @@ export function GraphViewer() {
         }
         const link = fgInstance.d3Force("link");
         if (link) {
-            link.distance(55);
-            link.strength(0.8);
+            link.distance(60);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            link.strength((l: any) => {
+                const s = typeof l.source === "object" ? l.source.id : l.source;
+                const t = typeof l.target === "object" ? l.target.id : l.target;
+                const ds = degreeMap.get(s) ?? 1;
+                const dt = degreeMap.get(t) ?? 1;
+                return 0.5 / Math.sqrt(Math.max(1, Math.max(ds, dt)));
+            });
         }
         fgInstance.d3Force("x", forceX(0).strength(0.07));
         fgInstance.d3Force("y", forceY(0).strength(0.07));
         fgInstance.d3Force("collide", forceCollide(38).strength(0.95));
         fgInstance.d3ReheatSimulation();
-    }, [data, fgInstance]);
+    }, [data, fgInstance, degreeMap]);
 
     // Fetch the graph and run Louvain for community colouring.
     useEffect(() => {
@@ -583,8 +607,8 @@ export function GraphViewer() {
                                 ? "rgba(185, 154, 224, 1)"
                                 : "transparent") as any}
                         cooldownTicks={200}
-                        d3AlphaDecay={0.02}
-                        d3VelocityDecay={0.5}
+                        d3AlphaDecay={0.025}
+                        d3VelocityDecay={0.65}
                         warmupTicks={40}
                         onNodeHover={((n: GraphNode | null) =>
                             setHoverNode(n)) as any}
