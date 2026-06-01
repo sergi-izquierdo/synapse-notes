@@ -82,3 +82,11 @@
 \emergencystretch=5em
 \tolerance=1500
 \hbadness=2000      % silencia underfull warnings cosmètics
+
+% ---- Vertical-space policy ----
+% memoir default = \flushbottom (stretches vspace so totes les pàgines
+% omplen fins al peu). Amb taules [H] i seccions curtes, això crea forats
+% verticals enormes entre paràgrafs (p.ex. pàg. 30: Taula 6.3 + Lectura
+% clau + §6.5.3). \raggedbottom permet que les pàgines acabin naturalment
+% on s'acaba el contingut, sense estirar res.
+\raggedbottom

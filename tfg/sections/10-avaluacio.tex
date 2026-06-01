@@ -171,11 +171,11 @@ L'estat actual del projecte té una població reduïda (allowlist amb un sol UID
 La taula~\ref{tab:rls-vectors} resumeix els vectors testats i el resultat.
 
 \begin{table}[H]
-    \centerfloat
-    \footnotesize
+    \centering
+    \scriptsize
     \caption{Verificació manual d'aïllament RLS. \texttt{0 rows} = la query retorna 0 files; \texttt{403} = bloqueig al guard D4 abans d'arribar a la base.}
     \label{tab:rls-vectors}
-    \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.5cm}c>{\raggedright\arraybackslash}p{4cm}@{}}
+    \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{3cm}@{}}
         \toprule
         Vector & Acció & Resultat & Mitigació activa \\
         \midrule
@@ -223,10 +223,11 @@ La suite es va executar amb Promptfoo 0.121.7 contra l'endpoint productiu \url{h
 La suite consta de 36 variants. 30 són atacs distribuïts en 5 categories de 6 cadascuna (taula~\ref{tab:variant-categories}), i 6 són notes legítimes per a mesurar la taxa de fals positius. Cada variant es repeteix tant en mode D3-actiu (configuració per defecte, \texttt{AI\_JUDGE\_THRESHOLD=0.7}) com en mode D3-desactivat (\texttt{AI\_JUDGE\_ENABLED=false} a l'env de Vercel, redesplegat). El JWT del compte allowlistat s'obté manualment del cookie \texttt{sb-*-auth-token} via DevTools del navegador, exportat com a \texttt{PROMPTFOO\_USER\_JWT} a la sessió on s'executa la suite.
 
 \begin{table}[H]
-    \centerfloat
+    \centering
+    \footnotesize
     \caption{Categories d'atac de la suite Promptfoo D3.}
     \label{tab:variant-categories}
-    \begin{tabular}{lcl}
+    \begin{tabular}{@{}lc>{\raggedright\arraybackslash}p{9cm}@{}}
         \toprule
         Categoria & N & Exemple representatiu \\
         \midrule

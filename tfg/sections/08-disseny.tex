@@ -306,10 +306,10 @@ La figura~\ref{fig:lethal-trifecta} visualitza la convergència de les tres pote
 La taula~\ref{tab:trifecta-matrix} aplica el framework a les vuit eines exposades pel servidor MCP. Cada cel·la indica si la trifecta està \emph{intacta} ($\bullet$), \emph{mitigada} per disseny ($\circ$) o \emph{absent} estructuralment ($-$).
 
 \begin{table}[H]
-    \centerfloat
+    \centering
+    \footnotesize
     \caption{Aplicació del Lethal Trifecta a les eines del servidor MCP. $\bullet${} = factor present sense mitigació; $\circ${} = factor present però mitigat per disseny; $-${} = factor absent estructuralment.}
     \label{tab:trifecta-matrix}
-    \footnotesize
     \begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{4.4cm}@{}}
         \toprule
         Eina & Untrusted & Private data & External comms & Trifecta & Mitigació primària \\
@@ -336,10 +336,10 @@ Aquesta concentració del risc en una sola eina és deliberada i prèvia al diss
 La taula~\ref{tab:defense-layers} resumeix les cinc capes que componen la defensa de \texttt{summarise\_notes} i, en menor mesura, de la resta d'eines MCP. Cadascuna està dissenyada per parar una classe diferent d'atac sense dependre de les altres.
 
 \begin{table}[H]
-    \centerfloat
+    \centering
+    \small
     \caption{Capes de defensa al servidor MCP. Cada capa para una classe diferent d'atac i és independent (defense in depth).}
     \label{tab:defense-layers}
-    \small
     \begin{tabular}{@{}c>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{6.5cm}@{}}
         \toprule
         \# & Capa & Tipus & Atac que para \\

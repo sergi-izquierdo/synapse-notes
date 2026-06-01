@@ -23,8 +23,8 @@ El TFG té tres objectius generals:
     de manera que agents autònoms (p.~ex.\ Claude Desktop o Cursor)
     puguin consumir la base de coneixement personal de cada usuari
     amb aïllament per tenant sota OAuth~2.1, i complementar-la amb
-    3~agents en segon pla que enriqueixen la base de dades sense
-    intervenció humana.
+    2~agents en segon pla (\texttt{auto-tag} i \texttt{weekly-digest})
+    que enriqueixen la base de dades sense intervenció humana.
 
   \item \textbf{Analitzar la superfície d'atac} del sistema resultant
     amb el marc de la Lethal Trifecta
@@ -97,8 +97,8 @@ Els objectius específics són mesurables i verificables:
     p95 i p99.
 
   \item[O8.] Documentar un flux de demostració extrem a extrem amb
-    Claude Desktop com a client MCP remot.
-    \emph{Verificació:} vídeo de demo de 2--3 minuts inclòs als annexos.
+    Claude Code com a client MCP remot via OAuth~2.1.
+    \emph{Verificació:} vídeo de demo de 5--7 minuts (dins el cap de 10~min URV) inclòs com a annex.
 
   \item[O9.] Produir $\geq 30$ tests automatitzats entre unitaris i
     d'integració (Part~A + Part~B).
@@ -121,8 +121,8 @@ Enginyeria Informàtica de la Universitat Rovira i Virgili:
 
   \item \textbf{Sistemes Distribuïts (SD).} Arquitectura
     client/servidor del MCP (transport Streamable HTTP sobre HTTP/S,
-    protocol JSON-RPC 2.0), agents en segon pla desplegats com a Edge
-    Functions amb \texttt{pg\_cron} i execució diferida, i prova de
+    protocol JSON-RPC 2.0), agents en segon pla com a rutes Vercel
+    Cron amb \texttt{CRON\_SECRET} i execució diferida, i prova de
     càrrega amb 100 tenants concurrents (O2, O3, O7).
 
   \item \textbf{Bases de Dades Avançades (BDA).} Modelat relacional
@@ -147,7 +147,7 @@ Enginyeria Informàtica de la Universitat Rovira i Virgili:
     tests (tot el TFG).
 \end{itemize}
 
-L'àrea més rellevant és la de seguretat: el capítol~9.4 construeix un
+L'àrea més rellevant és la de seguretat: la secció~\ref{sec:disseny-seguretat} construeix un
 model d'amenaces formal sobre una superfície nova (MCP) aplicant un marc
 actual (Lethal Trifecta) i mesura empíricament l'efecte de les
 mitigacions. És la contribució principal que diferencia aquest TFG d'una
