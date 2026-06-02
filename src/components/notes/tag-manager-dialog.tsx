@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { deleteTagAction, renameTagAction } from "@/actions/tags";
+import { useLanguage } from "@/components/language-provider";
 
 interface TagManagerDialogProps {
     availableTags: string[];
@@ -52,6 +53,7 @@ export function TagManagerDialog({
     const [editing, setEditing] = useState<EditingState>(null);
     const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
     const [isPending, startTransition] = useTransition();
+    const { t } = useLanguage();
 
     const startEdit = (tag: string) =>
         setEditing({ tag, draft: tag });
@@ -63,7 +65,7 @@ export function TagManagerDialog({
         const from = editing.tag;
         const to = editing.draft.trim();
         if (!to) {
-            toast.error("Tag can't be empty");
+            toast.error(t.tagManager.emptyTag);
             return;
         }
         if (to === from) {
@@ -73,14 +75,14 @@ export function TagManagerDialog({
         startTransition(async () => {
             const result = await renameTagAction({ from, to });
             if ("error" in result && result.error) {
-                toast.error("Rename failed", { description: result.error });
+                toast.error(t.tagManager.renameFailed, { description: result.error });
                 return;
             }
             toast.success(
-                `Renamed “${from}” → “${to}”`,
+                t.tagManager.renamedToast(from, to),
                 result.updated
                     ? {
-                          description: `${result.updated} note${result.updated === 1 ? "" : "s"} updated`,
+                          description: t.tagManager.notesUpdated(result.updated),
                       }
                     : undefined,
             );
@@ -94,14 +96,14 @@ export function TagManagerDialog({
         startTransition(async () => {
             const result = await deleteTagAction({ tag });
             if ("error" in result && result.error) {
-                toast.error("Delete failed", { description: result.error });
+                toast.error(t.tagManager.deleteFailed, { description: result.error });
                 return;
             }
             toast.success(
-                `Removed “${tag}”`,
+                t.tagManager.removedToast(tag),
                 result.updated
                     ? {
-                          description: `Cleared from ${result.updated} note${result.updated === 1 ? "" : "s"}`,
+                          description: t.tagManager.clearedFrom(result.updated),
                       }
                     : undefined,
             );
@@ -122,23 +124,22 @@ export function TagManagerDialog({
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 text-muted-foreground hover:text-foreground"
-                        aria-label="Manage tags"
+                        aria-label={t.tagManager.manageTags}
                     >
                         <Settings2 className="h-4 w-4" />
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[480px]">
                     <DialogHeader>
-                        <DialogTitle>Manage tags</DialogTitle>
+                        <DialogTitle>{t.tagManager.manageTags}</DialogTitle>
                         <DialogDescription>
-                            Rename or delete tags. Changes apply to every note
-                            that uses the tag.
+                            {t.tagManager.description}
                         </DialogDescription>
                     </DialogHeader>
 
                     {sortedTags.length === 0 ? (
                         <p className="text-sm text-muted-foreground italic py-8 text-center">
-                            No tags yet. Add one to a note to see it here.
+                            {t.tagManager.emptyState}
                         </p>
                     ) : (
                         <ul className="max-h-[50vh] overflow-y-auto divide-y divide-border/60 -mx-6">
@@ -178,7 +179,7 @@ export function TagManagerDialog({
                                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                                     onClick={confirmRename}
                                                     disabled={isPending}
-                                                    aria-label="Save rename"
+                                                    aria-label={t.tagManager.saveRename}
                                                 >
                                                     {isPending ? (
                                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -192,7 +193,7 @@ export function TagManagerDialog({
                                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                                     onClick={cancelEdit}
                                                     disabled={isPending}
-                                                    aria-label="Cancel rename"
+                                                    aria-label={t.tagManager.cancelRename}
                                                 >
                                                     <X className="h-3.5 w-3.5" />
                                                 </Button>
@@ -210,7 +211,7 @@ export function TagManagerDialog({
                                                     variant="ghost"
                                                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                                     onClick={() => startEdit(tag)}
-                                                    aria-label={`Rename ${tag}`}
+                                                    aria-label={t.tagManager.renameAria(tag)}
                                                 >
                                                     <Pencil className="h-3.5 w-3.5" />
                                                 </Button>
@@ -224,7 +225,7 @@ export function TagManagerDialog({
                                                             count,
                                                         })
                                                     }
-                                                    aria-label={`Delete ${tag}`}
+                                                    aria-label={t.tagManager.deleteAria(tag)}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
@@ -245,21 +246,19 @@ export function TagManagerDialog({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            Delete tag “{pendingDelete?.tag}”?
+                            {t.tagManager.deleteConfirmTitle(
+                                pendingDelete?.tag ?? "",
+                            )}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will remove the tag from{" "}
-                            <span className="font-semibold text-foreground">
-                                {pendingDelete?.count ?? 0}
-                            </span>{" "}
-                            note
-                            {(pendingDelete?.count ?? 0) === 1 ? "" : "s"}. The
-                            notes themselves are kept.
+                            {t.tagManager.deleteConfirmDescription(
+                                pendingDelete?.count ?? 0,
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isPending}>
-                            Cancel
+                            {t.common.cancel}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={confirmDelete}
@@ -269,7 +268,7 @@ export function TagManagerDialog({
                             {isPending && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             )}
-                            Delete
+                            {t.common.delete}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

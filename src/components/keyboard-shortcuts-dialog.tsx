@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { useLanguage } from "@/components/language-provider";
 
 interface KeyboardShortcutsDialogProps {
     open: boolean;
@@ -22,27 +23,54 @@ const MOD = "__MOD__";
 // Source of truth for every keyboard shortcut the app reacts to. Keep
 // it in sync with the actual handlers in GlobalShortcuts, ChatSidebar,
 // CreateNoteForm, ChatInput, and the CommandPalette.
+// `descKey` indexes into t.shortcuts so the label is resolved at render
+// time in the active language. `scope` stays a stable internal key used
+// for grouping; its heading label is also resolved via t.shortcuts.
+type ShortcutScope = "Global" | "Notes" | "Chat";
+type ShortcutDescKey =
+    | "openCommandPalette"
+    | "showHelpOverlay"
+    | "toggleGraph"
+    | "closeModal"
+    | "focusSearch"
+    | "focusCompose"
+    | "saveNote"
+    | "filterTop1"
+    | "filterTop2"
+    | "filterTop3"
+    | "nextChat"
+    | "prevChat"
+    | "sendMessage"
+    | "newLine"
+    | "recallPrompt";
+
 const SHORTCUTS: Array<{
     keys: string[];
-    desc: string;
-    scope: "Global" | "Notes" | "Chat";
+    descKey: ShortcutDescKey;
+    scope: ShortcutScope;
 }> = [
-    { keys: [MOD, "K"], desc: "Open command palette", scope: "Global" },
-    { keys: ["F1"], desc: "Show this help overlay", scope: "Global" },
-    { keys: ["G"], desc: "Toggle note graph view", scope: "Global" },
-    { keys: ["Esc"], desc: "Close any modal or palette", scope: "Global" },
-    { keys: ["/"], desc: "Focus search input", scope: "Notes" },
-    { keys: ["N"], desc: "Focus the compose textarea", scope: "Notes" },
-    { keys: [MOD, "Enter"], desc: "Save note (inside compose)", scope: "Notes" },
-    { keys: ["1"], desc: "Toggle filter by top-1 tag", scope: "Notes" },
-    { keys: ["2"], desc: "Toggle filter by top-2 tag", scope: "Notes" },
-    { keys: ["3"], desc: "Toggle filter by top-3 tag", scope: "Notes" },
-    { keys: ["J"], desc: "Next chat in sidebar", scope: "Chat" },
-    { keys: ["K"], desc: "Previous chat in sidebar", scope: "Chat" },
-    { keys: ["Enter"], desc: "Send message (inside chat input)", scope: "Chat" },
-    { keys: ["Shift", "Enter"], desc: "New line in chat input", scope: "Chat" },
-    { keys: ["↑"], desc: "Recall last prompt (empty chat input)", scope: "Chat" },
+    { keys: [MOD, "K"], descKey: "openCommandPalette", scope: "Global" },
+    { keys: ["F1"], descKey: "showHelpOverlay", scope: "Global" },
+    { keys: ["G"], descKey: "toggleGraph", scope: "Global" },
+    { keys: ["Esc"], descKey: "closeModal", scope: "Global" },
+    { keys: ["/"], descKey: "focusSearch", scope: "Notes" },
+    { keys: ["N"], descKey: "focusCompose", scope: "Notes" },
+    { keys: [MOD, "Enter"], descKey: "saveNote", scope: "Notes" },
+    { keys: ["1"], descKey: "filterTop1", scope: "Notes" },
+    { keys: ["2"], descKey: "filterTop2", scope: "Notes" },
+    { keys: ["3"], descKey: "filterTop3", scope: "Notes" },
+    { keys: ["J"], descKey: "nextChat", scope: "Chat" },
+    { keys: ["K"], descKey: "prevChat", scope: "Chat" },
+    { keys: ["Enter"], descKey: "sendMessage", scope: "Chat" },
+    { keys: ["Shift", "Enter"], descKey: "newLine", scope: "Chat" },
+    { keys: ["↑"], descKey: "recallPrompt", scope: "Chat" },
 ];
+
+const SCOPE_LABEL_KEY: Record<ShortcutScope, "scopeGlobal" | "scopeNotes" | "scopeChat"> = {
+    Global: "scopeGlobal",
+    Notes: "scopeNotes",
+    Chat: "scopeChat",
+};
 
 // Detect macOS so we can show ⌘ there and Ctrl on Windows / Linux.
 // The handlers in GlobalShortcuts and elsewhere already accept both
@@ -70,35 +98,36 @@ export function KeyboardShortcutsDialog({
     open,
     onOpenChange,
 }: KeyboardShortcutsDialogProps) {
+    const { t } = useLanguage();
     const modKey = usePlatformModKey();
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[520px]">
                 <DialogHeader>
-                    <DialogTitle>Keyboard shortcuts</DialogTitle>
+                    <DialogTitle>{t.shortcuts.title}</DialogTitle>
                     <DialogDescription>
-                        Press{" "}
+                        {t.shortcuts.helpHintBefore}{" "}
                         <kbd className="inline-block rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px]">
                             F1
                         </kbd>{" "}
-                        anywhere to toggle this overlay.
+                        {t.shortcuts.helpHintAfter}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-1.5 pt-2">
                     {(["Global", "Notes", "Chat"] as const).map((scope) => (
                         <section key={scope} className="space-y-1">
                             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono mt-3 first:mt-0">
-                                {scope}
+                                {t.shortcuts[SCOPE_LABEL_KEY[scope]]}
                             </h3>
                             {SHORTCUTS.filter((s) => s.scope === scope).map(
                                 (s) => (
                                     <div
-                                        key={s.desc}
+                                        key={s.descKey}
                                         className="flex items-center justify-between gap-4 rounded-md px-2 py-1.5 hover:bg-muted/40"
                                     >
                                         <span className="text-sm text-foreground">
-                                            {s.desc}
+                                            {t.shortcuts[s.descKey]}
                                         </span>
                                         <div className="flex gap-1 font-mono text-[11px] shrink-0">
                                             {s.keys.map((k, i) => (

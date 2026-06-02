@@ -67,7 +67,7 @@ export function CreateNoteForm({
         formData.set("content", content);
         formData.set("tags", JSON.stringify(tags));
 
-        const toastId = toast.loading(t.dashboard.saving || "Saving...");
+        const toastId = toast.loading(t.dashboard.saving);
         const result = await createNote(formData);
 
         if (result?.error) {
@@ -77,7 +77,7 @@ export function CreateNoteForm({
           });
         } else {
           toast.success(t.dashboard.save, {
-            description: "Note added.",
+            description: t.compose.noteAdded,
             id: toastId,
           });
           setTitle("");
@@ -97,7 +97,7 @@ export function CreateNoteForm({
         name="title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title (optional)"
+        placeholder={t.compose.titlePlaceholder}
         maxLength={200}
         className="w-full bg-transparent border-none px-6 pt-5 pb-1 text-xl font-semibold tracking-tight placeholder:text-muted-foreground/40 focus:outline-none"
       />
@@ -110,7 +110,7 @@ export function CreateNoteForm({
           size="icon"
           className="h-8 w-8"
           onClick={() => insertFormat("**", "**")}
-          title="Negreta"
+          title={t.compose.bold}
         >
           <Bold className="h-4 w-4" />
         </Button>
@@ -120,7 +120,7 @@ export function CreateNoteForm({
           size="icon"
           className="h-8 w-8"
           onClick={() => insertFormat("*", "*")}
-          title="Cursiva"
+          title={t.compose.italic}
         >
           <Italic className="h-4 w-4" />
         </Button>
@@ -131,7 +131,7 @@ export function CreateNoteForm({
           size="icon"
           className="h-8 w-8"
           onClick={() => insertFormat("- ")}
-          title="Llista"
+          title={t.compose.list}
         >
           <List className="h-4 w-4" />
         </Button>
@@ -141,7 +141,7 @@ export function CreateNoteForm({
           size="icon"
           className="h-8 w-8"
           onClick={() => insertFormat("- [ ] ")}
-          title="Tasques"
+          title={t.compose.tasks}
         >
           <ListTodo className="h-4 w-4" />
         </Button>
@@ -170,7 +170,7 @@ export function CreateNoteForm({
       {/* META ROW — live character counter sits directly under the
           textarea, mono so the digits don't reflow as they tick. */}
       <div className="flex items-center justify-end px-6 pb-2 -mt-1 font-mono text-[10px] text-muted-foreground/70 tabular-nums">
-        {content.length} {content.length === 1 ? "char" : "chars"}
+        {t.compose.charCount(content.length)}
       </div>
 
       {/* ZONA DE TAGS — visually separated from the textarea and the

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 
+import { useLanguage } from "@/components/language-provider";
 import { Button } from "@/components/ui/button";
 import {
     Sheet,
@@ -21,6 +22,7 @@ import { CreateNoteForm } from "./create-note-form";
 // global handler focuses the textarea and our bottom sheet holds the
 // only textarea on those viewports.
 export function ComposeZone({ availableTags }: { availableTags: string[] }) {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
@@ -41,7 +43,7 @@ export function ComposeZone({ availableTags }: { availableTags: string[] }) {
                 <Button
                     type="button"
                     onClick={() => setOpen(true)}
-                    aria-label="Write a new note"
+                    aria-label={t.compose.fabLabel}
                     className="fixed bottom-6 left-6 z-40 h-14 w-14 rounded-full shadow-lg"
                     size="icon"
                 >
@@ -77,9 +79,9 @@ export function ComposeZone({ availableTags }: { availableTags: string[] }) {
                         }}
                     >
                         <SheetHeader className="px-5 pt-5 pb-2">
-                            <SheetTitle>New note</SheetTitle>
+                            <SheetTitle>{t.compose.sheetTitle}</SheetTitle>
                             <SheetDescription className="sr-only">
-                                Write and tag a new note. Save closes the sheet.
+                                {t.compose.sheetDescription}
                             </SheetDescription>
                         </SheetHeader>
                         <div className="p-4 pt-0">

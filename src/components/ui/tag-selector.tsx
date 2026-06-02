@@ -107,7 +107,7 @@ export function TagSelector({
                 ))}
               </div>
             ) : (
-              placeholder || t.common.add_tag || "Add tag..."
+              placeholder || t.common.add_tag
             )}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -119,7 +119,7 @@ export function TagSelector({
           */}
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder={t.common.search_placeholder || "Search tags..."}
+              placeholder={t.tagSelector.searchTags}
               onValueChange={setInputValue}
               value={inputValue}
             />
@@ -136,17 +136,17 @@ export function TagSelector({
                       onSelect={handleCreate}
                       className="cursor-pointer"
                     >
-                      <Plus className="mr-2 h-4 w-4" /> Create &ldquo;{inputValue}&rdquo;
+                      <Plus className="mr-2 h-4 w-4" /> {t.tagSelector.create(inputValue)}
                     </CommandItem>
                   </CommandGroup>
                 )}
 
               {/* Show empty state only if no existing tags match and no input */}
               {filteredTags.length === 0 && !inputValue && (
-                <CommandEmpty>No existing tags found.</CommandEmpty>
+                <CommandEmpty>{t.tagSelector.noTagsFound}</CommandEmpty>
               )}
 
-              <CommandGroup heading="Existing Tags">
+              <CommandGroup heading={t.tagSelector.existingTags}>
                 {filteredTags.map((tag) => {
                   const count = tagCounts?.[tag];
                   return (

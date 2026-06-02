@@ -18,6 +18,7 @@ import { TagSelector } from "@/components/ui/tag-selector";
 import { useTagSuggestions } from "@/hooks/use-tag-suggestions";
 import { TagSuggestionRow } from "./tag-suggestion-row";
 import { BacklinkTextarea } from "./backlink-textarea";
+import { useLanguage } from "@/components/language-provider";
 
 interface EditNoteDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function EditNoteDialog({
   const [isSaving, setIsSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+  const { t } = useLanguage();
 
   // Edit mode: if the note already has tags, skip the auto-trigger
   // on open (don't burn an LLM call when the user just wanted to
@@ -95,9 +97,11 @@ export function EditNoteDialog({
 
     if (result?.error) {
       setIsSaving(false);
-      toast.error("Error", { description: result.error });
+      toast.error(t.editNote.errorTitle, { description: result.error });
     } else {
-      toast.success("Updated", { description: "Note updated." });
+      toast.success(t.editNote.updatedTitle, {
+        description: t.editNote.updatedDescription,
+      });
       router.refresh();
       setIsSaving(false);
       onOpenChange(false);
@@ -127,10 +131,8 @@ export function EditNoteDialog({
         }}
       >
         <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>Edit Note</DialogTitle>
-          <DialogDescription>
-            Modify your note title, content and tags.
-          </DialogDescription>
+          <DialogTitle>{t.editNote.title}</DialogTitle>
+          <DialogDescription>{t.editNote.description}</DialogDescription>
         </DialogHeader>
 
         {/* TITLE — large input that blends into the dialog
@@ -140,7 +142,7 @@ export function EditNoteDialog({
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title (optional)"
+            placeholder={t.editNote.titlePlaceholder}
             maxLength={200}
             className="w-full bg-transparent border-none text-xl font-semibold tracking-tight placeholder:text-muted-foreground/40 focus:outline-none"
           />
@@ -194,22 +196,25 @@ export function EditNoteDialog({
             onChange={setContent}
             availableTags={availableTags}
             className="min-h-[300px] resize-none text-base border border-border/60 focus-visible:ring-1 focus-visible:ring-primary p-4 shadow-none font-sans rounded-md"
-            placeholder="Type here..."
+            placeholder={t.editNote.contentPlaceholder}
           />
           {/* Word/char counter — editorial mono row, lives just below
               the textarea and updates as the user types. */}
           <div className="flex items-center justify-end gap-3 pt-1.5 font-mono text-[10px] text-muted-foreground/70 tabular-nums">
             <span>
-              {content.trim() ? content.trim().split(/\s+/).length : 0} words
+              {content.trim() ? content.trim().split(/\s+/).length : 0}{" "}
+              {t.editNote.wordsLabel}
             </span>
             <span className="opacity-40">·</span>
-            <span>{content.length} chars</span>
+            <span>
+              {content.length} {t.editNote.charsLabel}
+            </span>
           </div>
         </div>
 
         <div className="px-6 pb-4 space-y-2">
           <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
-            Tags
+            {t.common.tags}
           </label>
           <TagSuggestionRow
             status={suggestionsStatus}
@@ -228,11 +233,11 @@ export function EditNoteDialog({
 
         <DialogFooter className="px-6 pb-6 sm:justify-between">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            {t.editNote.saveChanges}
           </Button>
         </DialogFooter>
       </DialogContent>

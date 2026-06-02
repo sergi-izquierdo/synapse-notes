@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
+import { useLanguage } from "@/components/language-provider";
 
 interface TagInputProps {
   tags: string[];
@@ -14,8 +15,10 @@ interface TagInputProps {
 export function TagInput({
   tags,
   setTags,
-  placeholder = "Afegir etiqueta...",
+  placeholder,
 }: TagInputProps) {
+  const { t } = useLanguage();
+  const resolvedPlaceholder = placeholder ?? t.tagSelector.addTagPlaceholder;
   const [inputValue, setInputValue] = useState("");
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -39,7 +42,7 @@ export function TagInput({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         className="h-8 text-sm bg-transparent border-muted-foreground/20"
       />
       <div className="flex flex-wrap gap-1.5">

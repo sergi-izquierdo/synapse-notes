@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/components/language-provider";
 import { cn } from "@/lib/utils";
 
 interface MessageActionsProps {
@@ -35,6 +36,7 @@ export function MessageActions({
     onDelete,
     canAct,
 }: MessageActionsProps) {
+    const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -44,7 +46,7 @@ export function MessageActions({
             setTimeout(() => setCopied(false), 1200);
             onCopy?.();
         } catch {
-            toast.error("Clipboard blocked");
+            toast.error(t.messageActions.clipboardBlocked);
         }
     };
 
@@ -67,8 +69,8 @@ export function MessageActions({
                 size="icon"
                 className={buttonClass}
                 onClick={handleCopy}
-                aria-label="Copy message"
-                title="Copy"
+                aria-label={t.messageActions.copyAria}
+                title={t.messageActions.copyTitle}
             >
                 {copied ? (
                     <Check className="h-3 w-3" />
@@ -84,8 +86,8 @@ export function MessageActions({
                     className={buttonClass}
                     onClick={onEdit}
                     disabled={!canAct}
-                    aria-label="Edit message"
-                    title="Edit and re-run"
+                    aria-label={t.messageActions.editAria}
+                    title={t.messageActions.editTitle}
                 >
                     <Pencil className="h-3 w-3" />
                 </Button>
@@ -98,8 +100,8 @@ export function MessageActions({
                     className={buttonClass}
                     onClick={onRegenerate}
                     disabled={!canAct}
-                    aria-label="Regenerate response"
-                    title="Regenerate"
+                    aria-label={t.messageActions.regenerateAria}
+                    title={t.messageActions.regenerateTitle}
                 >
                     <RefreshCw className="h-3 w-3" />
                 </Button>
@@ -112,8 +114,8 @@ export function MessageActions({
                     className={buttonClass}
                     onClick={onBranch}
                     disabled={!canAct}
-                    aria-label="Branch chat from here"
-                    title="Branch from here"
+                    aria-label={t.messageActions.branchAria}
+                    title={t.messageActions.branchTitle}
                 >
                     <GitBranch className="h-3 w-3" />
                 </Button>
@@ -128,8 +130,8 @@ export function MessageActions({
                     )}
                     onClick={onDelete}
                     disabled={!canAct}
-                    aria-label="Delete message"
-                    title="Delete"
+                    aria-label={t.messageActions.deleteAria}
+                    title={t.messageActions.deleteTitle}
                 >
                     <Trash2 className="h-3 w-3" />
                 </Button>

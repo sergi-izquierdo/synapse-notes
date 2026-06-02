@@ -106,15 +106,15 @@ export function SettingsView({
     const providerLabel: Record<Provider, string> = {
         google: "Google",
         github: "GitHub",
-        email: "Email",
-        other: "Provider",
+        email: t.settings.providerEmail,
+        other: t.settings.providerOther,
     };
 
     const exportJson = () => {
         startExport(async () => {
             const result = await exportNotesAsJsonAction();
             if (result?.error || !result?.data) {
-                toast.error("Export failed", { description: result?.error });
+                toast.error(t.settings.exportFailed, { description: result?.error });
                 return;
             }
             const stamp = new Date().toISOString().split("T")[0];
@@ -123,7 +123,7 @@ export function SettingsView({
                 result.data,
                 "application/json",
             );
-            toast.success("Exported as JSON");
+            toast.success(t.settings.exportedJson);
         });
     };
 
@@ -131,7 +131,7 @@ export function SettingsView({
         startExport(async () => {
             const result = await exportNotesAsMarkdownAction();
             if (result?.error || !result?.data) {
-                toast.error("Export failed", { description: result?.error });
+                toast.error(t.settings.exportFailed, { description: result?.error });
                 return;
             }
             const stamp = new Date().toISOString().split("T")[0];
@@ -140,7 +140,7 @@ export function SettingsView({
                 result.data,
                 "text/markdown",
             );
-            toast.success("Exported as Markdown");
+            toast.success(t.settings.exportedMarkdown);
         });
     };
 
@@ -148,9 +148,9 @@ export function SettingsView({
         startClearing(async () => {
             const result = await clearAllChatsAction();
             if (result?.error) {
-                toast.error("Error", { description: result.error });
+                toast.error(t.common.error, { description: result.error });
             } else {
-                toast.success(`Cleared ${counts.chats} chats`);
+                toast.success(t.settings.clearedChats(counts.chats));
             }
         });
     };
@@ -159,9 +159,9 @@ export function SettingsView({
         startDeleting(async () => {
             const result = await deleteAllNotesAction();
             if (result?.error) {
-                toast.error("Error", { description: result.error });
+                toast.error(t.common.error, { description: result.error });
             } else {
-                toast.success(`Deleted ${counts.notes} notes`);
+                toast.success(t.settings.deletedNotes(counts.notes));
             }
         });
     };
@@ -193,10 +193,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <User className="h-5 w-5" />
-                                    Profile
+                                    {t.settings.profile}
                                 </CardTitle>
                                 <CardDescription>
-                                    Signed in via {providerLabel[profile.provider]}.
+                                    {t.settings.signedInVia(providerLabel[profile.provider])}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -215,18 +215,18 @@ export function SettingsView({
                                     )}
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-medium">
-                                            {profile.name ?? "Anonymous"}
+                                            {profile.name ?? t.settings.anonymous}
                                         </p>
                                         <p className="truncate text-xs text-muted-foreground font-mono">
                                             {profile.email}
                                         </p>
                                         <p className="text-[10px] text-muted-foreground/70 font-mono uppercase tracking-wider mt-1 tabular-nums">
-                                            {counts.notes} notes
+                                            {t.settings.notesCount(counts.notes)}
                                             {counts.archived > 0
-                                                ? ` · ${counts.archived} archived`
+                                                ? ` · ${t.settings.archivedCount(counts.archived)}`
                                                 : ""}
                                             {" · "}
-                                            {counts.chats} chats
+                                            {t.settings.chatsCount(counts.chats)}
                                         </p>
                                     </div>
                                 </div>
@@ -247,24 +247,24 @@ export function SettingsView({
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
                                     <Label className="text-xs text-muted-foreground">
-                                        Theme
+                                        {t.settings.theme}
                                     </Label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {(
                                             [
                                                 {
                                                     value: "light",
-                                                    label: "Light",
+                                                    label: t.settings.themeLight,
                                                     icon: Sun,
                                                 },
                                                 {
                                                     value: "dark",
-                                                    label: "Dark",
+                                                    label: t.settings.themeDark,
                                                     icon: Moon,
                                                 },
                                                 {
                                                     value: "system",
-                                                    label: "System",
+                                                    label: t.settings.themeSystem,
                                                     icon: Monitor,
                                                 },
                                             ] as const
@@ -320,10 +320,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Keyboard className="h-5 w-5" />
-                                    Keyboard shortcuts
+                                    {t.settings.keyboardShortcuts}
                                 </CardTitle>
                                 <CardDescription>
-                                    Full reference for every shortcut in the app.
+                                    {t.settings.keyboardShortcutsDesc}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -332,7 +332,7 @@ export function SettingsView({
                                     className="w-full justify-between"
                                     onClick={() => setShortcutsOpen(true)}
                                 >
-                                    Open shortcuts overlay
+                                    {t.settings.openShortcutsOverlay}
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </CardContent>
@@ -343,11 +343,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Download className="h-5 w-5" />
-                                    Data
+                                    {t.settings.data}
                                 </CardTitle>
                                 <CardDescription>
-                                    Export every note as JSON (lossless) or as a
-                                    single Markdown file (human-readable).
+                                    {t.settings.dataDesc}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex flex-col gap-2 sm:flex-row">
@@ -358,7 +357,7 @@ export function SettingsView({
                                     disabled={isExporting || counts.notes === 0}
                                 >
                                     <Download className="mr-2 h-4 w-4" />
-                                    Export JSON
+                                    {t.settings.exportJson}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -367,7 +366,7 @@ export function SettingsView({
                                     disabled={isExporting || counts.notes === 0}
                                 >
                                     <Download className="mr-2 h-4 w-4" />
-                                    Export Markdown
+                                    {t.settings.exportMarkdown}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -377,11 +376,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <TagsIcon className="h-5 w-5" />
-                                    Tags
+                                    {t.settings.tags}
                                 </CardTitle>
                                 <CardDescription>
-                                    Rename or delete any tag across every note at
-                                    once. Renaming to an existing tag merges them.
+                                    {t.settings.tagsDesc}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -394,12 +392,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <LogOut className="h-5 w-5" />
-                                    Session
+                                    {t.settings.session}
                                 </CardTitle>
                                 <CardDescription>
-                                    Revoke every refresh token for this account.
-                                    All other devices and browsers will be signed
-                                    out immediately.
+                                    {t.settings.sessionDesc}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -411,27 +407,26 @@ export function SettingsView({
                                             disabled={isSigningOut}
                                         >
                                             <LogOut className="mr-2 h-4 w-4" />
-                                            Sign out of all devices
+                                            {t.settings.signOutAllDevices}
                                         </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>
-                                                Sign out everywhere?
+                                                {t.settings.signOutEverywhereTitle}
                                             </AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                You&apos;ll need to log back in on
-                                                this device too.
+                                                {t.settings.signOutEverywhereDesc}
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>
-                                                Cancel
+                                                {t.common.cancel}
                                             </AlertDialogCancel>
                                             <AlertDialogAction
                                                 onClick={signOutEverywhere}
                                             >
-                                                Sign out everywhere
+                                                {t.settings.signOutEverywhereConfirm}
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
@@ -444,10 +439,10 @@ export function SettingsView({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-destructive">
                                     <ShieldAlert className="h-5 w-5" />
-                                    Danger zone
+                                    {t.settings.dangerZone}
                                 </CardTitle>
                                 <CardDescription>
-                                    These actions are permanent. There is no undo.
+                                    {t.settings.dangerZoneDesc}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="flex flex-col gap-3">
@@ -460,7 +455,7 @@ export function SettingsView({
                                         >
                                             <span className="flex items-center">
                                                 <Trash2 className="mr-2 h-4 w-4" />
-                                                Clear all chats
+                                                {t.settings.clearAllChats}
                                             </span>
                                             <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
                                                 {counts.chats}
@@ -470,23 +465,21 @@ export function SettingsView({
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>
-                                                Delete every chat?
+                                                {t.settings.deleteChatsTitle}
                                             </AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                {counts.chats} chats and their
-                                                messages will be permanently
-                                                removed. Your notes are untouched.
+                                                {t.settings.deleteChatsDesc(counts.chats)}
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>
-                                                Cancel
+                                                {t.common.cancel}
                                             </AlertDialogCancel>
                                             <AlertDialogAction
                                                 onClick={clearChats}
                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                             >
-                                                Delete chats
+                                                {t.settings.deleteChatsConfirm}
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
@@ -501,7 +494,7 @@ export function SettingsView({
                                         >
                                             <span className="flex items-center">
                                                 <Trash2 className="mr-2 h-4 w-4" />
-                                                Delete every note
+                                                {t.settings.deleteEveryNote}
                                             </span>
                                             <span className="font-mono text-[10px] tabular-nums">
                                                 {counts.notes}
@@ -511,24 +504,21 @@ export function SettingsView({
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>
-                                                Delete every note?
+                                                {t.settings.deleteNotesTitle}
                                             </AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This wipes {counts.notes} notes
-                                                and their embeddings from the
-                                                database. You cannot undo this —
-                                                export first if you want a copy.
+                                                {t.settings.deleteNotesDesc(counts.notes)}
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>
-                                                Cancel
+                                                {t.common.cancel}
                                             </AlertDialogCancel>
                                             <AlertDialogAction
                                                 onClick={deleteAllNotes}
                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                             >
-                                                Delete all notes
+                                                {t.settings.deleteNotesConfirm}
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>

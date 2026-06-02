@@ -307,29 +307,29 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       applyOptimistic({ type: "remove", id });
       try {
         const snapshot = await deleteNote(id);
-        toast.success("Note deleted", {
+        toast.success(t.noteGrid.noteDeleted, {
           duration: 5000,
           action: snapshot
             ? {
-                label: "Undo",
+                label: t.noteGrid.undo,
                 onClick: async () => {
                   const result = await restoreNote(
                     snapshot.content,
                     snapshot.tags,
                   );
                   if (result?.error) {
-                    toast.error("Restore failed", {
+                    toast.error(t.noteGrid.restoreFailed, {
                       description: result.error,
                     });
                   } else {
-                    toast.success("Note restored");
+                    toast.success(t.noteGrid.noteRestored);
                   }
                 },
               }
             : undefined,
         });
       } catch {
-        toast.error("Error deleting note");
+        toast.error(t.noteGrid.deleteError);
       }
     });
   };
@@ -341,9 +341,9 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
   const handleDuplicate = async (id: number) => {
     const result = await duplicateNote(id);
     if (result?.error) {
-      toast.error("Duplicate failed", { description: result.error });
+      toast.error(t.noteGrid.duplicateFailed, { description: result.error });
     } else {
-      toast.success("Note duplicated");
+      toast.success(t.noteGrid.noteDuplicated);
     }
   };
 
@@ -438,7 +438,7 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       });
       const result = await swapNotePositions(activeId, overId);
       if (result?.error) {
-        toast.error("Reorder failed", { description: result.error });
+        toast.error(t.noteGrid.reorderFailed, { description: result.error });
       }
     });
   };
@@ -452,19 +452,19 @@ export function NoteGrid({ notes, availableTags }: NoteGridProps) {
       applyOptimistic({ type: "remove", id });
       const result = await archiveNote(id);
       if (result?.error) {
-        toast.error("Archive failed", { description: result.error });
+        toast.error(t.noteGrid.archiveFailed, { description: result.error });
         return;
       }
-      toast.success("Note archived", {
+      toast.success(t.noteGrid.noteArchived, {
         duration: 5000,
         action: {
-          label: "Undo",
+          label: t.noteGrid.undo,
           onClick: async () => {
             const restore = await unarchiveNote(id);
             if (restore?.error) {
-              toast.error("Restore failed", { description: restore.error });
+              toast.error(t.noteGrid.restoreFailed, { description: restore.error });
             } else {
-              toast.success("Note restored");
+              toast.success(t.noteGrid.noteRestored);
             }
           },
         },
@@ -655,6 +655,7 @@ function SortableNoteCard({
   onArchive: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useLanguage();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: note.id });
 
@@ -711,7 +712,7 @@ function SortableNoteCard({
               onClick={onOpenEdit}
               role="button"
               tabIndex={0}
-              aria-label={`Edit note from ${new Date(note.created_at).toLocaleDateString()}`}
+              aria-label={t.noteGrid.editNoteAria(new Date(note.created_at).toLocaleDateString())}
             >
               {/* DRAG HANDLE — top-left. Only this element receives
                   dnd-kit's listeners so the card body stays freely
@@ -725,8 +726,8 @@ function SortableNoteCard({
                 {...attributes}
                 {...listeners}
                 onClick={(e) => e.stopPropagation()}
-                aria-label="Drag to reorder"
-                title="Drag to reorder"
+                aria-label={t.noteGrid.dragReorder}
+                title={t.noteGrid.dragReorder}
                 className="absolute top-2 left-2 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground cursor-grab active:cursor-grabbing opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-muted/40 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <GripVertical className="h-3.5 w-3.5" />
@@ -748,8 +749,8 @@ function SortableNoteCard({
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                   onClick={onDuplicate}
-                  aria-label="Duplicate note"
-                  title="Duplicate"
+                  aria-label={t.noteGrid.duplicateNote}
+                  title={t.noteGrid.duplicate}
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
@@ -759,8 +760,8 @@ function SortableNoteCard({
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
                   onClick={onArchive}
-                  aria-label="Archive note"
-                  title="Archive"
+                  aria-label={t.noteGrid.archiveNote}
+                  title={t.noteGrid.archive}
                 >
                   <Archive className="h-3.5 w-3.5" />
                 </Button>
@@ -770,8 +771,8 @@ function SortableNoteCard({
                   size="icon"
                   className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                   onClick={onDelete}
-                  aria-label="Delete note"
-                  title="Delete"
+                  aria-label={t.noteGrid.deleteNote}
+                  title={t.noteGrid.delete}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -786,9 +787,9 @@ function SortableNoteCard({
                       : "opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-amber-500",
                   )}
                   onClick={onToggleStar}
-                  aria-label={note.starred ? "Unstar note" : "Star note"}
+                  aria-label={note.starred ? t.noteGrid.unstarNote : t.noteGrid.starNote}
                   aria-pressed={Boolean(note.starred)}
-                  title={note.starred ? "Unstar" : "Star"}
+                  title={note.starred ? t.noteGrid.unstar : t.noteGrid.star}
                 >
                   <Star
                     className={cn(
@@ -870,8 +871,8 @@ function SortableNoteCard({
                           aria-pressed={active}
                           aria-label={
                             active
-                              ? `Remove ${tag} from filter`
-                              : `Filter by ${tag}`
+                              ? t.noteGrid.removeTagFilter(tag)
+                              : t.noteGrid.filterByTag(tag)
                           }
                         >
                           {tag}
@@ -966,6 +967,7 @@ function NoteCardPreview({
 // so we don't ship a separate asset round-trip. Strokes use currentColor
 // so the mark follows the foreground theme.
 function EmptyNotesState() {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
       <svg
@@ -1041,14 +1043,14 @@ function EmptyNotesState() {
       </svg>
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
-          Your second brain is empty.
+          {t.noteGrid.emptyTitle}
         </p>
         <p className="text-xs text-muted-foreground">
-          Write your first note above — press{" "}
+          {t.noteGrid.emptyBodyBefore}{" "}
           <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
             N
           </kbd>{" "}
-          to focus the compose box.
+          {t.noteGrid.emptyBodyAfter}
         </p>
       </div>
     </div>

@@ -21,8 +21,10 @@ import {
   CommandShortcut,
 } from "@/components/ui/command"
 import { signOut } from "@/actions/auth"
+import { useLanguage } from "@/components/language-provider"
 
 export function CommandPalette() {
+  const { t } = useLanguage()
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
   const { setTheme, theme } = useTheme()
@@ -46,21 +48,21 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} showCloseButton={false}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder={t.commandPalette.placeholder} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{t.commandPalette.noResults}</CommandEmpty>
 
-        <CommandGroup heading="Navigation">
+        <CommandGroup heading={t.commandPalette.groupNavigation}>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/"))}
           >
             <LayoutDashboard className="mr-2" />
-            <span>Go to Dashboard</span>
+            <span>{t.commandPalette.goToDashboard}</span>
             <CommandShortcut>G D</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 
-        <CommandGroup heading="Actions">
+        <CommandGroup heading={t.commandPalette.groupActions}>
           <CommandItem
             onSelect={() =>
               runCommand(() => {
@@ -74,7 +76,7 @@ export function CommandPalette() {
             }
           >
             <FilePlus className="mr-2" />
-            <span>Create New Note</span>
+            <span>{t.commandPalette.createNewNote}</span>
             <CommandShortcut>N</CommandShortcut>
           </CommandItem>
           <CommandItem
@@ -89,15 +91,15 @@ export function CommandPalette() {
             ) : (
               <Moon className="mr-2" />
             )}
-            <span>Toggle Theme</span>
+            <span>{t.commandPalette.toggleTheme}</span>
             <CommandShortcut>T</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 
-        <CommandGroup heading="Account">
+        <CommandGroup heading={t.commandPalette.groupAccount}>
           <CommandItem onSelect={() => runCommand(() => signOut())}>
             <LogOut className="mr-2" />
-            <span>Sign Out</span>
+            <span>{t.commandPalette.signOut}</span>
             <CommandShortcut>Q</CommandShortcut>
           </CommandItem>
         </CommandGroup>

@@ -67,7 +67,7 @@ export function FilterBar({
               availableTags={availableTags}
               tagCounts={tagCounts}
               allowCreate={false}
-              placeholder={t.common.filter_by_tag || "Filter by tags..."}
+              placeholder={t.common.filter_by_tag}
               triggerClassName="bg-background/50 backdrop-blur-sm"
             />
           </div>
@@ -105,7 +105,7 @@ export function FilterBar({
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                aria-label={`Remove ${tag} filter`}
+                aria-label={t.filter.removeTagAria(tag)}
                 className="ml-0.5 rounded-sm hover:bg-muted-foreground/20 transition-colors"
               >
                 <X className="h-3 w-3" />

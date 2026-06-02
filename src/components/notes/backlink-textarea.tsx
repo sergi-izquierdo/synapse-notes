@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { Hash } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/components/language-provider";
 
 type NoteHit = {
     kind: "note";
@@ -374,6 +375,7 @@ function Popover({
     onPick: (hit: Hit) => void;
 }) {
     const listRef = useRef<HTMLUListElement>(null);
+    const { t } = useLanguage();
 
     // Follow the keyboard cursor: when the user presses arrow keys
     // past what's in view, scroll the list so the highlighted row
@@ -422,7 +424,8 @@ function Popover({
         pointerEvents: "auto",
     };
 
-    const label = mode === "note" ? "Link to note" : "Insert tag";
+    const label =
+        mode === "note" ? t.compose.linkToNote : t.compose.insertTag;
 
     return (
         <div
@@ -445,8 +448,8 @@ function Popover({
             {hits.length === 0 && !loading ? (
                 <p className="px-3 py-3 text-xs italic text-muted-foreground">
                     {mode === "note"
-                        ? "No matches. Keep typing, or press Esc to cancel."
-                        : "No matching tags. Keep typing, or press Esc."}
+                        ? t.compose.noNoteMatches
+                        : t.compose.noTagMatches}
                 </p>
             ) : (
                 <ul
@@ -490,7 +493,7 @@ function Popover({
                                             <span className="truncate font-medium">
                                                 {hit.title ??
                                                     hit.excerpt ??
-                                                    "(untitled)"}
+                                                    t.compose.untitled}
                                             </span>
                                         </div>
                                         {hit.title && hit.excerpt ? (

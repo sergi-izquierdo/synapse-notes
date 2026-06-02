@@ -20,6 +20,7 @@ import * as THREE from "three";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/components/language-provider";
 import { cn } from "@/lib/utils";
 
 // Three.js objects used by the 3D renderer to mark starred nodes.
@@ -148,6 +149,7 @@ function paintStarredRing(
 }
 
 export function GraphViewer() {
+    const { t } = useLanguage();
     const [data, setData] = useState<GraphData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
@@ -728,17 +730,17 @@ export function GraphViewer() {
                         asChild
                         className="h-8 w-8 -ml-2"
                     >
-                        <Link href="/" aria-label="Back to notes">
+                        <Link href="/" aria-label={t.graph.backToNotes}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
                     <h1 className="text-sm font-semibold tracking-tight flex-1">
-                        Note graph
+                        {t.graph.title}
                     </h1>
                     <div
                         className="flex items-center rounded-md border border-border/60 bg-muted/40 p-0.5"
                         role="group"
-                        aria-label="Render mode"
+                        aria-label={t.graph.renderModeAria}
                     >
                         <button
                             type="button"
@@ -778,7 +780,7 @@ export function GraphViewer() {
                     <Input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search nodes…"
+                        placeholder={t.graph.searchPlaceholder}
                         className="pl-8 h-9 text-sm"
                         data-search-shortcut=""
                     />
@@ -787,11 +789,11 @@ export function GraphViewer() {
                 {/* Stats + legend */}
                 <div className="p-4 border-b border-border/60 space-y-3 text-xs">
                     <div className="flex items-center justify-between font-mono text-muted-foreground tabular-nums">
-                        <span>Nodes</span>
+                        <span>{t.graph.nodes}</span>
                         <span>{data?.nodes.length ?? 0}</span>
                     </div>
                     <div className="flex items-center justify-between font-mono text-muted-foreground tabular-nums">
-                        <span>Links</span>
+                        <span>{t.graph.links}</span>
                         <span>{data?.links.length ?? 0}</span>
                     </div>
                     <div className="pt-2 space-y-1">
@@ -801,7 +803,7 @@ export function GraphViewer() {
                                 style={{ background: palette.edgeEmbedActive }}
                             />
                             <span className="text-muted-foreground">
-                                Embedding similarity
+                                {t.graph.embeddingSimilarity}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -810,7 +812,7 @@ export function GraphViewer() {
                                 style={{ background: palette.edgeTagActive }}
                             />
                             <span className="text-muted-foreground">
-                                Shared tag
+                                {t.graph.sharedTag}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -819,7 +821,7 @@ export function GraphViewer() {
                                 style={{ background: palette.edgeLinkActive }}
                             />
                             <span className="text-muted-foreground">
-                                Backlink <span className="opacity-60">[[N]]</span>
+                                {t.graph.backlink} <span className="opacity-60">[[N]]</span>
                             </span>
                         </div>
                     </div>
@@ -836,9 +838,7 @@ export function GraphViewer() {
                         <NodePreview node={hoverNode} />
                     ) : (
                         <p className="text-xs text-muted-foreground italic">
-                            Hover a node to preview, click to inspect, or pan /
-                            zoom the canvas. Amber edges are embedding
-                            similarity; slate edges are shared tags.
+                            {t.graph.inspectorHint}
                         </p>
                     )}
                 </div>
@@ -848,6 +848,7 @@ export function GraphViewer() {
 }
 
 function NodePreview({ node }: { node: GraphNode }) {
+    const { t } = useLanguage();
     return (
         <div className="space-y-2">
             <div className="flex items-center gap-1.5">
@@ -856,7 +857,7 @@ function NodePreview({ node }: { node: GraphNode }) {
                     style={{ background: communityColor(node.community) }}
                 />
                 <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                    cluster {node.community}
+                    {t.graph.cluster(node.community ?? 0)}
                 </p>
             </div>
             <p className="text-sm font-medium text-foreground">{node.title}</p>
@@ -883,6 +884,7 @@ function NodeInspector({
     node: GraphNode;
     data: GraphData | null;
 }) {
+    const { t } = useLanguage();
     const neighbours = useMemo(() => {
         if (!data) return [];
         const out: Array<{ node: GraphNode; kind: GraphLink["kind"]; weight: number }> = [];
@@ -911,7 +913,7 @@ function NodeInspector({
                         style={{ background: communityColor(node.community) }}
                     />
                     <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                        cluster {node.community}
+                        {t.graph.cluster(node.community ?? 0)}
                     </p>
                     {node.starred && (
                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -933,13 +935,13 @@ function NodeInspector({
                     </div>
                 )}
                 <Button asChild variant="outline" size="sm" className="w-full mt-2">
-                    <Link href={`/?note=${node.id}`}>Open note</Link>
+                    <Link href={`/?note=${node.id}`}>{t.graph.openNote}</Link>
                 </Button>
             </div>
             {neighbours.length > 0 && (
                 <div className="space-y-1.5 pt-2 border-t border-border/60">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                        Neighbours ({neighbours.length})
+                        {t.graph.neighbours(neighbours.length)}
                     </p>
                     <ul className="space-y-1">
                         {neighbours.map(({ node: nb, kind, weight }) => (

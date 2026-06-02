@@ -44,6 +44,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/components/language-provider'
 import {
     Sheet,
     SheetContent,
@@ -78,6 +79,7 @@ function useAutoResize(minHeight = 40, maxHeight = 160) {
 }
 
 export function ChatSidebar({ userId }: { userId: string }) {
+    const { t } = useLanguage()
     const [chatId, setChatId] = useState<string | null>(null)
     const [chatList, setChatList] = useState<Chat[]>([])
     const [input, setInput] = useState('')
@@ -124,7 +126,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         },
         onError: (error) => {
             console.error("Error al xat:", error)
-            toast.error("Error al xat")
+            toast.error(t.chatSidebar.chatError)
         }
     })
 
@@ -282,7 +284,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         if (!chatId) return
         const result = await deleteMessageAction(chatId, messageId)
         if (result?.error) {
-            toast.error('Regenerate failed', { description: result.error })
+            toast.error(t.chatSidebar.regenerateFailed, { description: result.error })
             return
         }
         try {
@@ -292,7 +294,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
             })
         } catch (err) {
             console.error('regenerate failed', err)
-            toast.error('Regenerate failed')
+            toast.error(t.chatSidebar.regenerateFailed)
         }
     }
 
@@ -326,7 +328,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
         const result = await deleteMessageAndFollowingAction(chatId, messageId)
         if (result?.error) {
-            toast.error('Edit failed', { description: result.error })
+            toast.error(t.chatSidebar.editFailed, { description: result.error })
             return
         }
 
@@ -345,10 +347,10 @@ export function ChatSidebar({ userId }: { userId: string }) {
         if (!chatId) return
         const result = await branchChatAction(chatId, messageId)
         if (result?.error || !result?.newChatId) {
-            toast.error('Branch failed', { description: result?.error })
+            toast.error(t.chatSidebar.branchFailed, { description: result?.error })
             return
         }
-        toast.success('Chat branched')
+        toast.success(t.chatSidebar.chatBranched)
         await fetchChats()
         await loadChat(result.newChatId)
     }
@@ -357,7 +359,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         if (!chatId) return
         const result = await deleteMessageAction(chatId, messageId)
         if (result?.error) {
-            toast.error('Delete failed', { description: result.error })
+            toast.error(t.chatSidebar.deleteFailed, { description: result.error })
             return
         }
         setMessages(messages.filter((m) => m.id !== messageId) as UIMessage[])
@@ -376,7 +378,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         }
         const result = await deleteChatAction(id)
         if (result?.error) {
-            toast.error('Delete failed', { description: result.error })
+            toast.error(t.chatSidebar.deleteFailed, { description: result.error })
             // Revert the optimistic removal on failure.
             if (victim) {
                 setChatList((list) =>
@@ -389,7 +391,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
             }
             return
         }
-        toast.success('Chat deleted')
+        toast.success(t.chatSidebar.chatDeleted)
     }
 
     const enterSelectMode = () => {
@@ -427,18 +429,18 @@ export function ChatSidebar({ userId }: { userId: string }) {
 
         const result = await deleteChatsAction(ids)
         if (result?.error) {
-            toast.error('Bulk delete failed', { description: result.error })
+            toast.error(t.chatSidebar.bulkDeleteFailed, { description: result.error })
             setChatList(snapshot)
             return
         }
-        toast.success(`Deleted ${result.deleted ?? ids.length} chats`)
+        toast.success(t.chatSidebar.chatsDeleted(result.deleted ?? ids.length))
     }
 
     const handleExportChat = async () => {
         if (!chatId) return
         const result = await exportChatAsMarkdownAction(chatId)
         if (result?.error || !result?.data) {
-            toast.error('Export failed', { description: result?.error })
+            toast.error(t.chatSidebar.exportFailed, { description: result?.error })
             return
         }
         const stamp = new Date().toISOString().split('T')[0]
@@ -457,7 +459,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
         anchor.click()
         anchor.remove()
         URL.revokeObjectURL(url)
-        toast.success('Chat exported')
+        toast.success(t.chatSidebar.chatExported)
     }
 
     const sidebarContent = (
@@ -471,8 +473,8 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             size="icon"
                             onClick={() => setMobileView('list')}
                             className="md:hidden h-8 w-8 -ml-2"
-                            aria-label="Back to chat list"
-                            title="Chat list"
+                            aria-label={t.chatSidebar.backToList}
+                            title={t.chatSidebar.chatListTitle}
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -480,7 +482,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                     <Bot className="h-5 w-5 text-primary" />
                     {selectMode ? (
                         <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                            {selectedChatIds.size} selected
+                            {t.chatSidebar.selectedCount(selectedChatIds.size)}
                         </span>
                     ) : (
                         'Synapse AI'
@@ -495,7 +497,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                 onClick={exitSelectMode}
                                 className="h-8"
                             >
-                                Cancel
+                                {t.chatSidebar.cancel}
                             </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -506,34 +508,27 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                         className="h-8 border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                                     >
                                         <Trash2 className="mr-2 h-3 w-3" />
-                                        Delete
+                                        {t.chatSidebar.delete}
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                            Delete {selectedChatIds.size}{' '}
-                                            {selectedChatIds.size === 1
-                                                ? 'chat'
-                                                : 'chats'}
-                                            ?
+                                            {t.chatSidebar.deleteConfirmTitle(selectedChatIds.size)}
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This wipes the conversations and
-                                            every message inside them. Your
-                                            notes are untouched. You cannot
-                                            undo this.
+                                            {t.chatSidebar.deleteConfirmDescription}
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
-                                            Cancel
+                                            {t.chatSidebar.cancel}
                                         </AlertDialogCancel>
                                         <AlertDialogAction
                                             onClick={handleDeleteSelectedChats}
                                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                         >
-                                            Delete
+                                            {t.chatSidebar.delete}
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -547,8 +542,8 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     size="icon"
                                     onClick={enterSelectMode}
                                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                    aria-label="Select chats to delete"
-                                    title="Select"
+                                    aria-label={t.chatSidebar.selectChatsAria}
+                                    title={t.chatSidebar.selectTitle}
                                 >
                                     <SquareCheckBig className="h-3.5 w-3.5" />
                                 </Button>
@@ -559,14 +554,14 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     size="icon"
                                     onClick={handleExportChat}
                                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                    aria-label="Export conversation as Markdown"
-                                    title="Export conversation"
+                                    aria-label={t.chatSidebar.exportAria}
+                                    title={t.chatSidebar.exportTitle}
                                 >
                                     <Download className="h-3.5 w-3.5" />
                                 </Button>
                             )}
                             <Button variant="outline" size="sm" onClick={createNewChat} className="h-8">
-                                <Plus className="mr-2 h-3 w-3" /> Nou
+                                <Plus className="mr-2 h-3 w-3" /> {t.chatSidebar.new}
                             </Button>
                         </>
                     )}
@@ -585,7 +580,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                             : "hidden md:flex",
                     )}
                     role="list"
-                    aria-label="Chat history"
+                    aria-label={t.chatSidebar.chatHistoryAria}
                     initial="hidden"
                     animate="show"
                     variants={{
@@ -596,7 +591,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                         const hasRealTitle = chat.title && chat.title !== 'Nova Conversa';
                         const displayTitle = hasRealTitle
                             ? chat.title
-                            : `Untitled · ${String(chatList.length - index).padStart(2, '0')}`;
+                            : t.chatSidebar.untitled(String(chatList.length - index).padStart(2, '0'));
                         const isActive = chatId === chat.id;
                         const isSelected = selectedChatIds.has(chat.id);
                         return (
@@ -659,8 +654,8 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                             e.stopPropagation()
                                             handleDeleteChat(chat.id)
                                         }}
-                                        aria-label={`Delete ${displayTitle}`}
-                                        title="Delete chat"
+                                        aria-label={t.chatSidebar.deleteNamedAria(displayTitle)}
+                                        title={t.chatSidebar.deleteChatTitle}
                                         className="shrink-0 mr-1 h-6 w-6 flex items-center justify-center rounded-md opacity-100 md:opacity-0 md:group-hover/chat-row:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity"
                                     >
                                         <Trash2 className="h-3 w-3" />
@@ -690,8 +685,8 @@ export function ChatSidebar({ userId }: { userId: string }) {
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-2">
                                 <Bot className="h-10 w-10 text-muted-foreground/40" aria-hidden />
-                                <p className="text-sm font-medium text-foreground">I&apos;m your second brain.</p>
-                                <p className="text-xs text-muted-foreground">Ask me about your notes.</p>
+                                <p className="text-sm font-medium text-foreground">{t.chatSidebar.emptyTitle}</p>
+                                <p className="text-xs text-muted-foreground">{t.chatSidebar.emptySubtitle}</p>
                             </div>
                         ) : (
                             // gap-8 rather than gap-5 so the floating
@@ -763,7 +758,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                 )}
                                                             >
                                                                 <X className="h-3 w-3 mr-1" />
-                                                                Cancel
+                                                                {t.chatSidebar.cancel}
                                                             </Button>
                                                             <Button
                                                                 type="button"
@@ -773,7 +768,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                 className="h-7 text-xs"
                                                             >
                                                                 <Check className="h-3 w-3 mr-1" />
-                                                                Save & re-run
+                                                                {t.chatSidebar.saveRerun}
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -797,7 +792,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                 ? "border-primary-foreground/20 text-primary-foreground/80"
                                                                 : "border-border/60 text-muted-foreground"
                                                         )}
-                                                        aria-label="Tool invocations"
+                                                        aria-label={t.chatSidebar.toolInvocationsAria}
                                                     >
                                                         {toolParts.map((part, index) => {
                                                             const toolName = getToolName(part)
@@ -853,7 +848,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                                                                 : "text-secondary")
                                                                         )}>
                                                                             {' · '}
-                                                                            {isRunning ? 'pending' : 'done'}
+                                                                            {isRunning ? t.chatSidebar.toolPending : t.chatSidebar.toolDone}
                                                                         </span>
                                                                         {prettyOutput !== null && (
                                                                             <span className="ml-1 opacity-60 inline-block transition-transform group-open:rotate-90">
@@ -929,7 +924,7 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     <div className="flex justify-start">
                                         <div className="bg-card border border-border/60 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-xs flex items-center gap-2 text-muted-foreground">
                                             <Loader2 className="h-3 w-3 animate-spin" />
-                                            Thinking...
+                                            {t.chatSidebar.thinking}
                                         </div>
                                     </div>
                                 )}
@@ -970,15 +965,15 @@ export function ChatSidebar({ userId }: { userId: string }) {
                                     }
                                 }}
                                 rows={1}
-                                placeholder="Ask something..."
+                                placeholder={t.chatSidebar.inputPlaceholder}
                                 className="pr-10 min-h-[40px] max-h-[160px] resize-none rounded-lg border-border focus-visible:ring-primary bg-background py-2 text-sm"
-                                aria-label="Chat message"
+                                aria-label={t.chatSidebar.inputAria}
                             />
                             <Button
                                 type="submit"
                                 size="icon"
                                 disabled={isLoading}
-                                aria-label="Send message"
+                                aria-label={t.chatSidebar.sendAria}
                                 className="absolute right-1 bottom-1 h-8 w-8 rounded-md"
                             >
                                 <Send className="h-4 w-4" />
@@ -1010,10 +1005,9 @@ export function ChatSidebar({ userId }: { userId: string }) {
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetContent side="left" className="w-[85vw] sm:max-w-[400px] p-0 flex flex-col">
                     <VisuallyHidden.Root>
-                        <SheetTitle>Synapse AI Chat</SheetTitle>
+                        <SheetTitle>{t.chatSidebar.sheetTitle}</SheetTitle>
                         <SheetDescription>
-                            Chat with your notes. Switch between history and the
-                            active conversation from the header.
+                            {t.chatSidebar.sheetDescription}
                         </SheetDescription>
                     </VisuallyHidden.Root>
                     {sidebarContent}
