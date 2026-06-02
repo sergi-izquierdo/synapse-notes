@@ -418,7 +418,7 @@ La pàgina principal (\texttt{/}) està dividida en quatre zones, d'esquerra a d
 
 La pàgina \texttt{/graph} té una jerarquia diferent: el canvas del graph viewer ocupa tota la pantalla, amb un side panel de 320 px a la dreta amb cerca + stats + legend + inspector del node seleccionat.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{screenshots/dashboard.png}
     \caption{Dashboard principal (mode fosc). D'esquerra a dreta: el sidebar d'històries de xat, la zona principal amb la \emph{Today's Brain card} i la \emph{ComposeZone} de creació, i el \emph{NoteGrid} filtrable per tag.}
@@ -433,7 +433,7 @@ La pàgina \texttt{/graph} té una jerarquia diferent: el canvas del graph viewe
 
 \paragraph{Graph Viewer.} \texttt{ForceGraph2D} sobre canvas amb força física custom estil Obsidian (vegeu \S\ref{sec:graph-physics}). Quan l'usuari fa hover sobre un node, el seu veïnatge 1-hop manté la brillantor original mentre la resta del graph s'opaca a 15-25\% (focus visual). Hover focus + cerca textual es composen multiplicativament: un node és \emph{actiu} si passa les dues filtros alhora. Toggle 2D/3D al cantó superior dret del side panel.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{screenshots/graph-hover.png}
     \caption{Graph viewer 2D amb \emph{hover focus}: el node \texttt{Ingredients a comprar} i el seu veïnatge 1-hop mantenen la brillantor i el label visible mentre la resta del graph s'opaca. El side panel mostra l'inspector del node (comunitat Louvain i tags). Les arestes ambre són similitud d'embedding, les grises tags compartits.}
@@ -442,14 +442,14 @@ La pàgina \texttt{/graph} té una jerarquia diferent: el canvas del graph viewe
 
 \paragraph{EditNoteDialog.} \texttt{Dialog} de shadcn que obre amb deep-link \texttt{/?note=N} (consumit pel \texttt{NoteGrid} via \texttt{useSearchParams} + \texttt{router.replace} per netejar la URL). Conté el mateix \texttt{BacklinkTextarea} de la zona de creació més el \texttt{TagManagerDialog} accessible des d'un gear icon.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.82\linewidth]{screenshots/note-editor.png}
     \caption{\texttt{EditNoteDialog}: edició d'una nota amb barra d'eines de format, cos i gestor d'etiquetes integrat.}
     \label{fig:ui-editor}
 \end{figure}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.6\linewidth]{screenshots/note-tags.png}
     \caption{\emph{TagSelector} amb autocomplete sobre la biblioteca d'etiquetes. La taxonomia inclou les categories d'usuari (\texttt{Compra}, \texttt{Home-Security}, \texttt{Idees}, \texttt{Todo}) i etiquetes de test; \texttt{redteam-archived} activa el bypass del judge D3 (\S\ref{sec:defense-layers}).}

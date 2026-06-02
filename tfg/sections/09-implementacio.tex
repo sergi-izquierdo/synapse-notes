@@ -407,7 +407,7 @@ La implementació final segueix l'estàndard OAuth~2.1 amb PKCE \parencite{rfc76
 
 El flux complet: Claude Code intenta connectar a \texttt{/api/mcp}, rep un 401 amb header \texttt{WWW-Authenticate} que apunta a la metadata de discovery. Segueix el flux \parencite{rfc9728resource} $\rightarrow$ registra via DCR $\rightarrow$ obre el navegador a la pàgina de consentiment $\rightarrow$ l'usuari clica ``Authorize'' $\rightarrow$ Claude Code rep el codi via redirect $\rightarrow$ intercanvia per tokens $\rightarrow$ usa el Bearer JWT per a les crides MCP. La renovació via refresh token és transparent.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.62\linewidth]{screenshots/oauth-consent.png}
     \caption{Pàgina de consentiment (\texttt{/mcp-authorize}) que el client MCP obre durant el flux OAuth 2.1. Mostra el nom del client (\texttt{Claude Code}), els permisos sol·licitats i els botons d'autoritzar o denegar. El consentiment és el punt de control humà abans que cap agent extern obtingui un token.}

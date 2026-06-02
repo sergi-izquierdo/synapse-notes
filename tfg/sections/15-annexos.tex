@@ -82,7 +82,7 @@ Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'auten
     \item En cas que el sistema estigui en mode allowlist (D4) i l'usuari no estigui inclòs, les funcionalitats d'IA mostraran un missatge informatiu. Les notes seguiran funcionant però sense RAG ni summarise.
 \end{enumerate}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{screenshots/login.png}
     \caption{Pàgina d'entrada amb autenticació OAuth (Google i GitHub) via Supabase Auth.}
@@ -107,7 +107,7 @@ Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'auten
     \item Les referències a notes apareixen com \texttt{[id=N]} o clicables amb el seu títol.
 \end{enumerate}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.5\linewidth]{screenshots/chat-rag.png}
     \caption{Xat RAG responent una consulta per etiqueta. El model invoca l'eina \texttt{getNotesByTag} i retorna la llista de notes amb el tag \texttt{Compra} i un resum del contingut de cadascuna.}
