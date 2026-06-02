@@ -395,7 +395,7 @@ El disseny d'interfície de Synapse Notes prioritza la \emph{visibilitat de l'es
 
 \subsection{Principis de disseny}
 
-\paragraph{Optimisme amb fallback honest.} Les mutacions sobre notes (star, archive, delete, restore, duplicate) es renderitzen \emph{immediatament} a la UI via \texttt{useOptimistic} de React 19 abans que el servidor confirmi el resultat. Si la Server Action falla, l'estat optimista es reverteix automàticament. Aquest patró està descrit al detall a la secció~\ref{sec:optimistic-ui}, però la decisió de disseny és prèvia: \emph{el lag de xarxa no ha de ser perceptible per l'usuari per a operacions que tenen una probabilitat de fallada $<$1\%}.
+\paragraph{Optimisme amb fallback honest.} Les mutacions sobre notes (star, archive, delete, restore, duplicate) es renderitzen \emph{immediatament} a la UI via \texttt{useOptimistic} de React 19 abans que el servidor confirmi el resultat. Si la Server Action falla, l'estat optimista es reverteix automàticament. La decisió de disseny és deliberada: \emph{el lag de xarxa no ha de ser perceptible per l'usuari per a operacions que tenen una probabilitat de fallada $<$1\%}.
 
 \paragraph{Reversibilitat de l'arxivat.} La columna \texttt{notes.archived\_at} és una \emph{soft delete}: l'usuari pot recuperar una nota arxivada en un sol clic des de la vista d'arxiu. Cap operació de la UI principal causa pèrdua irrecuperable de dades. L'única operació de \emph{hard delete} és l'eliminació definitiva, sempre amb confirmació via \texttt{AlertDialog} (component shadcn).
 
@@ -427,11 +427,11 @@ La pàgina \texttt{/graph} té una jerarquia diferent: el canvas del graph viewe
 
 \subsection{Superfícies d'interacció principals}
 
-\paragraph{ComposeZone (creació de notes).} Input de títol + textarea de cos + \emph{TagSelector} amb autocomplete + \emph{TagSuggestionRow} amb propostes via Haiku 4.5. La textarea (component \texttt{BacklinkTextarea}, vegeu \S\ref{sec:title-and-autocomplete}) detecta tres sigils a mesura que l'usuari escriu: \texttt{[[} obre l'autocomplete de notes, \texttt{@} fa mention-style, \texttt{\#} filtra tags existents. La popover es renderitza via \texttt{createPortal} amb posicionament caret-relatiu.
+\paragraph{ComposeZone (creació de notes).} Input de títol + textarea de cos + \emph{TagSelector} amb autocomplete + \emph{TagSuggestionRow} amb propostes via Haiku 4.5. La textarea (component \texttt{BacklinkTextarea}) detecta tres sigils a mesura que l'usuari escriu: \texttt{[[} obre l'autocomplete de notes, \texttt{@} fa mention-style, \texttt{\#} filtra tags existents. La popover es renderitza via \texttt{createPortal} amb posicionament caret-relatiu.
 
 \paragraph{NoteGrid (vista principal).} Cards de 340 px d'alçada fixa amb \texttt{flex-1 min-h-0} al cos per a contingut variable. La capa optimista de \texttt{useOptimistic} fa que el reorder per star sigui instantani amb una animació via \texttt{motion.div layout}.
 
-\paragraph{Graph Viewer.} \texttt{ForceGraph2D} sobre canvas amb força física custom estil Obsidian (vegeu \S\ref{sec:graph-physics}). Quan l'usuari fa hover sobre un node, el seu veïnatge 1-hop manté la brillantor original mentre la resta del graph s'opaca a 15-25\% (focus visual). Hover focus + cerca textual es composen multiplicativament: un node és \emph{actiu} si passa les dues filtros alhora. Toggle 2D/3D al cantó superior dret del side panel.
+\paragraph{Graph Viewer.} \texttt{ForceGraph2D} sobre canvas amb força física custom estil Obsidian. Quan l'usuari fa hover sobre un node, el seu veïnatge 1-hop manté la brillantor original mentre la resta del graph s'opaca a 15-25\% (focus visual). Hover focus + cerca textual es composen multiplicativament: un node és \emph{actiu} si passa les dues filtros alhora. Toggle 2D/3D al cantó superior dret del side panel.
 
 \begin{figure}[H]
     \centering

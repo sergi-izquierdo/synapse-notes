@@ -17,7 +17,7 @@ Els LLMs entrenats sobre corpus massius reprodueixen els biaixos lingüístics, 
 Per a Synapse Notes, on els models només operen sobre el contingut que l'usuari mateix ha escrit, el risc de propagació de biaix és relativament contingut: els models no \emph{generen} contingut nou amb opinions, sinó que \emph{resumeixen}, \emph{categoritzen} o \emph{recuperen} contingut existent. Tot i així, hi ha dos punts d'exposició:
 
 \begin{itemize}
-    \item \textbf{Tag suggestions} (\S\ref{sec:tag-suggestion}): el model proposa etiquetes per a una nota. Aquesta proposta pot reflectir biaixos lèxics (preferir certes formes d'etiquetatge sobre altres). Mitigació: l'usuari decideix sempre quina proposta accepta o rebutja, i pot crear etiquetes manualment sense passar pel model.
+    \item \textbf{Tag suggestions}: el model proposa etiquetes per a una nota. Aquesta proposta pot reflectir biaixos lèxics (preferir certes formes d'etiquetatge sobre altres). Mitigació: l'usuari decideix sempre quina proposta accepta o rebutja, i pot crear etiquetes manualment sense passar pel model.
     \item \textbf{Sumarització}: el resum d'una nota pot omitir o emfasitzar determinats fragments en funció de patrons del model. Mitigació: el system prompt restrictiu (D2) limita el model a sumaritzar sense fabricar contingut, però no pot prevenir biaixos d'emfasi.
 \end{itemize}
 

@@ -2,36 +2,38 @@
 sequenceDiagram
     autonumber
     actor User as Usuari
-    participant Client as Client MCP<br/>(Claude Desktop)
-    participant App as Next.js<br/>frontend
+    participant Client as Client MCP<br/>(Claude Code)
+    participant SN as Synapse Notes<br/>(/api/mcp,<br/>/api/oauth/*,<br/>/mcp-authorize)
     participant Auth as Supabase Auth
-    participant API as /api/mcp<br/>route handler
-    participant Lib as createMcpSupabase<br/>Client (auth.ts)
-    participant Server as createMcpServer<br/>(server.ts)
     participant DB as Supabase Postgres<br/>(RLS-gated)
 
-    User->>App: Login OAuth (Google/GitHub)
-    App->>Auth: redirect to OAuth provider
-    Auth-->>App: callback amb code
-    App->>Auth: exchange code for JWT
-    Auth-->>App: access_token (JWT)
-    Note over User,App: Sergi configura Claude Desktop<br/>amb el JWT com a Bearer token
+    Note over Client,SN: Descobriment + registre (un cop per client)
+    Client->>SN: POST /api/mcp (sense token)
+    SN-->>Client: 401 + WWW-Authenticate<br/>(.well-known/oauth-protected-resource)
+    Client->>SN: GET metadata discovery (RFC 9728 + 8414)
+    SN-->>Client: endpoints register / authorize / token
+    Client->>SN: POST /api/oauth/register (DCR)
+    SN-->>Client: client_id (token AES-256-GCM xifrat)
 
-    User->>Client: invoca eina MCP<br/>(p.ex. search_notes "lidl")
-    Client->>API: POST /api/mcp<br/>Authorization: Bearer <jwt><br/>JSON-RPC 2.0
-    API->>Lib: createMcpSupabaseClient(req)
-    Lib->>Lib: extractBearerToken(req)
-    Lib->>Auth: supabase.auth.getUser(token)
-    Auth-->>Lib: { user }
-    Lib->>Lib: createServerClient amb<br/>global.headers.Authorization
-    Lib-->>API: { client, user }
-    API->>Server: createMcpServer(client)
-    Server-->>API: McpServer amb tools registrades
-    API->>Server: server.connect(transport)
-    Server->>Server: dispatch tool: searchByEmbedding
-    Server->>DB: rpc match_notes(embedding, 0.1, 5)
-    Note over DB: RLS aplica<br/>auth.uid() = user_id
-    DB-->>Server: top-5 notes del user
-    Server-->>API: content blocks
-    API-->>Client: JSON-RPC response
+    Note over User,SN: Autorització amb PKCE
+    Client->>User: obre navegador a /mcp-authorize<br/>(code_challenge S256)
+    User->>SN: GET /mcp-authorize
+    SN->>Auth: verifica sessió Supabase
+    Auth-->>SN: { user } (si no, login OAuth Google/GitHub)
+    SN-->>User: pàgina de consentiment (client + permisos)
+    User->>SN: clica "Authorize"<br/>(POST /api/oauth/authorize)
+    SN-->>Client: redirect amb codi d'autorització xifrat
+    Client->>SN: POST /api/oauth/token (codi + PKCE verifier)
+    SN->>Auth: valida i recupera tokens de sessió
+    Auth-->>SN: access_token + refresh_token
+    SN-->>Client: access_token (JWT) + refresh_token
+
+    Note over Client,DB: Crida d'eina autenticada (cada invocació)
+    Client->>SN: POST /api/mcp<br/>Authorization: Bearer jwt<br/>JSON-RPC 2.0
+    SN->>Auth: supabase.auth.getUser(jwt)
+    Auth-->>SN: { user }
+    SN->>DB: query sota RLS (rpc match_notes, etc.)
+    Note over DB: RLS aplica auth.uid() = user_id
+    DB-->>SN: resultats del tenant
+    SN-->>Client: JSON-RPC response
     Client-->>User: render dels resultats
