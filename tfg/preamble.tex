@@ -74,6 +74,32 @@
 \setsecnumdepth{subsubsection}
 \settocdepth{subsection}
 
+% El document és un PDF (no s'imprimeix a doble cara), de manera que no
+% volem pàgines blanques de farciment per forçar inicis en recto. memoir
+% en deixa una entre el front matter i el cos (\mainmatter força recto).
+% Convertim \cleardoublepage en \clearpage perquè el número de pàgina del
+% navegador del PDF coincideixi amb el número imprès, sense farciment.
+\renewcommand{\cleardoublepage}{\clearpage}
+
+% veelo redimensiona el número de capítol a una alçada fixa de 18mm i
+% després hi enganxa una barra negra de l'amplada sencera del marge dret.
+% Dos problemes: (1) els números de 2 xifres (10, 11, 12) a 18mm són tan
+% amples que es desborden i el segon dígit queda tallat per la vora;
+% (2) la barra és un bloc negre massa gruixut. Ho reescrivim mantenint el
+% creixement cap a la dreta (així el número mai no solapa amb "CAPÍTOL",
+% que queda a l'esquerra) però amb el número una mica més petit (15mm,
+% perquè 2 xifres càpiguen dins el marge) i una barra fina (0.18cm).
+\newlength{\chapnumheight}
+\setlength{\chapnumheight}{15mm}
+\renewcommand*{\printchapternum}{%
+  \makebox[0pt][l]{%
+    \hspace{0.6em}%
+    \resizebox{!}{\chapnumheight}{\chapnumfont \thechapter}%
+    \hspace{0.4em}%
+    \rule{0.18cm}{\chapnumheight}%
+  }%
+}
+
 % ---- Line-breaking tolerance ----
 % Permet a TeX estirar més els espais entre paraules abans de declarar
 % overflow. 3em absorbeix els overfull <50pt típics de paràgrafs amb
