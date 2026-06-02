@@ -72,7 +72,7 @@ npm run dev
 \chapter{Manual d'ús}
 \label{ch:annex-usage}
 
-Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'autenticació fins a la consulta amb el xat RAG. Les captures de pantalla estan disponibles al repositori sota \texttt{docs/screenshots/} (no incloses al PDF per a mantenir-lo lleuger).
+Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'autenticació fins a la consulta amb el xat RAG, il·lustrat amb captures de la versió desplegada a producció.
 
 \section*{Primer accés}
 
@@ -81,6 +81,13 @@ Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'auten
     \item Triar un proveïdor OAuth (Google o GitHub) i autoritzar el redirect cap a Synapse Notes.
     \item En cas que el sistema estigui en mode allowlist (D4) i l'usuari no estigui inclòs, les funcionalitats d'IA mostraran un missatge informatiu. Les notes seguiran funcionant però sense RAG ni summarise.
 \end{enumerate}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{screenshots/login.png}
+    \caption{Pàgina d'entrada amb autenticació OAuth (Google i GitHub) via Supabase Auth.}
+    \label{fig:ui-login}
+\end{figure}
 
 \section*{Crear i organitzar notes}
 
@@ -99,6 +106,13 @@ Aquest annex resumeix el flux d'usuari principal de Synapse Notes des de l'auten
     \item El sistema mostra els raonaments del model i invoca tools (\texttt{getNotesByTag}, \texttt{graph\_neighbors}, \texttt{graph\_shortest\_path}) quan és necessari.
     \item Les referències a notes apareixen com \texttt{[id=N]} o clicables amb el seu títol.
 \end{enumerate}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\linewidth]{screenshots/chat-rag.png}
+    \caption{Xat RAG responent una consulta per etiqueta. El model invoca l'eina \texttt{getNotesByTag} i retorna la llista de notes amb el tag \texttt{Compra} i un resum del contingut de cadascuna.}
+    \label{fig:ui-chat}
+\end{figure}
 
 \section*{Visualització del graph}
 
