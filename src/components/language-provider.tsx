@@ -21,19 +21,39 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
   undefined
 );
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  // Intentem recuperar l'idioma del localStorage, si no, Anglès per defecte
-  const [language, setLanguageState] = useState<Language>("en");
+// Persist for a year. SameSite=Lax is enough: the cookie only drives UI
+// language, it carries no auth, and we want it sent on top-level
+// navigations so the server renders in the right language.
+function writeLangCookie(lang: Language) {
+  document.cookie = `synapse-lang=${lang}; path=/; max-age=31536000; samesite=lax`;
+}
 
+export function LanguageProvider({
+  children,
+  initialLanguage = "ca",
+}: {
+  children: ReactNode;
+  initialLanguage?: Language;
+}) {
+  // Initial value comes from the cookie read server-side (passed as a
+  // prop), so SSR and the first client render agree and there is no flash.
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
+
+  // One-time migration for users who set the language before the cookie
+  // existed (it lived only in localStorage). Adopt the stored choice and
+  // mirror it into the cookie so future server renders match.
   useEffect(() => {
-    const saved = localStorage.getItem("synapse-lang") as Language;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: read persisted language
-    if (saved) setLanguageState(saved);
+    const saved = localStorage.getItem("synapse-lang") as Language | null;
+    if (saved && saved !== initialLanguage) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time localStorage->cookie migration
+      setLanguageState(saved);
+      writeLangCookie(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   // Keep <html lang> in sync with the active language for screen readers
-  // and Google's hreflang signals. The root lang attribute is set to "ca"
-  // server-side and updated here whenever the user picks a different one.
+  // and hreflang signals.
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
@@ -41,6 +61,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem("synapse-lang", lang);
+    writeLangCookie(lang);
   };
 
   const t = translations[language];

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { signOut } from "@/actions/auth";
+import { getServerT } from "@/lib/i18n-server";
 import { Button } from "@/components/ui/button";
 import { ComposeZone } from "@/components/notes/compose-zone";
 import { NoteGrid } from "@/components/notes/note-grid";
@@ -20,6 +21,8 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return redirect("/login");
+
+  const t = await getServerT();
 
   const { data: notes } = await supabase
     .from("notes")
@@ -57,7 +60,7 @@ export default async function DashboardPage() {
               <form action={signOut}>
                 <Button variant="outline" size="sm" className="gap-2">
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Log out</span>
+                  <span className="hidden sm:inline">{t.dashboard.logout}</span>
                 </Button>
               </form>
             </div>
@@ -74,7 +77,7 @@ export default async function DashboardPage() {
 
               <section>
                 <h2 className="text-lg font-semibold mb-4 text-muted-foreground flex items-center gap-2">
-                  Notes recents
+                  {t.dashboard.recentNotes}
                   <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
                     {notes?.length || 0}
                   </span>

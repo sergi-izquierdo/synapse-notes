@@ -6,6 +6,7 @@ import { Hash, Sparkles, TrendingUp } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { isAiAllowedForUser } from "@/lib/ai/guards";
+import { getServerT } from "@/lib/i18n-server";
 import { cn } from "@/lib/utils";
 
 // "Today's Brain" — server-rendered summary card at the top of the
@@ -129,6 +130,7 @@ export async function TodayBrainCard({ userId }: { userId: string }) {
     const data = await loadTodayBrain(userId);
     if (!data) return null;
 
+    const t = await getServerT();
     const max = Math.max(1, ...data.sparkline);
 
     return (
@@ -147,13 +149,17 @@ export async function TodayBrainCard({ userId }: { userId: string }) {
                         <Sparkles className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                        Today&apos;s Brain
+                        {t.todayBrain.title}
                     </h2>
                     <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                        last 7 days · {data.weekCount} notes
+                        {t.todayBrain.lastDays(data.weekCount)}
                     </span>
                 </div>
-                <Sparkline values={data.sparkline} max={max} />
+                <Sparkline
+                    values={data.sparkline}
+                    max={max}
+                    label={t.todayBrain.activityAria}
+                />
             </div>
 
             {/* Bullets */}
@@ -179,7 +185,7 @@ export async function TodayBrainCard({ userId }: { userId: string }) {
             ) : (
                 data.weekCount > 0 && (
                     <p className="mb-4 text-sm text-muted-foreground italic">
-                        {data.weekCount} notes this week. AI summary unavailable for this account.
+                        {t.todayBrain.aiUnavailable(data.weekCount)}
                     </p>
                 )
             )}
@@ -189,7 +195,7 @@ export async function TodayBrainCard({ userId }: { userId: string }) {
                 <div className="flex items-center gap-2 pt-3 border-t border-border/40">
                     <TrendingUp className="h-3 w-3 text-muted-foreground" />
                     <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                        top tags
+                        {t.todayBrain.topTags}
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                         {data.topTags.map((t) => (
@@ -211,7 +217,15 @@ export async function TodayBrainCard({ userId }: { userId: string }) {
     );
 }
 
-function Sparkline({ values, max }: { values: number[]; max: number }) {
+function Sparkline({
+    values,
+    max,
+    label,
+}: {
+    values: number[];
+    max: number;
+    label: string;
+}) {
     // 14 bars rendered as inline SVG so it sits cleanly in the header
     // row alongside the title. Heights scale to the max value in the
     // window so the visualisation always uses the available space.
@@ -225,7 +239,7 @@ function Sparkline({ values, max }: { values: number[]; max: number }) {
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
-            aria-label="Activity over the last 14 days"
+            aria-label={label}
             role="img"
             className="text-primary/80"
         >

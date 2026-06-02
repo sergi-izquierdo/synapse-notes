@@ -3,6 +3,7 @@ import { Inter_Tight, JetBrains_Mono, Literata, Young_Serif } from "next/font/go
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { LanguageProvider } from "@/components/language-provider";
+import { getLanguage } from "@/lib/i18n-server";
 import { ThemeProvider } from "next-themes";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/sonner";
@@ -47,13 +48,14 @@ export const metadata: Metadata = {
     description: "El teu segon cervell potenciat per IA",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const lang = await getLanguage();
     return (
-        <html lang="ca" suppressHydrationWarning>
+        <html lang={lang} suppressHydrationWarning>
             <body
                 className={cn(
                     "min-h-screen bg-background font-sans antialiased",
@@ -64,7 +66,7 @@ export default function RootLayout({
                 )}
             >
                 <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                    <LanguageProvider>
+                    <LanguageProvider initialLanguage={lang}>
                         {/* Respect OS-level prefers-reduced-motion. With
                             reducedMotion="user", Motion skips transform/
                             opacity/scale transitions for users who asked

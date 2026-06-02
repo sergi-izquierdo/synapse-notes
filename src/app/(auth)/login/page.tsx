@@ -4,6 +4,7 @@ import { signInWith } from "@/actions/auth";
 import { BrainCircuit, Github } from "lucide-react";
 import { BackgroundPaths } from "@/components/backgrounds/background-paths";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getServerT } from "@/lib/i18n-server";
 
 function GoogleIcon() {
   return (
@@ -23,7 +24,8 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const t = await getServerT();
   return (
     <div className="relative min-h-screen flex flex-col bg-background overflow-hidden">
       <BackgroundPaths />
@@ -54,29 +56,24 @@ export default function LoginPage() {
           {/* Hero pitch */}
           <div className="space-y-6 text-center lg:text-left">
             <h1 className="text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.1]">
-              Un segon cervell
+              {t.auth.heroLine1}
               <br />
-              <span className="text-primary">amb agents</span>
+              <span className="text-primary">{t.auth.heroLine2}</span>
               <br />
-              que el poden llegir.
+              {t.auth.heroLine3}
             </h1>
             <p className="text-muted-foreground leading-relaxed max-w-md mx-auto lg:mx-0">
-              Notes SaaS multi-tenant amb xat RAG, més un servidor MCP
-              que permet a agents d&apos;IA externs operar sobre la teva
-              base de coneixement sota OAuth 2.1.
+              {t.auth.heroSubtitle}
             </p>
             <ul className="text-xs text-muted-foreground space-y-1.5 font-mono max-w-md mx-auto lg:mx-0 text-left">
               <li>
-                <span className="text-primary">§</span> Notes a Postgres
-                amb pgvector + RLS multi-tenant
+                <span className="text-primary">§</span> {t.auth.feature1}
               </li>
               <li>
-                <span className="text-primary">§</span> Xat contextual
-                amb Claude Haiku 4.5
+                <span className="text-primary">§</span> {t.auth.feature2}
               </li>
               <li>
-                <span className="text-primary">§</span> Model Context
-                Protocol server amb OAuth 2.1 (en curs)
+                <span className="text-primary">§</span> {t.auth.feature3}
               </li>
             </ul>
           </div>
@@ -94,10 +91,10 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <h2 className="text-base font-semibold">
-                      Entra a la teva sessió
+                      {t.auth.cardTitle}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      continua amb el teu proveïdor
+                      {t.auth.cardSubtitle}
                     </p>
                   </div>
                 </div>
@@ -110,7 +107,7 @@ export default function LoginPage() {
                 >
                   <Button variant="outline" className="w-full" type="submit">
                     <GoogleIcon />
-                    Continuar amb Google
+                    {t.auth.google}
                   </Button>
                 </form>
 
@@ -122,7 +119,7 @@ export default function LoginPage() {
                 >
                   <Button variant="outline" className="w-full" type="submit">
                     <Github className="mr-2 h-4 w-4" aria-hidden />
-                    Continuar amb GitHub
+                    {t.auth.github}
                   </Button>
                 </form>
               </CardContent>
@@ -132,10 +129,7 @@ export default function LoginPage() {
       </main>
 
       <footer className="relative z-10 px-6 py-5 text-center text-xs text-muted-foreground">
-        <p className="font-mono">
-          §&nbsp;Treball de Fi de Grau · Sergi Izquierdo · URV Tarragona · Juny
-          2026
-        </p>
+        <p className="font-mono">{t.auth.footer}</p>
       </footer>
     </div>
   );

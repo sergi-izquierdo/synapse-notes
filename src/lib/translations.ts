@@ -23,6 +23,17 @@ export const translations = {
       login_desc: "Your second brain, powered by AI.",
       google: "Continue with Google",
       github: "Continue with GitHub",
+      heroLine1: "A second brain",
+      heroLine2: "with agents",
+      heroLine3: "that can read it.",
+      heroSubtitle:
+        "Multi-tenant SaaS notes with RAG chat, plus an MCP server that lets external AI agents operate on your knowledge base under OAuth 2.1.",
+      feature1: "Notes in Postgres with pgvector + multi-tenant RLS",
+      feature2: "Contextual chat with Claude Haiku 4.5",
+      feature3: "Model Context Protocol server with OAuth 2.1",
+      cardTitle: "Sign in to your session",
+      cardSubtitle: "continue with your provider",
+      footer: "§ Bachelor's Thesis · Sergi Izquierdo · URV Tarragona · June 2026",
     },
     chat: {
       title: "Synapse AI",
@@ -312,6 +323,14 @@ export const translations = {
       openNote: "Open note",
       neighbours: (n: number) => `Neighbours (${n})`,
     },
+    todayBrain: {
+      title: "Today's Brain",
+      lastDays: (n: number) => `last 7 days · ${n} ${n === 1 ? "note" : "notes"}`,
+      aiUnavailable: (n: number) =>
+        `${n} notes this week. AI summary unavailable for this account.`,
+      topTags: "top tags",
+      activityAria: "Activity over the last 14 days",
+    },
     errors: {
       title: "Something went wrong",
       dashboardMessage: "Something went wrong loading this page.",
@@ -338,6 +357,17 @@ export const translations = {
       login_desc: "Tu segundo cerebro, potenciado por IA.",
       google: "Continuar con Google",
       github: "Continuar con GitHub",
+      heroLine1: "Un segundo cerebro",
+      heroLine2: "con agentes",
+      heroLine3: "que lo pueden leer.",
+      heroSubtitle:
+        "Notas SaaS multi-tenant con chat RAG, más un servidor MCP que permite a agentes de IA externos operar sobre tu base de conocimiento bajo OAuth 2.1.",
+      feature1: "Notas en Postgres con pgvector + RLS multi-tenant",
+      feature2: "Chat contextual con Claude Haiku 4.5",
+      feature3: "Servidor Model Context Protocol con OAuth 2.1",
+      cardTitle: "Entra a tu sesión",
+      cardSubtitle: "continúa con tu proveedor",
+      footer: "§ Trabajo de Fin de Grado · Sergi Izquierdo · URV Tarragona · Junio 2026",
     },
     chat: {
       title: "Synapse AI",
@@ -628,6 +658,14 @@ export const translations = {
       openNote: "Abrir nota",
       neighbours: (n: number) => `Vecinos (${n})`,
     },
+    todayBrain: {
+      title: "Tu cerebro de hoy",
+      lastDays: (n: number) => `últimos 7 días · ${n} ${n === 1 ? "nota" : "notas"}`,
+      aiUnavailable: (n: number) =>
+        `${n} notas esta semana. Resumen IA no disponible para esta cuenta.`,
+      topTags: "etiquetas top",
+      activityAria: "Actividad de los últimos 14 días",
+    },
     errors: {
       title: "Se ha producido un error",
       dashboardMessage: "Algo ha ido mal al cargar esta página.",
@@ -654,6 +692,17 @@ export const translations = {
       login_desc: "El teu segon cervell, potenciat per IA.",
       google: "Continuar amb Google",
       github: "Continuar amb GitHub",
+      heroLine1: "Un segon cervell",
+      heroLine2: "amb agents",
+      heroLine3: "que el poden llegir.",
+      heroSubtitle:
+        "Notes SaaS multi-tenant amb xat RAG, més un servidor MCP que permet a agents d'IA externs operar sobre la teva base de coneixement sota OAuth 2.1.",
+      feature1: "Notes a Postgres amb pgvector + RLS multi-tenant",
+      feature2: "Xat contextual amb Claude Haiku 4.5",
+      feature3: "Servidor Model Context Protocol amb OAuth 2.1",
+      cardTitle: "Entra a la teva sessió",
+      cardSubtitle: "continua amb el teu proveïdor",
+      footer: "§ Treball de Fi de Grau · Sergi Izquierdo · URV Tarragona · Juny 2026",
     },
     chat: {
       title: "Synapse AI",
@@ -943,6 +992,14 @@ export const translations = {
       cluster: (n: number) => `clúster ${n}`,
       openNote: "Obrir nota",
       neighbours: (n: number) => `Veïns (${n})`,
+    },
+    todayBrain: {
+      title: "El teu cervell d'avui",
+      lastDays: (n: number) => `últims 7 dies · ${n} ${n === 1 ? "nota" : "notes"}`,
+      aiUnavailable: (n: number) =>
+        `${n} notes aquesta setmana. Resum d'IA no disponible per a aquest compte.`,
+      topTags: "etiquetes top",
+      activityAria: "Activitat dels últims 14 dies",
     },
     errors: {
       title: "S'ha produït un error",
