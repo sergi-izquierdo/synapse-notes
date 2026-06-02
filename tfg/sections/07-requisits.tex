@@ -25,9 +25,9 @@ Els actors del sistema són:
 \section{Requisits funcionals}
 \label{sec:rf}
 
-Els casos d'ús es divideixen en cinc blocs: funcionalitats de la
+Els requisits funcionals es divideixen en cinc blocs: funcionalitats de la
 plataforma base Part~A (RF-A1--RF-A4), operacions sobre eines MCP
-(RF01--RF08), operacions d'agents en segon pla (RF08--RF09), fluxos
+(RF01--RF07), operacions d'agents en segon pla (RF08--RF09), fluxos
 d'autorització OAuth~2.1 (RF10--RF12) i interfície d'activitat
 (RF13--RF15).
 
@@ -129,8 +129,6 @@ filtre de sortida definit al capítol de disseny de seguretat, i el
 retorna.
 \textbf{Postcondició:} resum neutralitzat en cas d'injecció detectada.
 
-\subsection{Agents en segon pla}
-
 \paragraph{RF07. Navegar el knowledge graph via MCP.}
 \textbf{Actor:} usuari via client MCP.
 \textbf{Precondició:} JWT vàlid, notes amb embeddings i/o backlinks.
@@ -140,6 +138,8 @@ i \texttt{graph\_shortest\_path(from, to)} retornen estructura
 generat per LLM. Tot opera sota RLS amb \texttt{auth.uid()}.
 \textbf{Postcondició:} el client rep arestes navegables; no es
 genera contingut nou.
+
+\subsection{Agents en segon pla}
 
 \paragraph{RF08. Proposar etiquetes automàtiques.}
 \textbf{Actor:} agent \texttt{auto-tag}.
@@ -278,7 +278,7 @@ reentrants.
 \section{Diagrama de casos d'ús}
 \label{sec:casos-us}
 
-La figura~\ref{fig:casos-us} sintetitza els 15 requisits funcionals com a casos d'ús agrupats per la dicotomia Part~A (plataforma base) / Part~B (MCP + agents). Els tres actors identificats són: l'usuari humà (autor de les notes), un agent MCP extern (Claude Code, Claude Desktop, o agents personalitzats), i el servidor d'autorització Supabase Auth.
+La figura~\ref{fig:casos-us} sintetitza els 19 requisits funcionals com a 15 casos d'ús (UC1--UC15) agrupats per la dicotomia Part~A (plataforma base) / Part~B (MCP + agents). Els tres actors identificats són: l'usuari humà (autor de les notes), un agent MCP extern (Claude Code, Claude Desktop, o agents personalitzats), i el servidor d'autorització Supabase Auth.
 
 \IfFileExists{figures/use-cases.pdf}{%
     \begin{figure}[htbp]
