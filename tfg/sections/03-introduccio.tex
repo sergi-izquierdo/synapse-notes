@@ -67,6 +67,59 @@ entregables i criteris de verificació:
     seguretat del servidor MCP.
 \end{itemize}
 
+\section{Coneixements previs}
+\label{sec:coneixements-previs}
+
+Aquesta secció resumeix els conceptes mínims per seguir la memòria sense
+ser especialista. El glossari de sigles complementa aquesta llista amb les
+abreviatures.
+
+\begin{description}[style=nextline, leftmargin=0pt]
+  \item[LLM (Large Language Model)] Model de llenguatge entrenat sobre
+    grans corpus de text que, donat un \emph{prompt}, genera text token a
+    token. Aquí s'usen Claude Haiku 4.5 (Anthropic) per a generació i
+    Gemini per a \emph{embeddings}.
+
+  \item[Embedding i cerca vectorial] Un \emph{embedding} és la
+    representació d'un text com a vector de nombres (aquí, 768 dimensions)
+    on la proximitat geomètrica aproxima la similitud semàntica. La
+    \emph{cerca vectorial} recupera els vectors més propers a la consulta;
+    s'implementa amb \texttt{pgvector} (extensió de PostgreSQL) i un índex
+    HNSW per fer-la sub-lineal.
+
+  \item[RAG (Retrieval-Augmented Generation)] Patró en què, abans de
+    respondre, el sistema \emph{recupera} els fragments més rellevants
+    d'un corpus privat (via cerca vectorial) i els injecta al prompt del
+    LLM com a context. Permet respondre sobre dades que el model no va
+    veure a l'entrenament, sense reentrenar-lo.
+
+  \item[Agent en segon pla] Procés automàtic que invoca un LLM (o consultes)
+    sense intervenció directa de l'usuari, disparat per una programació.
+    Aquí, \texttt{auto-tag} i \texttt{weekly-digest} s'executen com a rutes
+    de Vercel Cron.
+
+  \item[MCP (Model Context Protocol)] Estàndard obert d'Anthropic (2024)
+    que permet a clients LLM externs (Claude Desktop, Cursor, etc.)
+    descobrir i cridar \emph{eines}, \emph{recursos} i \emph{prompts}
+    exposats per una aplicació, sobre un protocol JSON-RPC. És la
+    contribució central de la Part~B.
+
+  \item[OAuth 2.1 i PKCE] Marc d'autorització delegada estàndard. PKCE
+    (\emph{Proof Key for Code Exchange}) protegeix l'intercanvi del codi
+    d'autorització en clients públics. El servidor MCP els usa perquè un
+    agent extern obtingui un token amb consentiment explícit de l'usuari.
+
+  \item[RLS (Row-Level Security)] Mecanisme de PostgreSQL que filtra les
+    files visibles a cada consulta segons polítiques per fila. És el
+    mecanisme d'aïllament multi-tenant: cada usuari només veu les seves
+    notes, fins i tot a través del servidor MCP.
+
+  \item[Vercel, Next.js i Supabase] \emph{Next.js} (React) és el framework
+    web; \emph{Vercel} la plataforma de desplegament (incloent Vercel
+    Cron per als agents); \emph{Supabase} aporta PostgreSQL, l'autenticació
+    OAuth i l'emmagatzematge dels \emph{embeddings}.
+\end{description}
+
 \section{Motivació}
 \label{sec:motivacio}
 

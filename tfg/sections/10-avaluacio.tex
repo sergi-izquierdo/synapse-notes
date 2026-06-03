@@ -454,6 +454,31 @@ Mesuraments puntuals sobre el corpus actual de la base de dades de l'autor (50 n
 
 A aquesta escala, HNSW vs FLAT és pràcticament equivalent: l'overhead d'HNSW és el cost de construcció de l'índex al moment d'inserció (logarítmic asymptotically). Es justifica HNSW per escala futura, no per l'escala actual.
 
+\subsection{Time-to-First-Token i throughput de generació}
+\label{sec:ttft}
+
+Per a les superfícies generatives interactives, la mètrica que determina la percepció de reactivitat no és la latència total sinó el \emph{Time-to-First-Token} (TTFT): el temps fins al primer token que l'usuari veu aparèixer. El xat RAG usa \texttt{streamText}, de manera que la resposta es pinta token a token mentre es genera. La taula~\ref{tab:ttft} recull mesuraments directes contra l'API d'Anthropic (nivell de model, Claude Haiku 4.5) amb un payload representatiu del xat (system prompt amb inventari de 50 títols + 5 notes completes, $\approx$~1.620 tokens d'entrada) i de l'agent \texttt{auto-tag} (\texttt{generateObject}, sortida estructurada curta). 12 execucions per superfície.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \caption{TTFT, latència i tokens per superfície generativa (Haiku 4.5, 12 execucions). Reproducció: \texttt{node --env-file=.env.local scripts/probe-ttft.mjs}.}
+    \label{tab:ttft}
+    \begin{tabular}{@{}lrr@{}}
+        \toprule
+        Mètrica & Xat RAG (\texttt{streamText}) & \texttt{auto-tag} (\texttt{generateObject}) \\
+        \midrule
+        TTFT p50 / p95 (ms) & 586 / 1.239 & n/a (no streaming) \\
+        Latència total p50 / p95 (ms) & 3.112 / 3.698 & 1.264 / 2.958 \\
+        Tokens d'entrada (mitjana) & 1.623 & 333 \\
+        Tokens de sortida (mitjana) & 233 & 23 \\
+        Throughput de sortida p50 (tok/s) & 99 & n/a \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Lectura}: el TTFT mitjà de $\approx$~0,6~s fa que el xat se senti reactiu encara que la resposta completa trigui $\approx$~3~s, perquè l'usuari comença a llegir mentre el model encara genera a $\approx$~99 tokens/s. L'agent \texttt{auto-tag} no es transmet (la sortida estructurada es valida sencera abans de persistir-la) i emet molt pocs tokens (23 de mitjana, només els identificadors d'etiqueta), però la seva latència és irrellevant per a l'usuari perquè s'executa en segon pla via cron. Aquests valors són a nivell de model; el round-trip de producció hi afegeix la latència de xarxa de la subsecció anterior (cerca $\approx$~25~ms p50) més l'egress Vercel$\rightarrow$Anthropic.
+
 \subsection{Limitació: sense load test formal}
 
 El plan original (Setmana 5) preveia un test de càrrega amb \texttt{k6} o \texttt{artillery} per a 100 tenants concurrents amb 30 minuts de pressió. Aquesta validació no s'ha executat per dues raons:
@@ -587,15 +612,15 @@ Aquesta secció contrasta els objectius del projecte (capítol~\ref{ch:objectius
         \toprule
         Obj & Resum & Mesura concreta & Estat \\
         \midrule
-        O1 & Plataforma base accessible (Part~A) & \texttt{synapse-notes.vercel.app} viu, 200 OK & ✅ \\
-        O2 & RAG funcional amb notes pròpies & Recall observat 100\% per a queries plausibles & ✅ \\
-        O3 & Auth multi-provider & Google + GitHub OAuth via Supabase & ✅ \\
-        O4 & Servidor MCP amb 8 eines & 8 tools + 2 resources + 1 prompt, JWT passthrough & ✅ \\
-        O5 & Anàlisi de seguretat Lethal Trifecta & Matriu eina-per-eina, 5 capes defensa & ✅ \\
-        O6 & Filtre LLM-as-judge sobre superfície Trifecta & D3 actiu en producció, 96{,}7\% detection rate & ✅ \\
-        O7 & Validació empírica del filtre amb red-team & Promptfoo 36 variants, 0 exfiltracions reals & ✅ \\
-        O8 & Agents en segon pla & auto-tag (F1 78{,}8\%) + weekly-digest; embedding-backfill a \S\ref{ch:valoracio} treball futur & ✅ \\
-        O9 & Knowledge graph com a primitiva exploratòria & \texttt{/graph} amb 2D/3D + 3 tipus arestes & ✅ \\
+        O1 & Plataforma base accessible (Part~A) & \texttt{synapse-notes.vercel.app} viu, 200 OK & $\checkmark$ \\
+        O2 & RAG funcional amb notes pròpies & Recall observat 100\% per a queries plausibles & $\checkmark$ \\
+        O3 & Auth multi-provider & Google + GitHub OAuth via Supabase & $\checkmark$ \\
+        O4 & Servidor MCP amb 8 eines & 8 tools + 2 resources + 1 prompt, JWT passthrough & $\checkmark$ \\
+        O5 & Anàlisi de seguretat Lethal Trifecta & Matriu eina-per-eina, 5 capes defensa & $\checkmark$ \\
+        O6 & Filtre LLM-as-judge sobre superfície Trifecta & D3 actiu en producció, 96{,}7\% detection rate & $\checkmark$ \\
+        O7 & Validació empírica del filtre amb red-team & Promptfoo 36 variants, 0 exfiltracions reals & $\checkmark$ \\
+        O8 & Agents en segon pla & auto-tag (F1 78{,}8\%) + weekly-digest; embedding-backfill a \S\ref{ch:valoracio} treball futur & $\checkmark$ \\
+        O9 & Knowledge graph com a primitiva exploratòria & \texttt{/graph} amb 2D/3D + 3 tipus arestes & $\checkmark$ \\
         \bottomrule
     \end{tabular}
 \end{table}
