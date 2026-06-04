@@ -2,14 +2,21 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptAuthCode, verifyPkceS256 } from "@/lib/mcp/oauth/crypto";
 import { getClient } from "@/lib/mcp/oauth/store";
+import { withCors, corsPreflight } from "@/lib/mcp/oauth/cors";
 
 // OAuth 2.1 Token Endpoint
 //
 // grant_type=authorization_code → decrypt code, verify PKCE, return Supabase tokens
 // grant_type=refresh_token      → call Supabase refreshSession, return new tokens
 
+export function OPTIONS() {
+  return corsPreflight();
+}
+
 function oauthError(error: string, description: string, status = 400) {
-  return NextResponse.json({ error, error_description: description }, { status });
+  return withCors(
+    NextResponse.json({ error, error_description: description }, { status }),
+  );
 }
 
 export async function POST(req: Request) {
@@ -70,12 +77,14 @@ async function handleAuthorizationCode(params: URLSearchParams, clientId: string
     return oauthError("invalid_grant", "PKCE verification failed");
   }
 
-  return NextResponse.json({
-    access_token: payload.accessToken,
-    token_type: "Bearer",
-    expires_in: 3600,
-    refresh_token: payload.refreshToken,
-  });
+  return withCors(
+    NextResponse.json({
+      access_token: payload.accessToken,
+      token_type: "Bearer",
+      expires_in: 3600,
+      refresh_token: payload.refreshToken,
+    }),
+  );
 }
 
 async function handleRefreshToken(params: URLSearchParams) {
@@ -99,10 +108,12 @@ async function handleRefreshToken(params: URLSearchParams) {
     return oauthError("invalid_grant", "Failed to refresh token. Re-authorize.");
   }
 
-  return NextResponse.json({
-    access_token: data.session.access_token,
-    token_type: "Bearer",
-    expires_in: 3600,
-    refresh_token: data.session.refresh_token,
-  });
+  return withCors(
+    NextResponse.json({
+      access_token: data.session.access_token,
+      token_type: "Bearer",
+      expires_in: 3600,
+      refresh_token: data.session.refresh_token,
+    }),
+  );
 }
